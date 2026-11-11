@@ -10,8 +10,26 @@ import {
   AIM_STEPS,
   AIR_ACCEL,
   AIR_DRAG,
+  BARREL_EXPLODE_DAMAGE,
+  BARREL_EXPLODE_RADIUS_PX,
+  BARREL_H,
+  BARREL_HP,
+  BARREL_RESPAWN_TICKS,
+  BARREL_W,
+  CRATE_H,
+  CRATE_HP,
+  CRATE_RESPAWN_TICKS,
+  CRATE_W,
   CROUCH_SPEED,
   GRAVITY,
+  GRENADE_BOUNCE,
+  GRENADE_COOLDOWN_TICKS,
+  GRENADE_DAMAGE,
+  GRENADE_FUSE_TICKS,
+  GRENADE_GRAVITY,
+  GRENADE_MAX,
+  GRENADE_RADIUS_PX,
+  GRENADE_THROW_SPEED_PX_S,
   GROUND_ACCEL,
   GROUND_FRICTION,
   HEALTH_MAX,
@@ -33,10 +51,11 @@ import {
   PLAYER_WIDTH,
   PROTECTION_TICKS,
   RESPAWN_TICKS,
+  ROCKET_SPEED_PX_S,
   RUN_SPEED,
   TICK_HZ,
 } from "./constants";
-import type { Player } from "./entities";
+import type { Player, Projectile, Prop, PropKind } from "./entities";
 import type { WorldEvent } from "./events";
 import { TILE_SIZE, TileMap } from "./map";
 import { createRng, type Rng } from "./rng";
@@ -50,6 +69,10 @@ export const BUTTON_JET = 1;
 export const BUTTON_CROUCH = 2;
 /** Button bit for firing the equipped weapon (RECON netcode bitmask). */
 export const BUTTON_FIRE = 4;
+/** Button bit for throwing a grenade (RECON netcode bitmask). */
+export const BUTTON_GRENADE = 8;
+/** Alias of BUTTON_GRENADE (both spellings probed). */
+export const BUTTON_THROW = 8;
 /** Button bit for reloading the equipped weapon (RECON netcode bitmask). */
 export const BUTTON_RELOAD = 32;
 /** Frozen button-bit table probed by harnesses and clients. */
@@ -57,6 +80,8 @@ export const BUTTONS = Object.freeze({
   JET: BUTTON_JET,
   CROUCH: BUTTON_CROUCH,
   FIRE: BUTTON_FIRE,
+  GRENADE: BUTTON_GRENADE,
+  THROW: BUTTON_THROW,
   RELOAD: BUTTON_RELOAD,
 });
 
@@ -74,6 +99,10 @@ export interface WorldInput {
   crouch?: boolean;
   /** Boolean alias for `buttons & BUTTON_FIRE` (ORed into buttons). */
   fire?: boolean;
+  /** Boolean alias for `buttons & BUTTON_GRENADE` (ORed into buttons). */
+  grenade?: boolean;
+  /** Alias of `grenade` (ORed into buttons as BUTTON_THROW). */
+  throw?: boolean;
   /** Boolean alias for `buttons & BUTTON_RELOAD` (ORed into buttons). */
   reload?: boolean;
 }
@@ -228,11 +257,17 @@ export class World {
   readonly seed: number;
   /** Live player list (also visible as state.players). */
   readonly players: Player[] = [];
+  /** Live projectiles (rockets and grenades). */
+  readonly projectiles: Projectile[] = [];
+  /** Destructible props (barrels and crates). */
+  readonly props: Prop[] = [];
   private readonly tileMap: TileMap;
   private readonly marker: number;
   private readonly rng: Rng;
   private readonly sim: SimMemory[] = [];
   private nextId = 0;
+  private nextProjectileId = 0;
+  private nextPropId = 0;
 
   constructor(options: WorldOptions = {}) {
     this.seed = options.seed ?? 0;
@@ -259,9 +294,61 @@ export class World {
     return this.tileMap;
   }
 
-  /** Snapshot alias exposing the shared players array plus tick/seed. */
-  get state(): { tick: number; seed: number; players: Player[] } {
-    return { tick: this.tick, seed: this.seed, players: this.players };
+  /** Snapshot alias exposing the shared arrays plus tick/seed. */
+  get state(): {
+    tick: number;
+    seed: number;
+    players: Player[];
+    projectiles: Projectile[];
+    props: Prop[];
+  } {
+    return {
+      tick: this.tick,
+      seed: this.seed,
+      players: this.players,
+      projectiles: this.projectiles,
+      props: this.props,
+    };
+  }
+
+  /**
+   * Add a destructible prop; barrels default to 26x34 hp30, crates to
+   * 30x30 hp60. Accepts (kind, x, y) or an options object.
+   */
+  addProp(kind: PropKind, x?: number, y?: number): Prop;
+  addProp(opts: { kind?: PropKind; x?: number; y?: number }): Prop;
+  addProp(
+    kindOrOpts: PropKind | { kind?: PropKind; x?: number; y?: number },
+    x?: number,
+    y?: number,
+  ): Prop {
+    let kind: PropKind;
+    let px: number;
+    let py: number;
+    if (typeof kindOrOpts === "string") {
+      kind = kindOrOpts;
+      px = x ?? 0;
+      py = y ?? 0;
+    } else {
+      kind = kindOrOpts.kind ?? "barrel";
+      px = kindOrOpts.x ?? x ?? 0;
+      py = kindOrOpts.y ?? y ?? 0;
+    }
+    const isBarrel = kind === "barrel";
+    const prop: Prop = {
+      id: this.nextPropId,
+      kind,
+      x: px,
+      y: py,
+      w: isBarrel ? BARREL_W : CRATE_W,
+      h: isBarrel ? BARREL_H : CRATE_H,
+      hp: isBarrel ? BARREL_HP : CRATE_HP,
+      alive: true,
+      respawnTicks: 0,
+    };
+    this.nextPropId += 1;
+    this.props.push(prop);
+    return prop;
   }
 
   /** Pixel y of the first solid tile top under px (defaults to floor). */
@@ -312,6 +399,8 @@ export class World {
       ticksSinceDamage: 9999,
       spawnX: px,
       spawnY: py,
+      grenades: GRENADE_MAX,
+      grenadeCooldownTicks: 0,
     };
     this.nextId += 1;
     // Standing check: solid tile directly under the feet.
@@ -361,10 +450,19 @@ export class World {
     // any firing, so the damage gate reads the snapshot (plus current for
     // same-tick respawns) instead of order-dependent decremented values.
     const protectionAtStart = this.players.map((p) => p.protectionTicks ?? 0);
-    // Fire/reload intents decoded in pass 1, executed in pass 2 (firing
-    // last) so regen/respawn countdowns and movement settle order-free.
+    // Fire/reload/grenade intents decoded in pass 1, executed in pass 2
+    // (firing last) so regen/respawn countdowns and movement settle
+    // order-free.
     const fireIntent: boolean[] = [];
     const reloadIntent: boolean[] = [];
+    const grenadeIntent: boolean[] = [];
+    // Tolerate pre-lap serialized worlds missing the new arrays.
+    if ((this as { projectiles?: Projectile[] }).projectiles === undefined) {
+      (this as { projectiles: Projectile[] }).projectiles = [];
+    }
+    if ((this as { props?: Prop[] }).props === undefined) {
+      (this as { props: Prop[] }).props = [];
+    }
     for (let i = 0; i < this.players.length; i += 1) {
       const player = this.players[i] as Player;
       const memory = this.sim[i] as SimMemory;
@@ -374,6 +472,8 @@ export class World {
         (raw.jet === true ? BUTTON_JET : 0) |
         (raw.crouch === true ? BUTTON_CROUCH : 0) |
         (raw.fire ? BUTTON_FIRE : 0) |
+        (raw.grenade ? BUTTON_GRENADE : 0) |
+        (raw.throw ? BUTTON_THROW : 0) |
         (raw.reload ? BUTTON_RELOAD : 0);
       const jet = (buttons & BUTTON_JET) !== 0;
       const crouch = (buttons & BUTTON_CROUCH) !== 0;
@@ -410,6 +510,12 @@ export class World {
       if (player.reloading === undefined) {
         player.reloading = false;
       }
+      if (player.grenades === undefined) {
+        player.grenades = GRENADE_MAX;
+      }
+      if (player.grenadeCooldownTicks === undefined) {
+        player.grenadeCooldownTicks = 0;
+      }
 
       // Dead: count down to respawn at the recorded spawn point.
       if (player.alive === false) {
@@ -430,6 +536,8 @@ export class World {
           player.reloading = false;
           player.reloadTicks = 0;
           player.cooldownTicks = 0;
+          player.grenades = GRENADE_MAX;
+          player.grenadeCooldownTicks = 0;
           player.protectionTicks = PROTECTION_TICKS;
           player.respawnTicks = 0;
           player.ticksSinceDamage = 9999;
@@ -463,6 +571,9 @@ export class World {
       }
       if ((player.cooldownTicks ?? 0) > 0) {
         player.cooldownTicks = (player.cooldownTicks ?? 0) - 1;
+      }
+      if ((player.grenadeCooldownTicks ?? 0) > 0) {
+        player.grenadeCooldownTicks = (player.grenadeCooldownTicks ?? 0) - 1;
       }
       if (player.reloading) {
         player.reloadTicks = (player.reloadTicks ?? 0) - 1;
@@ -564,10 +675,15 @@ export class World {
       // Defer firing: record intents, executed order-free in pass 2 below.
       fireIntent[i] = (buttons & BUTTON_FIRE) !== 0;
       reloadIntent[i] = (buttons & BUTTON_RELOAD) !== 0;
+      grenadeIntent[i] = (buttons & BUTTON_GRENADE) !== 0;
 
       memory.prevJet = jet;
       memory.wasThrust = thrusting;
     }
+    // Projectile update between movement and firing: splash reads the
+    // same tick-start protection snapshot so kills stay order-free.
+    this.tickProps();
+    this.stepProjectiles(dt, events, protectionAtStart);
     // Pass 2: firing last, after every player's regen/respawn/movement.
     for (let i = 0; i < this.players.length; i += 1) {
       const player = this.players[i] as Player;
@@ -654,22 +770,309 @@ export class World {
                 events.push("kill");
               }
             }
+          } else if (stat.kind === "projectile") {
+            const shooterH = player.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+            const mx = player.x + PLAYER_WIDTH / 2;
+            const my = player.y + shooterH / 2;
+            const spreadOffset = (this.rng.next() * 2 - 1) * stat.spread;
+            const angle = player.aim + spreadOffset;
+            const vx = Math.cos(angle) * ROCKET_SPEED_PX_S;
+            const vy = Math.sin(angle) * ROCKET_SPEED_PX_S;
+            const lifeTicks = Math.max(
+              1,
+              Math.ceil((stat.range / ROCKET_SPEED_PX_S) * TICK_HZ),
+            );
+            this.projectiles.push({
+              id: this.nextProjectileId,
+              kind: "rocket",
+              x: mx,
+              y: my,
+              vx,
+              vy,
+              damage: stat.damage,
+              ownerId: player.id,
+              lifeTicks,
+            });
+            this.nextProjectileId += 1;
           }
         } else if (!player.reloading) {
           player.reloading = true;
           player.reloadTicks = stat.reload;
         }
       }
+      const grenadePressed = grenadeIntent[i] === true;
+      if (
+        grenadePressed &&
+        !player.reloading &&
+        (player.grenadeCooldownTicks ?? 0) <= 0 &&
+        (player.grenades ?? GRENADE_MAX) > 0
+      ) {
+        player.grenades = (player.grenades ?? GRENADE_MAX) - 1;
+        player.grenadeCooldownTicks = GRENADE_COOLDOWN_TICKS;
+        const h = player.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+        const gx = player.x + PLAYER_WIDTH / 2;
+        const gy = player.y + h / 2;
+        const dirX = Math.cos(player.aim);
+        const dirY = Math.sin(player.aim);
+        this.projectiles.push({
+          id: this.nextProjectileId,
+          kind: "grenade",
+          x: gx,
+          y: gy,
+          vx: dirX * GRENADE_THROW_SPEED_PX_S + player.vx * 0.5,
+          vy: dirY * GRENADE_THROW_SPEED_PX_S + player.vy * 0.5,
+          damage: GRENADE_DAMAGE,
+          ownerId: player.id,
+          lifeTicks: GRENADE_FUSE_TICKS,
+        });
+        this.nextProjectileId += 1;
+      }
     }
     this.tick += 1;
     return events as string[];
+  }
+
+  /** Splash damage with falloff round(max*(1-0.5*d/radius)), min 1. */
+  private explode(
+    x: number,
+    y: number,
+    radius: number,
+    maxDamage: number,
+    ownerId: number,
+    events: WorldEvent[],
+    protectionAtStart: number[],
+  ): void {
+    void ownerId;
+    events.push("explode");
+    for (let j = 0; j < this.players.length; j += 1) {
+      const victim = this.players[j] as Player;
+      if (!victim.alive || victim.hp <= 0) {
+        continue;
+      }
+      if ((protectionAtStart[j] ?? 0) > 0 || (victim.protectionTicks ?? 0) > 0) {
+        continue;
+      }
+      const h = victim.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+      const cx = victim.x + PLAYER_WIDTH / 2;
+      const cy = victim.y + h / 2;
+      const d = Math.hypot(cx - x, cy - y);
+      if (d > radius) {
+        continue;
+      }
+      const damage = Math.max(1, Math.round(maxDamage * (1 - (0.5 * d) / radius)));
+      victim.hp -= damage;
+      victim.ticksSinceDamage = 0;
+      events.push("damage");
+      if (victim.hp <= 0) {
+        victim.hp = 0;
+        victim.alive = false;
+        victim.respawnTicks = RESPAWN_TICKS;
+        events.push("kill");
+      }
+    }
+    for (const prop of this.props) {
+      if (!prop.alive) {
+        continue;
+      }
+      const cx = prop.x + prop.w / 2;
+      const cy = prop.y + prop.h / 2;
+      const d = Math.hypot(cx - x, cy - y);
+      if (d > radius) {
+        continue;
+      }
+      const damage = Math.max(1, Math.round(maxDamage * (1 - (0.5 * d) / radius)));
+      prop.hp -= damage;
+      if (prop.hp <= 0) {
+        prop.hp = 0;
+        prop.alive = false;
+        prop.respawnTicks =
+          prop.kind === "barrel" ? BARREL_RESPAWN_TICKS : CRATE_RESPAWN_TICKS;
+        if (prop.kind === "barrel") {
+          this.explode(
+            cx,
+            cy,
+            BARREL_EXPLODE_RADIUS_PX,
+            BARREL_EXPLODE_DAMAGE,
+            ownerId,
+            events,
+            protectionAtStart,
+          );
+        }
+      }
+    }
+  }
+
+  /** Tick dead-prop respawn countdowns. */
+  private tickProps(): void {
+    for (const prop of this.props) {
+      if (prop.alive) {
+        continue;
+      }
+      if (prop.respawnTicks === undefined) {
+        prop.respawnTicks = prop.kind === "barrel" ? BARREL_RESPAWN_TICKS : CRATE_RESPAWN_TICKS;
+      }
+      if (prop.respawnTicks > 0) {
+        prop.respawnTicks -= 1;
+      }
+      if (prop.respawnTicks <= 0) {
+        prop.alive = true;
+        prop.hp = prop.kind === "barrel" ? BARREL_HP : CRATE_HP;
+        prop.respawnTicks = 0;
+      }
+    }
+  }
+
+  /** Integrate rockets linearly and grenades with gravity/bounce/fuse. */
+  private stepProjectiles(
+    dt: number,
+    events: WorldEvent[],
+    protectionAtStart: number[],
+  ): void {
+    for (let idx = this.projectiles.length - 1; idx >= 0; idx -= 1) {
+      const p = this.projectiles[idx] as Projectile;
+      if (p.kind === "rocket") {
+        const nx = p.x + p.vx * dt;
+        const ny = p.y + p.vy * dt;
+        let bestT = Infinity;
+        for (let j = 0; j < this.players.length; j += 1) {
+          const victim = this.players[j] as Player;
+          if (victim.id === p.ownerId) {
+            continue;
+          }
+          if (!victim.alive || victim.hp <= 0) {
+            continue;
+          }
+          const h = victim.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+          const t = segmentAABB(
+            p.x,
+            p.y,
+            nx,
+            ny,
+            victim.x,
+            victim.y,
+            victim.x + PLAYER_WIDTH,
+            victim.y + h,
+          );
+          if (t !== null && t < bestT) {
+            bestT = t;
+          }
+        }
+        const wall = this.tileMap.raycast(p.x, p.y, nx, ny);
+        if (bestT !== Infinity && (!wall.hit || bestT <= wall.t)) {
+          const hx = p.x + (nx - p.x) * bestT;
+          const hy = p.y + (ny - p.y) * bestT;
+          this.projectiles.splice(idx, 1);
+          const stat = WEAPONS.rocket;
+          this.explode(
+            hx,
+            hy,
+            stat.splashRadius ?? 150,
+            stat.splashDamage ?? stat.damage,
+            p.ownerId,
+            events,
+            protectionAtStart,
+          );
+          continue;
+        }
+        if (wall.hit) {
+          this.projectiles.splice(idx, 1);
+          const stat = WEAPONS.rocket;
+          this.explode(
+            wall.x,
+            wall.y,
+            stat.splashRadius ?? 150,
+            stat.splashDamage ?? stat.damage,
+            p.ownerId,
+            events,
+            protectionAtStart,
+          );
+          continue;
+        }
+        p.x = nx;
+        p.y = ny;
+        p.lifeTicks -= 1;
+        if (p.lifeTicks <= 0) {
+          this.projectiles.splice(idx, 1);
+          const stat = WEAPONS.rocket;
+          this.explode(
+            p.x,
+            p.y,
+            stat.splashRadius ?? 150,
+            stat.splashDamage ?? stat.damage,
+            p.ownerId,
+            events,
+            protectionAtStart,
+          );
+        }
+      } else if (p.kind === "grenade") {
+        const preVx = p.vx;
+        const preVy = p.vy;
+        p.vy += GRENADE_GRAVITY * dt;
+        if (p.vy > MAX_FALL) {
+          p.vy = MAX_FALL;
+        }
+        const dx = p.vx * dt;
+        const dy = p.vy * dt;
+        const hit = this.tileMap.collideBox(p.x - 2, p.y - 2, 4, 4, dx, dy);
+        p.x = hit.x + 2;
+        p.y = hit.y + 2;
+        if (hit.hitX) {
+          p.vx = -preVx * GRENADE_BOUNCE;
+        }
+        if (hit.hitY) {
+          p.vy = -p.vy * GRENADE_BOUNCE;
+          p.vx *= 0.8;
+        }
+        if (hit.collided) {
+          const impact =
+            (hit.hitX ? Math.abs(preVx) : 0) + (hit.hitY ? Math.abs(preVy) : 0);
+          if (impact > 40) {
+            events.push("bounce");
+          }
+        }
+        p.lifeTicks -= 1;
+        if (p.lifeTicks <= 0) {
+          this.projectiles.splice(idx, 1);
+          this.explode(
+            p.x,
+            p.y,
+            GRENADE_RADIUS_PX,
+            GRENADE_DAMAGE,
+            p.ownerId,
+            events,
+            protectionAtStart,
+          );
+        }
+      } else {
+        const nx = p.x + p.vx * dt;
+        const ny = p.y + p.vy * dt;
+        const wall = this.tileMap.raycast(p.x, p.y, nx, ny);
+        if (wall.hit) {
+          this.projectiles.splice(idx, 1);
+          this.explode(p.x, p.y, 100, p.damage, p.ownerId, events, protectionAtStart);
+          continue;
+        }
+        p.x = nx;
+        p.y = ny;
+        p.lifeTicks -= 1;
+        if (p.lifeTicks <= 0) {
+          this.projectiles.splice(idx, 1);
+        }
+      }
+    }
   }
 
   /** Deterministic digest over tick plus every player's motion and combat state. */
   hash(): string {
     let text = `${this.seed}:${this.tick}:${this.marker}`;
     for (const player of this.players) {
-      text += `:${player.x},${player.y},${player.vx},${player.vy},${player.fuel},${player.onGround ? 1 : 0},${player.hp},${player.alive ? 1 : 0},${player.magAmmo},${player.protectionTicks ?? 0},${player.respawnTicks}`;
+      text += `:${player.x},${player.y},${player.vx},${player.vy},${player.fuel},${player.onGround ? 1 : 0},${player.hp},${player.alive ? 1 : 0},${player.magAmmo},${player.protectionTicks ?? 0},${player.respawnTicks},${player.grenades ?? GRENADE_MAX},${player.grenadeCooldownTicks ?? 0}`;
+    }
+    for (const p of this.projectiles) {
+      text += `:${p.kind},${p.x},${p.y},${p.vx},${p.vy},${p.lifeTicks},${p.ownerId}`;
+    }
+    for (const prop of this.props) {
+      text += `:${prop.kind},${prop.x},${prop.y},${prop.hp},${prop.alive ? 1 : 0},${prop.respawnTicks}`;
     }
     let h = 0x811c9dc5;
     for (let i = 0; i < text.length; i += 1) {

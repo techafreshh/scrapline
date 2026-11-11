@@ -7,6 +7,14 @@ declare global {
   interface Window {
     __scraplineTick: number;
     __scraplineInput: InputMirror;
+    __scraplineDebug: {
+      entitiesDrawn: number;
+      tilesDrawn: number;
+      cameraX: number;
+      cameraY: number;
+      fps: number;
+      mode: string;
+    };
   }
 }
 

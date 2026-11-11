@@ -1,7 +1,9 @@
 // Client view-model and renderer: pure frame description plus an async
 // renderer that prefers the locally bundled PixiJS v8 and falls back to a
 // 2D canvas backend drawing the same ops (headless browsers may lack
-// WebGL). No external image assets — vector shapes only.
+// WebGL). No external image assets — vector shapes only. All paint goes
+// through the follow-camera projection; the renderer owns fps metering,
+// capped event flashes, and the window.__scraplineDebug mirror.
 
 import {
   PLAYER_CROUCH_HEIGHT,
@@ -15,15 +17,36 @@ import type {
   Projectile,
   Prop,
 } from "../../../core/src/entities";
+import {
+  createCamera,
+  projectCamera,
+  visibleTileRange,
+  type Camera,
+} from "./camera";
+
+export { CAMERA_ZOOM } from "./camera";
 
 /** Default arena tiles (mirrors World's defaultRows: 40 wide, 20 tall). */
 const DEFAULT_ARENA_TILES_W = 40;
 const DEFAULT_ARENA_TILES_H = 20;
+/** Event-flash lifetime in draws. */
+const FLASH_TTL = 10;
+/** Cap on live event flashes (oldest dropped first). */
+const MAX_FLASHES = 24;
+/** FPS exponential-moving-average weight per draw. */
+const FPS_ALPHA = 0.1;
 
 /** Minimal arena shape (TileMap compatible). */
 export interface MapLike {
   readonly widthPixels: number;
   readonly heightPixels: number;
+}
+
+/** Arena shape with integer tile queries (TileMap compatible). */
+export interface TileMapLike extends MapLike {
+  readonly widthTiles: number;
+  readonly heightTiles: number;
+  isSolidTile(tx: number, ty: number): boolean;
 }
 
 /** Minimal world-state shape (World.state compatible). */
@@ -44,6 +67,7 @@ export interface FramePlayer {
   h: number;
   aim: number;
   alive: boolean;
+  onGround: boolean;
 }
 
 /** Projectile dot for one frame. */
@@ -136,6 +160,7 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
       h: p.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT,
       aim: p.aim,
       alive: p.alive,
+      onGround: p.onGround,
     })),
     projectiles: state.projectiles.map((p) => ({
       x: p.x,
@@ -163,10 +188,80 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
 
 /** Renderer handle returned by createRenderer. */
 export interface Renderer {
-  /** Draw one world state (map optional, defaults like describeFrame). */
-  draw(state: StateLike, map?: MapLike | null): void;
+  /**
+   * Draw one world state through the camera (map optional, defaults
+   * like describeFrame; camera defaults to arena-centered; events
+   * feed capped fx flashes).
+   */
+  draw(
+    state: StateLike,
+    map?: MapLike | TileMapLike | null,
+    camera?: Camera | null,
+    events?: string[],
+  ): void;
   /** Which backend survived init. */
   mode: "pixi" | "canvas2d";
+}
+
+/** One capped transient fx flash in world coords. */
+interface Flash {
+  x: number;
+  y: number;
+  kind: "explode" | "bounce" | "shot";
+  ttl: number;
+}
+
+/** Solid tile cell to paint. */
+interface TileCell {
+  tx: number;
+  ty: number;
+}
+
+/** Shared layer counts so Pixi and canvas2d report identically. */
+interface LayerCounts {
+  tiles: TileCell[];
+  tilesDrawn: number;
+  entitiesDrawn: number;
+}
+
+/**
+ * Cull solid tiles to the camera view and count drawable layers.
+ * Without a tile map (pre-match splash), the default arena's bottom
+ * two rows read solid, mirroring World's defaultRows.
+ */
+function collectLayers(
+  frame: Frame,
+  map: MapLike | TileMapLike | null | undefined,
+  cam: Camera,
+  canvasWidth: number,
+  canvasHeight: number,
+): LayerCounts {
+  const tileMap =
+    map !== undefined &&
+    map !== null &&
+    typeof (map as TileMapLike).isSolidTile === "function"
+      ? (map as TileMapLike)
+      : null;
+  const range = visibleTileRange(
+    cam,
+    canvasWidth,
+    canvasHeight,
+    frame.arena.width,
+    frame.arena.height,
+  );
+  const fallbackSolidFrom =
+    Math.ceil(frame.arena.height / TILE_SIZE) - 2;
+  const tiles: TileCell[] = [];
+  for (let ty = range.y0; ty <= range.y1; ty += 1) {
+    for (let tx = range.x0; tx <= range.x1; tx += 1) {
+      const solid =
+        tileMap !== null ? tileMap.isSolidTile(tx, ty) : ty >= fallbackSolidFrom;
+      if (solid) {
+        tiles.push({ tx, ty });
+      }
+    }
+  }
+  return { tiles, tilesDrawn: tiles.length, entitiesDrawn: frame.players.length };
 }
 
 function playerColor(index: number, alive: boolean): number {
@@ -176,25 +271,73 @@ function playerColor(index: number, alive: boolean): number {
   return index === 0 ? 0x7df9ff : 0xfb923c;
 }
 
+function tileColor(tx: number, ty: number): number {
+  return (tx + ty) % 2 === 0 ? 0x16213b : 0x101a30;
+}
+
+function tileCss(tx: number, ty: number): string {
+  return (tx + ty) % 2 === 0 ? "#16213b" : "#101a30";
+}
+
+function flashColor(kind: Flash["kind"]): number {
+  if (kind === "explode") {
+    return 0xf97316;
+  }
+  if (kind === "bounce") {
+    return 0x22d3ee;
+  }
+  return 0xfde047;
+}
+
+/** Fx radius by kind and age: muzzle dots stay small, blasts grow. */
+function flashRadius(kind: Flash["kind"], ttl: number): number {
+  const age = FLASH_TTL - ttl;
+  if (kind === "shot") {
+    return 2 + age;
+  }
+  if (kind === "bounce") {
+    return 3 + age * 2;
+  }
+  return 4 + age * 3;
+}
+
+function flashCss(kind: Flash["kind"]): string {
+  if (kind === "explode") {
+    return "#f97316";
+  }
+  if (kind === "bounce") {
+    return "#22d3ee";
+  }
+  return "#fde047";
+}
+
 function paintFramePixi(
   graphics: { clear(): unknown; rect(x: number, y: number, w: number, h: number): unknown; fill(color: number): unknown; circle(x: number, y: number, r: number): unknown },
   frame: Frame,
+  cam: Camera,
+  layers: LayerCounts,
+  flashes: Flash[],
   canvasWidth: number,
   canvasHeight: number,
 ): void {
-  const t = viewTransform(canvasWidth, canvasHeight, frame.arena.width, frame.arena.height);
-  const px = (x: number): number => x * t.scale + t.offsetX;
-  const py = (y: number): number => y * t.scale + t.offsetY;
+  const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
+  const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
+  const tileSize = TILE_SIZE * cam.scale;
   graphics.clear();
   graphics.rect(0, 0, canvasWidth, canvasHeight);
   graphics.fill(0x05070f);
-  graphics.rect(px(0), py(0), frame.arena.width * t.scale, frame.arena.height * t.scale);
+  const arena = projectCamera(cam, canvasWidth, canvasHeight, 0, 0);
+  graphics.rect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
   graphics.fill(0x0b1020);
+  for (const cell of layers.tiles) {
+    graphics.rect(px(cell.tx * TILE_SIZE), py(cell.ty * TILE_SIZE), tileSize + 1, tileSize + 1);
+    graphics.fill(tileColor(cell.tx, cell.ty));
+  }
   for (const prop of frame.props) {
     if (!prop.alive) {
       continue;
     }
-    graphics.rect(px(prop.x), py(prop.y), prop.w * t.scale, prop.h * t.scale);
+    graphics.rect(px(prop.x), py(prop.y), prop.w * cam.scale, prop.h * cam.scale);
     graphics.fill(prop.kind === "barrel" ? 0xb45309 : 0x92400e);
   }
   for (const pickup of frame.pickups) {
@@ -207,40 +350,57 @@ function paintFramePixi(
     graphics.fill(color);
   }
   for (const proj of frame.projectiles) {
-    graphics.circle(px(proj.x), py(proj.y), Math.max(2, 3 * t.scale));
+    graphics.circle(px(proj.x), py(proj.y), Math.max(2, 2 * cam.scale));
     graphics.fill(proj.kind === "grenade" ? 0xa3e635 : 0xf97316);
   }
   for (const p of frame.players) {
-    graphics.rect(px(p.x), py(p.y), p.w * t.scale, p.h * t.scale);
+    graphics.rect(px(p.x), py(p.y), p.w * cam.scale, p.h * cam.scale);
     graphics.fill(playerColor(p.index, p.alive));
     if (p.alive) {
       const cx = px(p.x + p.w / 2);
       const cy = py(p.y + p.h / 2);
-      graphics.circle(cx + Math.cos(p.aim) * 14, cy + Math.sin(p.aim) * 14, 2);
+      const edge = (p.w / 2 + 6) * cam.scale;
+      graphics.circle(cx + Math.cos(p.aim) * edge, cy + Math.sin(p.aim) * edge, 2);
       graphics.fill(0xf8fafc);
+      if (!p.onGround) {
+        graphics.rect(cx - 3, py(p.y + p.h) + 2, 6, 8);
+        graphics.fill(0xfb923c);
+      }
     }
+  }
+  for (const flash of flashes) {
+    graphics.circle(px(flash.x), py(flash.y), flashRadius(flash.kind, flash.ttl));
+    graphics.fill(flashColor(flash.kind));
   }
 }
 
 function paintFrame2D(
   ctx: CanvasRenderingContext2D,
   frame: Frame,
+  cam: Camera,
+  layers: LayerCounts,
+  flashes: Flash[],
   canvasWidth: number,
   canvasHeight: number,
 ): void {
-  const t = viewTransform(canvasWidth, canvasHeight, frame.arena.width, frame.arena.height);
-  const px = (x: number): number => x * t.scale + t.offsetX;
-  const py = (y: number): number => y * t.scale + t.offsetY;
+  const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
+  const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
+  const tileSize = TILE_SIZE * cam.scale;
   ctx.fillStyle = "#05070f";
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  const arena = projectCamera(cam, canvasWidth, canvasHeight, 0, 0);
   ctx.fillStyle = "#0b1020";
-  ctx.fillRect(px(0), py(0), frame.arena.width * t.scale, frame.arena.height * t.scale);
+  ctx.fillRect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
+  for (const cell of layers.tiles) {
+    ctx.fillStyle = tileCss(cell.tx, cell.ty);
+    ctx.fillRect(px(cell.tx * TILE_SIZE), py(cell.ty * TILE_SIZE), tileSize + 1, tileSize + 1);
+  }
   for (const prop of frame.props) {
     if (!prop.alive) {
       continue;
     }
     ctx.fillStyle = prop.kind === "barrel" ? "#b45309" : "#92400e";
-    ctx.fillRect(px(prop.x), py(prop.y), prop.w * t.scale, prop.h * t.scale);
+    ctx.fillRect(px(prop.x), py(prop.y), prop.w * cam.scale, prop.h * cam.scale);
   }
   for (const pickup of frame.pickups) {
     if (!pickup.active) {
@@ -253,20 +413,67 @@ function paintFrame2D(
   for (const proj of frame.projectiles) {
     ctx.fillStyle = proj.kind === "grenade" ? "#a3e635" : "#f97316";
     ctx.beginPath();
-    ctx.arc(px(proj.x), py(proj.y), Math.max(2, 3 * t.scale), 0, Math.PI * 2);
+    ctx.arc(px(proj.x), py(proj.y), Math.max(2, 2 * cam.scale), 0, Math.PI * 2);
     ctx.fill();
   }
   for (const p of frame.players) {
     ctx.fillStyle =
       !p.alive ? "#475569" : p.index === 0 ? "#7df9ff" : "#fb923c";
-    ctx.fillRect(px(p.x), py(p.y), p.w * t.scale, p.h * t.scale);
+    ctx.fillRect(px(p.x), py(p.y), p.w * cam.scale, p.h * cam.scale);
     if (p.alive) {
       const cx = px(p.x + p.w / 2);
       const cy = py(p.y + p.h / 2);
+      const edge = (p.w / 2 + 6) * cam.scale;
       ctx.fillStyle = "#f8fafc";
       ctx.beginPath();
-      ctx.arc(cx + Math.cos(p.aim) * 14, cy + Math.sin(p.aim) * 14, 2, 0, Math.PI * 2);
+      ctx.arc(cx + Math.cos(p.aim) * edge, cy + Math.sin(p.aim) * edge, 2, 0, Math.PI * 2);
       ctx.fill();
+      if (!p.onGround) {
+        ctx.fillStyle = "#fb923c";
+        ctx.fillRect(cx - 3, py(p.y + p.h) + 2, 6, 8);
+      }
+    }
+  }
+  for (const flash of flashes) {
+    const radius = flashRadius(flash.kind, flash.ttl);
+    ctx.fillStyle = flashCss(flash.kind);
+    ctx.beginPath();
+    ctx.arc(px(flash.x), py(flash.y), radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/** Feed step events into capped transient flashes anchored near the action. */
+function pushFlashes(flashes: Flash[], frame: Frame, events: string[]): void {
+  if (events.length === 0) {
+    return;
+  }
+  const local = frame.players[0];
+  const anchorX =
+    local !== undefined
+      ? local.x + local.w / 2
+      : frame.arena.width / 2;
+  const anchorY =
+    local !== undefined
+      ? local.y + local.h / 2
+      : frame.arena.height / 2;
+  for (const event of events) {
+    if (event !== "explode" && event !== "bounce" && event !== "shot") {
+      continue;
+    }
+    if (event === "shot" && local !== undefined && local.alive) {
+      const edge = local.w / 2 + 4;
+      flashes.push({
+        x: local.x + local.w / 2 + Math.cos(local.aim) * edge,
+        y: local.y + local.h / 2 + Math.sin(local.aim) * edge,
+        kind: "shot",
+        ttl: FLASH_TTL,
+      });
+    } else {
+      flashes.push({ x: anchorX, y: anchorY, kind: event, ttl: FLASH_TTL });
+    }
+    while (flashes.length > MAX_FLASHES) {
+      flashes.shift();
     }
   }
 }
@@ -277,6 +484,49 @@ function paintFrame2D(
  * browsers) falls back to the 2D canvas backend drawing the same ops.
  */
 export async function createRenderer(canvas: HTMLCanvasElement): Promise<Renderer> {
+  let lastNow = 0;
+  let fpsEma = 60;
+  let activeMode: "pixi" | "canvas2d" = "canvas2d";
+  const flashes: Flash[] = [];
+
+  function trackDraw(
+    state: StateLike,
+    map: MapLike | TileMapLike | null | undefined,
+    camera: Camera | null | undefined,
+    events: string[] | undefined,
+  ): { frame: Frame; cam: Camera; layers: LayerCounts } {
+    const frame = describeFrame(state, map ?? null);
+    const cam = camera ?? createCamera(frame.arena.width, frame.arena.height);
+    const now = performance.now();
+    if (lastNow > 0) {
+      const dt = (now - lastNow) / 1000;
+      if (dt > 0) {
+        fpsEma += (1 / dt - fpsEma) * FPS_ALPHA;
+      }
+    }
+    lastNow = now;
+    pushFlashes(flashes, frame, events ?? []);
+    for (let i = flashes.length - 1; i >= 0; i -= 1) {
+      const flash = flashes[i] as Flash;
+      flash.ttl -= 1;
+      if (flash.ttl <= 0) {
+        flashes.splice(i, 1);
+      }
+    }
+    const layers = collectLayers(frame, map ?? null, cam, canvas.width, canvas.height);
+    if (typeof window !== "undefined") {
+      window.__scraplineDebug = {
+        entitiesDrawn: layers.entitiesDrawn,
+        tilesDrawn: layers.tilesDrawn,
+        cameraX: cam.x,
+        cameraY: cam.y,
+        fps: Math.round(fpsEma * 10) / 10,
+        mode: activeMode,
+      };
+    }
+    return { frame, cam, layers };
+  }
+
   try {
     const mod = await import("pixi.js");
     const app = new mod.Application();
@@ -288,10 +538,25 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     });
     const graphics = new mod.Graphics();
     app.stage.addChild(graphics);
+    activeMode = "pixi";
     return {
       mode: "pixi",
-      draw(state: StateLike, map?: MapLike | null): void {
-        paintFramePixi(graphics, describeFrame(state, map), canvas.width, canvas.height);
+      draw(
+        state: StateLike,
+        map?: MapLike | TileMapLike | null,
+        camera?: Camera | null,
+        events?: string[],
+      ): void {
+        const { frame, cam, layers } = trackDraw(state, map, camera, events);
+        paintFramePixi(
+          graphics,
+          frame,
+          cam,
+          layers,
+          flashes.slice(),
+          canvas.width,
+          canvas.height,
+        );
       },
     };
   } catch {
@@ -299,10 +564,17 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     if (ctx === null) {
       throw new Error("scrapline: no 2d canvas context available");
     }
+    activeMode = "canvas2d";
     return {
       mode: "canvas2d",
-      draw(state: StateLike, map?: MapLike | null): void {
-        paintFrame2D(ctx, describeFrame(state, map), canvas.width, canvas.height);
+      draw(
+        state: StateLike,
+        map?: MapLike | TileMapLike | null,
+        camera?: Camera | null,
+        events?: string[],
+      ): void {
+        const { frame, cam, layers } = trackDraw(state, map, camera, events);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), canvas.width, canvas.height);
       },
     };
   }

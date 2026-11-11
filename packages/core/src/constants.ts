@@ -68,6 +68,14 @@ export const CRATE_HP = 60;
 export const CRATE_W = 30;
 export const CRATE_H = 30;
 export const CRATE_RESPAWN_TICKS = 1500;
+// Pickup tuning (issue #9): weapon/health/grenade pads with timed respawns.
+// Respawn ticks derive from TICK_HZ: 15s weapon pads, 20s sustain pads.
+export const PICKUP_RADIUS_PX = 22;
+export const WEAPON_RESPAWN_TICKS = 900;
+export const HEALTH_RESPAWN_TICKS = 1200;
+export const GRENADE_PICKUP_RESPAWN_TICKS = 1200;
+export const HEALTH_PICKUP_AMOUNT = 50;
+export const GRENADE_PICKUP_AMOUNT = 2;
 // Health / regen / respawn tuning.
 export const HEALTH_MAX = 100;
 export const HEALTH_REGEN_PER_S = 10;

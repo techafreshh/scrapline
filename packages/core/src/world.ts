@@ -28,13 +28,17 @@ import {
   GRENADE_FUSE_TICKS,
   GRENADE_GRAVITY,
   GRENADE_MAX,
+  GRENADE_PICKUP_AMOUNT,
+  GRENADE_PICKUP_RESPAWN_TICKS,
   GRENADE_RADIUS_PX,
   GRENADE_THROW_SPEED_PX_S,
   GROUND_ACCEL,
   GROUND_FRICTION,
   HEALTH_MAX,
+  HEALTH_PICKUP_AMOUNT,
   HEALTH_REGEN_DELAY_TICKS,
   HEALTH_REGEN_PER_S,
+  HEALTH_RESPAWN_TICKS,
   HOP_SPEED,
   JETPACK_ACCEL,
   JETPACK_BURN_PER_S,
@@ -46,6 +50,7 @@ import {
   JETPACK_REGEN_GROUND_PER_S,
   MAX_FALL,
   MOVE_X_QUANT,
+  PICKUP_RADIUS_PX,
   PLAYER_CROUCH_HEIGHT,
   PLAYER_HEIGHT,
   PLAYER_WIDTH,
@@ -54,12 +59,13 @@ import {
   ROCKET_SPEED_PX_S,
   RUN_SPEED,
   TICK_HZ,
+  WEAPON_RESPAWN_TICKS,
 } from "./constants";
-import type { Player, Projectile, Prop, PropKind } from "./entities";
+import type { Pickup, PickupKind, Player, Projectile, Prop, PropKind } from "./entities";
 import type { WorldEvent } from "./events";
 import { TILE_SIZE, TileMap } from "./map";
 import { createRng, type Rng } from "./rng";
-import { WEAPONS } from "./weapons";
+import { WEAPONS, type WeaponId } from "./weapons";
 
 export { TICK_HZ, AIM_STEPS, MOVE_X_QUANT } from "./constants";
 
@@ -261,6 +267,8 @@ export class World {
   readonly projectiles: Projectile[] = [];
   /** Destructible props (barrels and crates). */
   readonly props: Prop[] = [];
+  /** Map pickups (weapon pads, health packs, grenade packs). */
+  readonly pickups: Pickup[] = [];
   private readonly tileMap: TileMap;
   private readonly marker: number;
   private readonly rng: Rng;
@@ -268,6 +276,7 @@ export class World {
   private nextId = 0;
   private nextProjectileId = 0;
   private nextPropId = 0;
+  private nextPickupId = 0;
 
   constructor(options: WorldOptions = {}) {
     this.seed = options.seed ?? 0;
@@ -301,6 +310,7 @@ export class World {
     players: Player[];
     projectiles: Projectile[];
     props: Prop[];
+    pickups: Pickup[];
   } {
     return {
       tick: this.tick,
@@ -308,6 +318,7 @@ export class World {
       players: this.players,
       projectiles: this.projectiles,
       props: this.props,
+      pickups: this.pickups,
     };
   }
 
@@ -348,6 +359,130 @@ export class World {
     };
     this.nextPropId += 1;
     this.props.push(prop);
+    return prop;
+  }
+
+  /**
+   * Add a map pickup; weapon pads default to the rifle with no amount,
+   * health packs heal 50 and grenade packs grant 2. Accepts
+   * (kind, x, y, weapon?) or an options object.
+   */
+  addPickup(kind: PickupKind, x?: number, y?: number, weapon?: WeaponId): Pickup;
+  addPickup(opts: {
+    kind?: PickupKind;
+    x?: number;
+    y?: number;
+    weapon?: WeaponId;
+    amount?: number;
+  }): Pickup;
+  addPickup(
+    kindOrOpts:
+      | PickupKind
+      | { kind?: PickupKind; x?: number; y?: number; weapon?: WeaponId; amount?: number },
+    x?: number,
+    y?: number,
+    weapon?: WeaponId,
+  ): Pickup {
+    let kind: PickupKind;
+    let px: number;
+    let py: number;
+    let granted: WeaponId | undefined;
+    let amount: number | undefined;
+    if (typeof kindOrOpts === "string") {
+      kind = kindOrOpts;
+      px = x ?? 0;
+      py = y ?? 0;
+      granted = weapon;
+    } else {
+      kind = kindOrOpts.kind ?? "weapon";
+      px = kindOrOpts.x ?? x ?? 0;
+      py = kindOrOpts.y ?? y ?? 0;
+      granted = kindOrOpts.weapon ?? weapon;
+      amount = kindOrOpts.amount;
+    }
+    const pickup: Pickup = {
+      id: this.nextPickupId,
+      kind,
+      x: px,
+      y: py,
+      weapon: kind === "weapon" ? (granted ?? "rifle") : granted,
+      amount:
+        amount ??
+        (kind === "health"
+          ? HEALTH_PICKUP_AMOUNT
+          : kind === "grenades"
+            ? GRENADE_PICKUP_AMOUNT
+            : 0),
+      active: true,
+      respawnTicks: 0,
+    };
+    this.nextPickupId += 1;
+    this.pickups.push(pickup);
+    return pickup;
+  }
+
+  /**
+   * True when the pixel point is inside a solid tile or any live prop
+   * AABB (non-finite points read solid, mirroring TileMap.isSolidAt).
+   */
+  isSolidAt(px: number, py: number): boolean {
+    if (!Number.isFinite(px) || !Number.isFinite(py)) {
+      return true;
+    }
+    if (this.tileMap.isSolidAt(px, py)) {
+      return true;
+    }
+    for (const prop of this.props) {
+      if (!prop.alive) {
+        continue;
+      }
+      if (px >= prop.x && px < prop.x + prop.w && py >= prop.y && py < prop.y + prop.h) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Damage a prop by reference or id, clamping at 0. Lethal hits mark it
+   * dead with kind respawn ticks and chain-explode barrels at their
+   * center. Returns the prop.
+   */
+  damageProp(
+    target: Prop | number,
+    amount: number,
+    events?: WorldEvent[],
+    protectionAtStart?: number[],
+  ): Prop {
+    const prop =
+      typeof target === "number" ? this.props.find((p) => p.id === target) : target;
+    if (prop === undefined) {
+      throw new Error("unknown prop");
+    }
+    if (!prop.alive) {
+      return prop;
+    }
+    prop.hp -= amount;
+    if (prop.hp > 0) {
+      return prop;
+    }
+    prop.hp = 0;
+    prop.alive = false;
+    prop.respawnTicks = prop.kind === "barrel" ? BARREL_RESPAWN_TICKS : CRATE_RESPAWN_TICKS;
+    if (prop.kind === "barrel") {
+      const log = events ?? [];
+      const guard =
+        protectionAtStart ?? this.players.map((p) => p.protectionTicks ?? 0);
+      this.explode(
+        prop.x + prop.w / 2,
+        prop.y + prop.h / 2,
+        BARREL_EXPLODE_RADIUS_PX,
+        BARREL_EXPLODE_DAMAGE,
+        -1,
+        log,
+        guard,
+      );
+    }
     return prop;
   }
 
@@ -462,6 +597,9 @@ export class World {
     }
     if ((this as { props?: Prop[] }).props === undefined) {
       (this as { props: Prop[] }).props = [];
+    }
+    if ((this as { pickups?: Pickup[] }).pickups === undefined) {
+      (this as { pickups: Pickup[] }).pickups = [];
     }
     for (let i = 0; i < this.players.length; i += 1) {
       const player = this.players[i] as Player;
@@ -656,6 +794,8 @@ export class World {
       if (!wasGround && player.onGround) {
         events.push("land");
       }
+      // Live props block movement: push out of any overlap after tiles.
+      this.collideProps(player, boxHeight);
 
       // Fuel: burn while thrusting, otherwise regen (ground rate at
       // once, air rate only after the post-thrust delay).
@@ -680,9 +820,13 @@ export class World {
       memory.prevJet = jet;
       memory.wasThrust = thrusting;
     }
+    // Pickup collection runs on post-movement positions; the respawn ticks
+    // run after so a consumed pad counts its first tick the same step.
+    this.collectPickups(events);
     // Projectile update between movement and firing: splash reads the
     // same tick-start protection snapshot so kills stay order-free.
     this.tickProps();
+    this.tickPickups();
     this.stepProjectiles(dt, events, protectionAtStart);
     // Pass 2: firing last, after every player's regen/respawn/movement.
     for (let i = 0; i < this.players.length; i += 1) {
@@ -743,11 +887,41 @@ export class World {
                   bestIdx = j;
                 }
               }
-              if (bestIdx < 0) {
-                continue;
+              // Nearest live prop on the pellet ray; nearest of wall,
+              // prop, and player wins so props block shots as cover.
+              let propT = Infinity;
+              let propIdx = -1;
+              for (let k = 0; k < this.props.length; k += 1) {
+                const prop = this.props[k] as Prop;
+                if (!prop.alive) {
+                  continue;
+                }
+                const t = segmentAABB(
+                  mx,
+                  my,
+                  ex,
+                  ey,
+                  prop.x,
+                  prop.y,
+                  prop.x + prop.w,
+                  prop.y + prop.h,
+                );
+                if (t !== null && t < propT) {
+                  propT = t;
+                  propIdx = k;
+                }
               }
               const wall = this.tileMap.raycast(mx, my, ex, ey);
-              if (wall.hit && wall.t < bestT) {
+              if (wall.hit && wall.t < bestT && wall.t < propT) {
+                continue;
+              }
+              if (propIdx >= 0 && propT < bestT) {
+                const prop = this.props[propIdx] as Prop;
+                this.damageProp(prop, stat.damage, events, protectionAtStart);
+                events.push("damage");
+                continue;
+              }
+              if (bestIdx < 0) {
                 continue;
               }
               const target = this.players[bestIdx] as Player;
@@ -902,9 +1076,19 @@ export class World {
     }
   }
 
-  /** Tick dead-prop respawn countdowns. */
+  /**
+   * Tick dead-prop respawn countdowns. Props at hp<=0 while alive are
+   * sleepers (direct damage bypassed damageProp): mark them dead with
+   * kind respawn ticks, mirroring the player hp<=0 sleeper idiom.
+   */
   private tickProps(): void {
     for (const prop of this.props) {
+      if (prop.alive && prop.hp <= 0) {
+        prop.hp = 0;
+        prop.alive = false;
+        prop.respawnTicks =
+          prop.kind === "barrel" ? BARREL_RESPAWN_TICKS : CRATE_RESPAWN_TICKS;
+      }
       if (prop.alive) {
         continue;
       }
@@ -918,6 +1102,114 @@ export class World {
         prop.alive = true;
         prop.hp = prop.kind === "barrel" ? BARREL_HP : CRATE_HP;
         prop.respawnTicks = 0;
+      }
+    }
+  }
+
+  /** Tick consumed-pickup respawn countdowns, reactivating at zero. */
+  private tickPickups(): void {
+    for (const pickup of this.pickups) {
+      if (pickup.active) {
+        continue;
+      }
+      if (pickup.respawnTicks > 0) {
+        pickup.respawnTicks -= 1;
+      }
+      if (pickup.respawnTicks <= 0) {
+        pickup.active = true;
+        pickup.respawnTicks = 0;
+      }
+    }
+  }
+
+  /**
+   * Collect overlapping pads in player order: center distance from the
+   * player to the pad within PICKUP_RADIUS_PX. Weapon pads grant the
+   * pad weapon with a full mag, health heals only below max, grenades
+   * grant only below max; first player in order wins contested pads.
+   */
+  private collectPickups(events: WorldEvent[]): void {
+    for (const player of this.players) {
+      if (!player.alive || player.hp <= 0) {
+        continue;
+      }
+      const stanceH = player.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+      const cx = player.x + PLAYER_WIDTH / 2;
+      const cy = player.y + stanceH / 2;
+      for (const pickup of this.pickups) {
+        if (!pickup.active) {
+          continue;
+        }
+        if (Math.hypot(cx - pickup.x, cy - pickup.y) > PICKUP_RADIUS_PX) {
+          continue;
+        }
+        if (pickup.kind === "weapon") {
+          const weapon = pickup.weapon ?? "rifle";
+          player.weapon = weapon;
+          player.magAmmo = (WEAPONS[weapon] ?? WEAPONS.rifle).mag;
+          player.reloading = false;
+          player.reloadTicks = 0;
+          pickup.active = false;
+          pickup.respawnTicks = WEAPON_RESPAWN_TICKS;
+          events.push("pickup");
+        } else if (pickup.kind === "health") {
+          if (player.hp >= HEALTH_MAX) {
+            continue;
+          }
+          player.hp = Math.min(HEALTH_MAX, player.hp + pickup.amount);
+          pickup.active = false;
+          pickup.respawnTicks = HEALTH_RESPAWN_TICKS;
+          events.push("pickup");
+        } else {
+          const stocked = player.grenades ?? GRENADE_MAX;
+          if (stocked >= GRENADE_MAX) {
+            continue;
+          }
+          player.grenades = Math.min(GRENADE_MAX, stocked + pickup.amount);
+          pickup.active = false;
+          pickup.respawnTicks = GRENADE_PICKUP_RESPAWN_TICKS;
+          events.push("pickup");
+        }
+      }
+    }
+  }
+
+  /**
+   * Push the player out of every overlapping live prop AABB along the
+   * minimal-penetration axis, zeroing that velocity component and
+   * grounding upward pushes. Array order keeps it deterministic.
+   */
+  private collideProps(player: Player, boxHeight: number): void {
+    for (const prop of this.props) {
+      if (!prop.alive) {
+        continue;
+      }
+      const overlapX =
+        Math.min(player.x + PLAYER_WIDTH, prop.x + prop.w) -
+        Math.max(player.x, prop.x);
+      const overlapY =
+        Math.min(player.y + boxHeight, prop.y + prop.h) - Math.max(player.y, prop.y);
+      if (overlapX <= 0 || overlapY <= 0) {
+        continue;
+      }
+      if (overlapX < overlapY) {
+        if (player.x + PLAYER_WIDTH / 2 < prop.x + prop.w / 2) {
+          player.x -= overlapX;
+        } else {
+          player.x += overlapX;
+        }
+        player.vx = 0;
+      } else if (player.y + boxHeight / 2 < prop.y + prop.h / 2) {
+        player.y -= overlapY;
+        if (player.vy > 0) {
+          player.vy = 0;
+        }
+        player.onGround = true;
+      } else {
+        player.y += overlapY;
+        if (player.vy < 0) {
+          player.vy = 0;
+        }
       }
     }
   }
@@ -957,10 +1249,47 @@ export class World {
             bestT = t;
           }
         }
+        // Nearest live prop on the rocket segment; a prop hit explodes
+        // the rocket at contact like a wall hit.
+        let propT = Infinity;
+        for (const prop of this.props) {
+          if (!prop.alive) {
+            continue;
+          }
+          const t = segmentAABB(
+            p.x,
+            p.y,
+            nx,
+            ny,
+            prop.x,
+            prop.y,
+            prop.x + prop.w,
+            prop.y + prop.h,
+          );
+          if (t !== null && t < propT) {
+            propT = t;
+          }
+        }
         const wall = this.tileMap.raycast(p.x, p.y, nx, ny);
-        if (bestT !== Infinity && (!wall.hit || bestT <= wall.t)) {
+        if (bestT !== Infinity && (!wall.hit || bestT <= wall.t) && bestT <= propT) {
           const hx = p.x + (nx - p.x) * bestT;
           const hy = p.y + (ny - p.y) * bestT;
+          this.projectiles.splice(idx, 1);
+          const stat = WEAPONS.rocket;
+          this.explode(
+            hx,
+            hy,
+            stat.splashRadius ?? 150,
+            stat.splashDamage ?? stat.damage,
+            p.ownerId,
+            events,
+            protectionAtStart,
+          );
+          continue;
+        }
+        if (propT !== Infinity && (!wall.hit || propT <= wall.t)) {
+          const hx = p.x + (nx - p.x) * propT;
+          const hy = p.y + (ny - p.y) * propT;
           this.projectiles.splice(idx, 1);
           const stat = WEAPONS.rocket;
           this.explode(
@@ -1073,6 +1402,9 @@ export class World {
     }
     for (const prop of this.props) {
       text += `:${prop.kind},${prop.x},${prop.y},${prop.hp},${prop.alive ? 1 : 0},${prop.respawnTicks}`;
+    }
+    for (const pickup of this.pickups) {
+      text += `:${pickup.kind},${pickup.x},${pickup.y},${pickup.weapon ?? ""},${pickup.amount},${pickup.active ? 1 : 0},${pickup.respawnTicks}`;
     }
     let h = 0x811c9dc5;
     for (let i = 0; i < text.length; i += 1) {

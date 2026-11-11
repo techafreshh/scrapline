@@ -28,6 +28,15 @@ import {
   updateCamera,
   type Camera,
 } from "./renderer/camera";
+import {
+  buildHud,
+  killsFromDiff,
+  playerName,
+  pushKillfeed,
+  standingsRows,
+  updateHud,
+  type HudHandles,
+} from "./hud/hud";
 
 /** Fixed-timestep sim step in seconds. */
 const STEP = 1 / TICK_HZ;
@@ -127,7 +136,13 @@ canvas.addEventListener("contextmenu", (e: MouseEvent) => {
 });
 
 window.__scraplineTick = 0;
+window.__scraplineWorld = null;
 refreshInput();
+
+/** Live overlay handles; rebuilt idempotently on every match start. */
+let hud: HudHandles = buildHud(document);
+/** Pending end-screen timeout returning to the menu (restart cancels). */
+let endTimer: number | null = null;
 
 let renderer: Renderer | null = null;
 void createRenderer(canvas)
@@ -201,8 +216,9 @@ function refreshAimOrigin(): void {
 }
 
 /**
- * Advance one fixed 60 Hz step; stop and reopen the menu on matchEnd.
- * Returns the step's sim events for the renderer's fx flashes.
+ * Advance one fixed 60 Hz step; attribute kills to the killfeed and
+ * show the end screen on matchEnd. Returns the step's sim events
+ * for the renderer's fx flashes.
  */
 function stepOnce(): string[] {
   if (world === null) {
@@ -219,12 +235,22 @@ function stepOnce(): string[] {
   for (let i = 0; i < botCount; i += 1) {
     inputs.push(scriptedInput(world.tick + BOT_TICK_OFFSET * (i + 1)));
   }
+  const prevScores = world.scores.slice();
+  const prevAlive = world.players.map((p) => p.alive);
   const events = world.step(inputs);
-  if (events.includes("matchEnd")) {
+  const kills = killsFromDiff(
+    prevScores,
+    world.scores,
+    prevAlive,
+    world.players.map((p) => p.alive),
+  );
+  for (const kill of kills) {
+    const killer = kill.killerId === null ? null : playerName(kill.killerId);
+    pushKillfeed(hud, killer, playerName(kill.victimId));
+  }
+  if (events.includes("matchEnd") || world.matchOver) {
     running = false;
-    if (menu instanceof HTMLElement) {
-      menu.style.display = "";
-    }
+    showEndScreen();
   }
   return events;
 }
@@ -260,15 +286,78 @@ function frame(now: number): void {
   if (renderer !== null && camera !== null) {
     renderer.draw(world.state, world.map, camera, eventsThisFrame);
   }
+  const local = world.players[0];
+  if (local !== undefined) {
+    updateHud(hud, {
+      hp: local.hp,
+      fuel: local.fuel,
+      magAmmo: local.magAmmo,
+      reserveAmmo: local.reserveAmmo,
+      weaponName: local.weapon,
+      scores: world.scores,
+      ids: world.players.map((p) => p.id),
+      tick: world.tick,
+      timeLimitTicks: world.timeLimitTicks,
+      localAlive: local.alive,
+      respawnTicks: local.respawnTicks,
+    });
+  }
   window.__scraplineTick = world.tick;
   if (running) {
     rafId = requestAnimationFrame(frame);
   }
 }
 
+/**
+ * Fill the end screen with ordinal standings, show it for 6 s, then
+ * fall back to the menu. Restart cancels the pending timeout.
+ */
+function showEndScreen(): void {
+  if (world === null) {
+    return;
+  }
+  const rows = standingsRows(
+    world.scores,
+    world.players.map((p) => p.id),
+  );
+  if (hud.endStandings !== null) {
+    hud.endStandings.replaceChildren();
+    for (const row of rows) {
+      const line = document.createElement("div");
+      line.textContent = `${row.rank} ${row.name}: ${row.score}`;
+      hud.endStandings.appendChild(line);
+    }
+  }
+  if (hud.hud !== null) {
+    hud.hud.style.display = "none";
+  }
+  if (hud.respawn !== null) {
+    hud.respawn.style.display = "none";
+  }
+  if (hud.endScreen !== null) {
+    hud.endScreen.style.display = "";
+  }
+  if (endTimer !== null) {
+    window.clearTimeout(endTimer);
+  }
+  endTimer = window.setTimeout(() => {
+    endTimer = null;
+    if (hud.endScreen !== null) {
+      hud.endScreen.style.display = "none";
+    }
+    if (menu instanceof HTMLElement) {
+      menu.style.display = "";
+    }
+  }, 6000);
+}
+
 /** Hide the menu, build the offline World plus scripted bots, start. */
 function startMatch(): void {
   cancelAnimationFrame(rafId);
+  if (endTimer !== null) {
+    window.clearTimeout(endTimer);
+    endTimer = null;
+  }
   const seed = Math.floor(Math.random() * SEED_RANGE);
   const match = new World({ seed });
   match.addPlayer({ x: 100 });
@@ -276,6 +365,17 @@ function startMatch(): void {
   match.addPlayer({ x: 700 });
   match.addPlayer({ x: 1000 });
   world = match;
+  window.__scraplineWorld = world;
+  hud = buildHud(document);
+  if (hud.endScreen !== null) {
+    hud.endScreen.style.display = "none";
+  }
+  if (hud.hud !== null) {
+    hud.hud.style.display = "";
+  }
+  if (hud.killfeed !== null) {
+    hud.killfeed.replaceChildren();
+  }
   camera = createCamera(world.map.widthPixels, world.map.heightPixels);
   // Snap the fresh camera onto the local player so the match opens
   // framed (updateCamera eases 10%/frame; ~120 steps converges fully).
@@ -309,6 +409,17 @@ function startMatch(): void {
 
 if (playButton instanceof HTMLButtonElement) {
   playButton.addEventListener("click", startMatch);
+}
+
+const restartButton = document.getElementById("restart");
+if (restartButton instanceof HTMLButtonElement) {
+  restartButton.addEventListener("click", () => {
+    if (endTimer !== null) {
+      window.clearTimeout(endTimer);
+      endTimer = null;
+    }
+    startMatch();
+  });
 }
 
 // Aim origin in CSS pixels (rect-based) before the first event or frame.

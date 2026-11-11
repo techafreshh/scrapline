@@ -1,0 +1,7 @@
+{
+  "name": "@scrapline/core",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Scrapline deterministic simulation core (no DOM / Node / rendering deps)",
+  "type": "commonjs"
+}

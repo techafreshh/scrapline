@@ -76,6 +76,9 @@ export const HEALTH_RESPAWN_TICKS = 1200;
 export const GRENADE_PICKUP_RESPAWN_TICKS = 1200;
 export const HEALTH_PICKUP_AMOUNT = 50;
 export const GRENADE_PICKUP_AMOUNT = 2;
+// FFA match tuning (issue #10): 25-kill cap, 5 min cap at 60 Hz.
+export const MATCH_SCORE_LIMIT = 25;
+export const MATCH_TIME_LIMIT_TICKS = 18000;
 // Health / regen / respawn tuning.
 export const HEALTH_MAX = 100;
 export const HEALTH_REGEN_PER_S = 10;

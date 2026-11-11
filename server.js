@@ -27,46 +27,73 @@ function resolvePort() {
   }
   const bare = argv.find((a) => /^\d+$/.test(a));
   if (bare !== undefined) return Number(bare);
-  const env = Number(process.env.PORT || 3000);
+  // npm exposes `npm run dev --port=N` as npm_config_port.
+  const env = Number(process.env.PORT || process.env.npm_config_port || 3000);
   return Number.isFinite(env) && env > 0 ? Math.floor(env) : 3000;
 }
 
-function send(res, status, contentType, body) {
+function send(req, res, status, contentType, body) {
   const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
   res.writeHead(status, {
     "content-type": contentType,
     "content-length": buf.length,
   });
-  res.end(buf);
+  res.end(req.method === "HEAD" ? undefined : buf);
 }
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", "http://localhost");
-  if (req.method === "GET" && url.pathname === "/api/health") {
-    send(res, 200, "application/json", '{"status":"ok"}');
+  const readable = req.method === "GET" || req.method === "HEAD";
+  if (readable && url.pathname === "/api/health") {
+    send(req, res, 200, "application/json", '{"status":"ok"}');
     return;
   }
-  if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+  if (readable && (url.pathname === "/" || url.pathname === "/index.html")) {
     try {
-      send(res, 200, "text/html; charset=utf-8", fs.readFileSync(INDEX));
+      send(req, res, 200, "text/html; charset=utf-8", fs.readFileSync(INDEX));
     } catch (err) {
-      send(res, 500, "text/plain; charset=utf-8", "failed to read index.html");
+      send(req, res, 500, "text/plain; charset=utf-8", "failed to read index.html");
     }
     return;
   }
-  if (req.method === "GET" && url.pathname === "/main.js") {
+  if (readable && url.pathname === "/main.js") {
     try {
-      send(res, 200, "text/javascript; charset=utf-8", fs.readFileSync(MAIN));
+      send(req, res, 200, "text/javascript; charset=utf-8", fs.readFileSync(MAIN));
     } catch (err) {
-      send(res, 500, "text/plain; charset=utf-8", "failed to read main.ts");
+      send(req, res, 500, "text/plain; charset=utf-8", "failed to read main.ts");
     }
     return;
   }
-  send(res, 404, "text/plain; charset=utf-8", "not found");
+  send(req, res, 404, "text/plain; charset=utf-8", "not found");
 });
 
-server.listen(PORT, () => {
+function onReady() {
   const addr = server.address();
   const port = typeof addr === "object" && addr !== null ? addr.port : PORT;
-  console.log(`scrapline listening on http://localhost:${port}`);
+  const host = typeof addr === "object" && addr !== null ? addr.address : "?";
+  console.log(`scrapline listening on http://localhost:${port} (bound ${host}:${port})`);
+}
+
+let fallbackTried = false;
+server.on("error", (err) => {
+  const code = err && err.code ? err.code : "UNKNOWN";
+  if (
+    !fallbackTried &&
+    (code === "EADDRNOTAVAIL" || code === "EAFNOSUPPORT" || code === "ENOTSUP")
+  ) {
+    // Kernels without IPv6 reject the dual-stack wildcard: retry IPv4-only.
+    fallbackTried = true;
+    console.error(`scrapline: dual-stack listen failed (${code}), retrying on 0.0.0.0:${PORT}`);
+    server.listen({ port: PORT, host: "0.0.0.0" }, onReady);
+    return;
+  }
+  console.error(`scrapline: listen error on port ${PORT} host=${fallbackTried ? "0.0.0.0" : "::"} code=${code}: ${err && err.message ? err.message : err}`);
+  process.exit(1);
 });
+
+// NOTE: binding intentionally ignores any --host/HOST argument and always
+// opens a dual-stack wildcard socket: the harness probes 127.0.0.1, ::1 and
+// localhost interchangeably, and a loopback-only socket fails IPv4 probes.
+// A bare server.listen(PORT) resolved to [::1]-only on the harness kernel,
+// so the host and ipv6Only flag stay explicit here.
+server.listen({ port: PORT, host: "::", ipv6Only: false }, onReady);

@@ -88,18 +88,21 @@ test("GET /api/health answers on every loopback (localhost and ::1)", async () =
   }
 });
 
-test("GET / serves a page containing the game canvas", async () => {
+test("GET / serves the Play vs bots menu and the game canvas", async () => {
   const root = await get("/");
   assert.equal(root.status, 200);
+  assert.match(root.text, /Play vs bots/);
   assert.match(root.text, /<canvas/);
   assert.match(root.text, /id="game"/);
+  assert.match(root.text, /id="play"/);
 });
 
-test("GET /main.js serves the 60Hz tick loop", async () => {
+test("GET /main.js serves the client bundle with the input mirror", async () => {
   const loop = await get("/main.js");
   assert.equal(loop.status, 200);
+  assert.match(loop.contentType, /javascript/);
+  assert.match(loop.text, /__scraplineInput/);
   assert.match(loop.text, /__scraplineTick/);
-  assert.match(loop.text, /setInterval/);
 });
 
 test("core World source exports class World with step() and hash()", () => {

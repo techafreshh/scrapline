@@ -248,7 +248,7 @@ function stepOnce(): string[] {
     const killer = kill.killerId === null ? null : playerName(kill.killerId);
     pushKillfeed(hud, killer, playerName(kill.victimId));
   }
-  if (events.includes("matchEnd")) {
+  if (events.includes("matchEnd") || world.matchOver) {
     running = false;
     showEndScreen();
   }

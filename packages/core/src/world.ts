@@ -357,6 +357,14 @@ export class World {
     }
     const dt = 1 / TICK_HZ;
     const events: WorldEvent[] = [];
+    // Tick-start protection snapshot: counters tick in player order before
+    // any firing, so the damage gate reads the snapshot (plus current for
+    // same-tick respawns) instead of order-dependent decremented values.
+    const protectionAtStart = this.players.map((p) => p.protectionTicks ?? 0);
+    // Fire/reload intents decoded in pass 1, executed in pass 2 (firing
+    // last) so regen/respawn countdowns and movement settle order-free.
+    const fireIntent: boolean[] = [];
+    const reloadIntent: boolean[] = [];
     for (let i = 0; i < this.players.length; i += 1) {
       const player = this.players[i] as Player;
       const memory = this.sim[i] as SimMemory;
@@ -437,10 +445,12 @@ export class World {
       }
 
       // Treat hp<=0 sleepers as fresh deaths (harness may set hp only).
+      // RESPAWN_TICKS - 1 keeps the 180-tick revive promise: the dead
+      // branch decrements each later tick, reaching 0 after 180 steps.
       if (player.hp <= 0) {
         player.hp = 0;
         player.alive = false;
-        player.respawnTicks = RESPAWN_TICKS;
+        player.respawnTicks = RESPAWN_TICKS - 1;
         events.push("kill");
         memory.prevJet = jet;
         memory.wasThrust = false;
@@ -551,10 +561,24 @@ export class World {
       }
       player.fuel = Math.min(JETPACK_FUEL_MAX, Math.max(0, player.fuel));
 
+      // Defer firing: record intents, executed order-free in pass 2 below.
+      fireIntent[i] = (buttons & BUTTON_FIRE) !== 0;
+      reloadIntent[i] = (buttons & BUTTON_RELOAD) !== 0;
+
+      memory.prevJet = jet;
+      memory.wasThrust = thrusting;
+    }
+    // Pass 2: firing last, after every player's regen/respawn/movement.
+    for (let i = 0; i < this.players.length; i += 1) {
+      const player = this.players[i] as Player;
+      // Shooters dead before their turn never fire.
+      if (player.alive === false || player.hp <= 0) {
+        continue;
+      }
       // Hitscan fire with spread, headshots, ammo, and reload.
       const stat = WEAPONS[player.weapon] ?? WEAPONS.pistol;
-      const firePressed = (buttons & BUTTON_FIRE) !== 0;
-      const reloadPressed = (buttons & BUTTON_RELOAD) !== 0;
+      const firePressed = fireIntent[i] === true;
+      const reloadPressed = reloadIntent[i] === true;
       if (reloadPressed && !player.reloading && player.magAmmo < stat.mag) {
         player.reloading = true;
         player.reloadTicks = stat.reload;
@@ -578,7 +602,7 @@ export class World {
               const ex = mx + Math.cos(angle) * stat.range;
               const ey = my + Math.sin(angle) * stat.range;
               let bestT = Infinity;
-              let bestVictim: Player | null = null;
+              let bestIdx = -1;
               for (let j = 0; j < this.players.length; j += 1) {
                 if (j === i) {
                   continue;
@@ -600,18 +624,21 @@ export class World {
                 );
                 if (t !== null && t < bestT) {
                   bestT = t;
-                  bestVictim = victim;
+                  bestIdx = j;
                 }
               }
-              if (bestVictim === null) {
+              if (bestIdx < 0) {
                 continue;
               }
               const wall = this.tileMap.raycast(mx, my, ex, ey);
               if (wall.hit && wall.t < bestT) {
                 continue;
               }
-              const target = bestVictim as Player;
-              if ((target.protectionTicks ?? 0) > 0) {
+              const target = this.players[bestIdx] as Player;
+              if (
+                (protectionAtStart[bestIdx] ?? 0) > 0 ||
+                (target.protectionTicks ?? 0) > 0
+              ) {
                 continue;
               }
               const hitY = my + (ey - my) * bestT;
@@ -633,9 +660,6 @@ export class World {
           player.reloadTicks = stat.reload;
         }
       }
-
-      memory.prevJet = jet;
-      memory.wasThrust = thrusting;
     }
     this.tick += 1;
     return events as string[];

@@ -254,6 +254,68 @@ describe("combat hop and land", () => {
   });
 });
 
+describe("combat order independence", () => {
+  it("protectionTicks=1 blocks damage in both player orders", () => {
+    for (const order of ["forward", "reverse"] as const) {
+      const world = twoPlayers200(7);
+      const shooter = order === "forward" ? 0 : 1;
+      const victim = order === "forward" ? 1 : 0;
+      const aim = victim === 1 ? 0 : Math.PI;
+      const victimPlayer = world.players[victim];
+      if (victimPlayer === undefined) {
+        throw new Error("expected victim");
+      }
+      victimPlayer.protectionTicks = 1;
+      const inputs: Array<{ fire?: boolean; aim?: number }> = [{}, {}];
+      inputs[shooter] = { fire: true, aim };
+      const events = world.step(inputs);
+      expect(events).toContain("shot");
+      expect(world.players[victim]?.hp).toBe(100);
+      expect(events).not.toContain("damage");
+    }
+  });
+
+  it("exact-lethal regen timing is order-independent", () => {
+    const outcomes: Array<{ hp: number; alive: boolean }> = [];
+    for (const order of ["forward", "reverse"] as const) {
+      const world = twoPlayers200(7);
+      const shooter = order === "forward" ? 0 : 1;
+      const victim = order === "forward" ? 1 : 0;
+      const aim = victim === 1 ? 0 : Math.PI;
+      const victimPlayer = world.players[victim];
+      if (victimPlayer === undefined) {
+        throw new Error("expected victim");
+      }
+      victimPlayer.hp = 20;
+      victimPlayer.ticksSinceDamage = 9999;
+      const inputs: Array<{ fire?: boolean; aim?: number }> = [{}, {}];
+      inputs[shooter] = { fire: true, aim };
+      world.step(inputs);
+      outcomes.push({
+        hp: world.players[victim]?.hp ?? NaN,
+        alive: world.players[victim]?.alive ?? false,
+      });
+    }
+    expect(outcomes[1]?.hp).toBe(outcomes[0]?.hp);
+    expect(outcomes[1]?.alive).toBe(outcomes[0]?.alive);
+  });
+
+  it("hp-only sleeper revives within 180 ticks", () => {
+    const world = new World({});
+    world.step();
+    const player = world.players[0];
+    if (player === undefined) {
+      throw new Error("expected player");
+    }
+    player.hp = 0;
+    for (let t = 0; t < 180; t += 1) {
+      world.step({});
+    }
+    expect(world.players[0]?.alive).toBe(true);
+    expect(world.players[0]?.protectionTicks ?? 0).toBeGreaterThan(0);
+  });
+});
+
 describe("combat determinism", () => {
   it("same seed and fire inputs hash-equal", () => {
     const a = twoPlayers200(42);

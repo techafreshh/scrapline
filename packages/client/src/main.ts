@@ -3,7 +3,11 @@
 // wired synchronously at load; the renderer is a bundled progressive
 // enhancement (Pixi v8 with a 2D canvas fallback) that never gates input.
 
-import { PLAYER_HEIGHT, PLAYER_WIDTH } from "../../core/src/constants";
+import {
+  PLAYER_CROUCH_HEIGHT,
+  PLAYER_HEIGHT,
+  PLAYER_WIDTH,
+} from "../../core/src/constants";
 import { TICK_HZ, World, type WorldInput } from "../../core/src/world";
 import { scriptedInput } from "../../core/src/replay";
 import {
@@ -16,12 +20,14 @@ import {
   stateMoveX,
   toInput,
 } from "./input";
+import { createRenderer, type Renderer } from "./renderer/index";
 import {
-  createRenderer,
-  viewTransform,
-  worldToScreen,
-  type Renderer,
-} from "./renderer/index";
+  cameraTarget,
+  createCamera,
+  projectCamera,
+  updateCamera,
+  type Camera,
+} from "./renderer/camera";
 
 /** Fixed-timestep sim step in seconds. */
 const STEP = 1 / TICK_HZ;
@@ -136,6 +142,7 @@ void createRenderer(canvas)
   });
 
 let world: World | null = null;
+let camera: Camera | null = null;
 let running = false;
 let rafId = 0;
 let last = 0;
@@ -143,6 +150,30 @@ let accumulator = 0;
 
 const menu = document.getElementById("menu");
 const playButton = document.getElementById("play");
+
+/** Ease the shared camera toward the local player plus aim look-ahead. */
+function updateCameraFromLocal(): void {
+  if (world === null || camera === null) {
+    return;
+  }
+  const local = world.players[0];
+  if (local === undefined) {
+    return;
+  }
+  const height = local.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+  const target = cameraTarget(
+    local.x + PLAYER_WIDTH / 2,
+    local.y + height / 2,
+    local.aim,
+  );
+  updateCamera(
+    camera,
+    target.x,
+    target.y,
+    world.map.widthPixels,
+    world.map.heightPixels,
+  );
+}
 
 /**
  * Point the aim origin at the local player's screen position (canvas CSS
@@ -152,30 +183,30 @@ const playButton = document.getElementById("play");
 function refreshAimOrigin(): void {
   const rect = canvas.getBoundingClientRect();
   const local = world?.players[0];
-  if (world === null || world === undefined || local === undefined) {
+  if (world === null || world === undefined || local === undefined || camera === null) {
     aimOrigin.x = rect.width / 2;
     aimOrigin.y = rect.height / 2;
     return;
   }
-  const t = viewTransform(
+  const height = local.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+  const center = projectCamera(
+    camera,
     canvas.width,
     canvas.height,
-    world.map.widthPixels,
-    world.map.heightPixels,
-  );
-  const center = worldToScreen(
     local.x + PLAYER_WIDTH / 2,
-    local.y + PLAYER_HEIGHT / 2,
-    t,
+    local.y + height / 2,
   );
   aimOrigin.x = (center.x * rect.width) / canvas.width;
   aimOrigin.y = (center.y * rect.height) / canvas.height;
 }
 
-/** Advance one fixed 60 Hz step; stop and reopen the menu on matchEnd. */
-function stepOnce(): void {
+/**
+ * Advance one fixed 60 Hz step; stop and reopen the menu on matchEnd.
+ * Returns the step's sim events for the renderer's fx flashes.
+ */
+function stepOnce(): string[] {
   if (world === null) {
-    return;
+    return [];
   }
   const local = toInput({
     moveX: stateMoveX(keys),
@@ -195,6 +226,7 @@ function stepOnce(): void {
       menu.style.display = "";
     }
   }
+  return events;
 }
 
 function frame(now: number): void {
@@ -205,8 +237,12 @@ function frame(now: number): void {
   last = now;
   accumulator += dt;
   let steps = 0;
+  const eventsThisFrame: string[] = [];
   while (accumulator >= STEP && steps < MAX_STEPS_PER_FRAME) {
-    stepOnce();
+    const stepEvents = stepOnce();
+    for (const event of stepEvents) {
+      eventsThisFrame.push(event);
+    }
     if (!running) {
       break;
     }
@@ -216,9 +252,13 @@ function frame(now: number): void {
   if (steps >= MAX_STEPS_PER_FRAME) {
     accumulator = 0;
   }
+  if (camera === null) {
+    camera = createCamera(world.map.widthPixels, world.map.heightPixels);
+  }
+  updateCameraFromLocal();
   refreshAimOrigin();
-  if (renderer !== null) {
-    renderer.draw(world.state, world.map);
+  if (renderer !== null && camera !== null) {
+    renderer.draw(world.state, world.map, camera, eventsThisFrame);
   }
   window.__scraplineTick = world.tick;
   if (running) {
@@ -236,6 +276,26 @@ function startMatch(): void {
   match.addPlayer({ x: 700 });
   match.addPlayer({ x: 1000 });
   world = match;
+  camera = createCamera(world.map.widthPixels, world.map.heightPixels);
+  // Snap the fresh camera onto the local player so the match opens
+  // framed (updateCamera eases 10%/frame; ~120 steps converges fully).
+  const local = world.players[0];
+  if (local !== undefined) {
+    const target = cameraTarget(
+      local.x + PLAYER_WIDTH / 2,
+      local.y + PLAYER_HEIGHT / 2,
+      local.aim,
+    );
+    for (let i = 0; i < 120; i += 1) {
+      updateCamera(
+        camera,
+        target.x,
+        target.y,
+        world.map.widthPixels,
+        world.map.heightPixels,
+      );
+    }
+  }
   if (menu instanceof HTMLElement) {
     menu.style.display = "none";
   }

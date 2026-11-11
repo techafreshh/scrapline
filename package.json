@@ -1,0 +1,19 @@
+{
+  "name": "scrapline",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Scrapline — browser jetpack shooter with RL env (walking skeleton)",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node server.js",
+    "test": "tsc -b && node --test tests/skeleton.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

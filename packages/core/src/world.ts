@@ -3,12 +3,9 @@
 // The sim is sacred: this module imports nothing and touches no DOM, Node,
 // clock, or Math.random APIs. All entropy flows through the seeded PRNG below.
 
-// Fixed-timestep tick rate for the whole game (see RECON.md).
-export const TICK_HZ = 60;
-// Aim is quantized to 4096 steps around the circle.
-export const AIM_STEPS = 4096;
-// moveX is quantized to 1/64 steps in [-1, 1].
-export const MOVE_X_QUANT = 1 / 64;
+import { AIM_STEPS, MOVE_X_QUANT } from "./constants";
+
+export { TICK_HZ, AIM_STEPS, MOVE_X_QUANT } from "./constants";
 
 export interface WorldInput {
   moveX?: number;

@@ -14,6 +14,9 @@ import {
   GRAVITY,
   GROUND_ACCEL,
   GROUND_FRICTION,
+  HEALTH_MAX,
+  HEALTH_REGEN_DELAY_TICKS,
+  HEALTH_REGEN_PER_S,
   HOP_SPEED,
   JETPACK_ACCEL,
   JETPACK_BURN_PER_S,
@@ -28,12 +31,15 @@ import {
   PLAYER_CROUCH_HEIGHT,
   PLAYER_HEIGHT,
   PLAYER_WIDTH,
+  PROTECTION_TICKS,
+  RESPAWN_TICKS,
   RUN_SPEED,
   TICK_HZ,
 } from "./constants";
 import type { Player } from "./entities";
+import type { WorldEvent } from "./events";
 import { TILE_SIZE, TileMap } from "./map";
-import { createRng } from "./rng";
+import { createRng, type Rng } from "./rng";
 import { WEAPONS } from "./weapons";
 
 export { TICK_HZ, AIM_STEPS, MOVE_X_QUANT } from "./constants";
@@ -42,10 +48,16 @@ export { TICK_HZ, AIM_STEPS, MOVE_X_QUANT } from "./constants";
 export const BUTTON_JET = 1;
 /** Button bit for crouching (RECON netcode bitmask). */
 export const BUTTON_CROUCH = 2;
+/** Button bit for firing the equipped weapon (RECON netcode bitmask). */
+export const BUTTON_FIRE = 4;
+/** Button bit for reloading the equipped weapon (RECON netcode bitmask). */
+export const BUTTON_RELOAD = 32;
 /** Frozen button-bit table probed by harnesses and clients. */
 export const BUTTONS = Object.freeze({
   JET: BUTTON_JET,
   CROUCH: BUTTON_CROUCH,
+  FIRE: BUTTON_FIRE,
+  RELOAD: BUTTON_RELOAD,
 });
 
 /** Per-tick player input. */
@@ -54,12 +66,16 @@ export interface WorldInput {
   moveX?: number;
   /** Aim angle in radians (quantized to 4096 steps). */
   aim?: number;
-  /** Button bitmask (JET:1 CROUCH:2, others ignored by this lap). */
+  /** Button bitmask (JET:1 CROUCH:2 FIRE:4 RELOAD:32). */
   buttons?: number;
   /** Boolean alias for `buttons & BUTTON_JET` (ORed into buttons). */
   jet?: boolean;
   /** Boolean alias for `buttons & BUTTON_CROUCH` (ORed into buttons). */
   crouch?: boolean;
+  /** Boolean alias for `buttons & BUTTON_FIRE` (ORed into buttons). */
+  fire?: boolean;
+  /** Boolean alias for `buttons & BUTTON_RELOAD` (ORed into buttons). */
+  reload?: boolean;
 }
 
 /** Accepted map forms for WorldOptions (TileMap or ASCII rows). */
@@ -122,6 +138,75 @@ function defaultRows(): string[] {
   return rows;
 }
 
+// Headshot band: hits landing in the top 15px of the victim box crit.
+const HEADSHOT_BAND_PX = 15;
+
+/**
+ * Segment-vs-AABB entry param in [0, 1] or null on miss. The segment runs
+ * from (ox, oy) to (ex, ey); the box is [minX, maxX] x [minY, maxY].
+ */
+function segmentAABB(
+  ox: number,
+  oy: number,
+  ex: number,
+  ey: number,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+): number | null {
+  const dx = ex - ox;
+  const dy = ey - oy;
+  let tmin = 0;
+  let tmax = 1;
+  const EPS = 1e-12;
+  if (Math.abs(dx) < EPS) {
+    if (ox < minX || ox > maxX) {
+      return null;
+    }
+  } else {
+    let t1 = (minX - ox) / dx;
+    let t2 = (maxX - ox) / dx;
+    if (t1 > t2) {
+      const tmp = t1;
+      t1 = t2;
+      t2 = tmp;
+    }
+    if (t1 > tmin) {
+      tmin = t1;
+    }
+    if (t2 < tmax) {
+      tmax = t2;
+    }
+    if (tmin > tmax) {
+      return null;
+    }
+  }
+  if (Math.abs(dy) < EPS) {
+    if (oy < minY || oy > maxY) {
+      return null;
+    }
+  } else {
+    let t1 = (minY - oy) / dy;
+    let t2 = (maxY - oy) / dy;
+    if (t1 > t2) {
+      const tmp = t1;
+      t1 = t2;
+      t2 = tmp;
+    }
+    if (t1 > tmin) {
+      tmin = t1;
+    }
+    if (t2 < tmax) {
+      tmax = t2;
+    }
+    if (tmin > tmax) {
+      return null;
+    }
+  }
+  return tmin;
+}
+
 // The ONLY randomness source in the sim lives in ./rng.
 
 export function quantizeMoveX(value: number): number {
@@ -145,6 +230,7 @@ export class World {
   readonly players: Player[] = [];
   private readonly tileMap: TileMap;
   private readonly marker: number;
+  private readonly rng: Rng;
   private readonly sim: SimMemory[] = [];
   private nextId = 0;
 
@@ -153,6 +239,7 @@ export class World {
     const rng = createRng(this.seed);
     // Prove the seed flows into state: drawn once, covered by hash().
     this.marker = rng.nextUint32();
+    this.rng = rng;
     const fromMap = options.map;
     if (isTileMap(fromMap)) {
       this.tileMap = fromMap;
@@ -208,7 +295,7 @@ export class World {
       y: py,
       vx: opts.vx ?? 0,
       vy: opts.vy ?? 0,
-      hp: opts.hp ?? 100,
+      hp: opts.hp ?? HEALTH_MAX,
       fuel: opts.fuel ?? JETPACK_FUEL_MAX,
       aim: opts.aim ?? 0,
       weapon: "pistol",
@@ -219,6 +306,12 @@ export class World {
       reserveAmmo: WEAPONS.pistol.mag,
       reloading: false,
       respawnTicks: 0,
+      protectionTicks: 0,
+      cooldownTicks: 0,
+      reloadTicks: 0,
+      ticksSinceDamage: 9999,
+      spawnX: px,
+      spawnY: py,
     };
     this.nextId += 1;
     // Standing check: solid tile directly under the feet.
@@ -263,6 +356,15 @@ export class World {
       this.sim.length = this.players.length;
     }
     const dt = 1 / TICK_HZ;
+    const events: WorldEvent[] = [];
+    // Tick-start protection snapshot: counters tick in player order before
+    // any firing, so the damage gate reads the snapshot (plus current for
+    // same-tick respawns) instead of order-dependent decremented values.
+    const protectionAtStart = this.players.map((p) => p.protectionTicks ?? 0);
+    // Fire/reload intents decoded in pass 1, executed in pass 2 (firing
+    // last) so regen/respawn countdowns and movement settle order-free.
+    const fireIntent: boolean[] = [];
+    const reloadIntent: boolean[] = [];
     for (let i = 0; i < this.players.length; i += 1) {
       const player = this.players[i] as Player;
       const memory = this.sim[i] as SimMemory;
@@ -270,13 +372,117 @@ export class World {
       const buttons =
         Math.floor(raw.buttons ?? 0) |
         (raw.jet === true ? BUTTON_JET : 0) |
-        (raw.crouch === true ? BUTTON_CROUCH : 0);
+        (raw.crouch === true ? BUTTON_CROUCH : 0) |
+        (raw.fire ? BUTTON_FIRE : 0) |
+        (raw.reload ? BUTTON_RELOAD : 0);
       const jet = (buttons & BUTTON_JET) !== 0;
       const crouch = (buttons & BUTTON_CROUCH) !== 0;
       const moveX = quantizeMoveX(raw.moveX ?? 0);
       if (raw.aim !== undefined) {
         player.aim = quantizeAim(raw.aim);
       }
+
+      // Backfill combat fields for players predating this lap.
+      if (player.protectionTicks === undefined) {
+        player.protectionTicks = 0;
+      }
+      if (player.cooldownTicks === undefined) {
+        player.cooldownTicks = 0;
+      }
+      if (player.reloadTicks === undefined) {
+        player.reloadTicks = 0;
+      }
+      if (player.ticksSinceDamage === undefined) {
+        player.ticksSinceDamage = 9999;
+      }
+      if (player.spawnX === undefined) {
+        player.spawnX = player.x;
+      }
+      if (player.spawnY === undefined) {
+        player.spawnY = player.y;
+      }
+      if (player.respawnTicks === undefined) {
+        player.respawnTicks = 0;
+      }
+      if (player.magAmmo === undefined) {
+        player.magAmmo = (WEAPONS[player.weapon] ?? WEAPONS.pistol).mag;
+      }
+      if (player.reloading === undefined) {
+        player.reloading = false;
+      }
+
+      // Dead: count down to respawn at the recorded spawn point.
+      if (player.alive === false) {
+        if (player.respawnTicks <= 0) {
+          player.respawnTicks = RESPAWN_TICKS;
+        }
+        player.respawnTicks -= 1;
+        if (player.respawnTicks <= 0) {
+          const stat = WEAPONS[player.weapon] ?? WEAPONS.pistol;
+          player.x = player.spawnX ?? player.x;
+          player.y = player.spawnY ?? player.y;
+          player.vx = 0;
+          player.vy = 0;
+          player.hp = HEALTH_MAX;
+          player.fuel = JETPACK_FUEL_MAX;
+          player.alive = true;
+          player.magAmmo = stat.mag;
+          player.reloading = false;
+          player.reloadTicks = 0;
+          player.cooldownTicks = 0;
+          player.protectionTicks = PROTECTION_TICKS;
+          player.respawnTicks = 0;
+          player.ticksSinceDamage = 9999;
+          player.crouching = false;
+          player.onGround = this.tileMap.isSolidAt(
+            player.x + PLAYER_WIDTH / 2,
+            player.y + PLAYER_HEIGHT + 1,
+          );
+        }
+        memory.prevJet = jet;
+        memory.wasThrust = false;
+        continue;
+      }
+
+      // Treat hp<=0 sleepers as fresh deaths (harness may set hp only).
+      // RESPAWN_TICKS - 1 keeps the 180-tick revive promise: the dead
+      // branch decrements each later tick, reaching 0 after 180 steps.
+      if (player.hp <= 0) {
+        player.hp = 0;
+        player.alive = false;
+        player.respawnTicks = RESPAWN_TICKS - 1;
+        events.push("kill");
+        memory.prevJet = jet;
+        memory.wasThrust = false;
+        continue;
+      }
+
+      // Combat counters tick before movement/fire.
+      if ((player.protectionTicks ?? 0) > 0) {
+        player.protectionTicks = (player.protectionTicks ?? 0) - 1;
+      }
+      if ((player.cooldownTicks ?? 0) > 0) {
+        player.cooldownTicks = (player.cooldownTicks ?? 0) - 1;
+      }
+      if (player.reloading) {
+        player.reloadTicks = (player.reloadTicks ?? 0) - 1;
+        if ((player.reloadTicks ?? 0) <= 0) {
+          const stat = WEAPONS[player.weapon] ?? WEAPONS.pistol;
+          player.magAmmo = stat.mag;
+          player.reloading = false;
+          player.reloadTicks = 0;
+        }
+      }
+      player.ticksSinceDamage = Math.min(100000, (player.ticksSinceDamage ?? 9999) + 1);
+      if (
+        (player.ticksSinceDamage ?? 0) >= HEALTH_REGEN_DELAY_TICKS &&
+        player.hp < HEALTH_MAX &&
+        player.hp > 0
+      ) {
+        player.hp = Math.min(HEALTH_MAX, player.hp + HEALTH_REGEN_PER_S / TICK_HZ);
+      }
+
+      const wasGround = player.onGround;
 
       // Stance hitbox: keep the feet planted across stand/crouch swaps.
       const oldHeight = player.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
@@ -305,6 +511,7 @@ export class World {
       const fuelOk = player.fuel > 0 && (memory.wasThrust || canStart);
       if (jet && !memory.prevJet && player.onGround && fuelOk) {
         player.vy = -HOP_SPEED;
+        events.push("hop");
       }
 
       // Vertical: gravity pulls down, jet thrust pushes up.
@@ -335,6 +542,9 @@ export class World {
         player.vy = 0;
       }
       player.onGround = hit.hitY && dy > 0;
+      if (!wasGround && player.onGround) {
+        events.push("land");
+      }
 
       // Fuel: burn while thrusting, otherwise regen (ground rate at
       // once, air rate only after the post-thrust delay).
@@ -351,18 +561,115 @@ export class World {
       }
       player.fuel = Math.min(JETPACK_FUEL_MAX, Math.max(0, player.fuel));
 
+      // Defer firing: record intents, executed order-free in pass 2 below.
+      fireIntent[i] = (buttons & BUTTON_FIRE) !== 0;
+      reloadIntent[i] = (buttons & BUTTON_RELOAD) !== 0;
+
       memory.prevJet = jet;
       memory.wasThrust = thrusting;
     }
+    // Pass 2: firing last, after every player's regen/respawn/movement.
+    for (let i = 0; i < this.players.length; i += 1) {
+      const player = this.players[i] as Player;
+      // Shooters dead before their turn never fire.
+      if (player.alive === false || player.hp <= 0) {
+        continue;
+      }
+      // Hitscan fire with spread, headshots, ammo, and reload.
+      const stat = WEAPONS[player.weapon] ?? WEAPONS.pistol;
+      const firePressed = fireIntent[i] === true;
+      const reloadPressed = reloadIntent[i] === true;
+      if (reloadPressed && !player.reloading && player.magAmmo < stat.mag) {
+        player.reloading = true;
+        player.reloadTicks = stat.reload;
+      }
+      if (firePressed && !player.reloading && (player.cooldownTicks ?? 0) <= 0) {
+        if (player.magAmmo > 0) {
+          player.magAmmo -= 1;
+          player.cooldownTicks = stat.cooldownTicks;
+          events.push("shot");
+          if (player.magAmmo <= 0) {
+            player.reloading = true;
+            player.reloadTicks = stat.reload;
+          }
+          if (stat.kind === "hitscan") {
+            const shooterH = player.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+            const mx = player.x + PLAYER_WIDTH / 2;
+            const my = player.y + shooterH / 2;
+            for (let pellet = 0; pellet < stat.pellets; pellet += 1) {
+              const spreadOffset = (this.rng.next() * 2 - 1) * stat.spread;
+              const angle = player.aim + spreadOffset;
+              const ex = mx + Math.cos(angle) * stat.range;
+              const ey = my + Math.sin(angle) * stat.range;
+              let bestT = Infinity;
+              let bestIdx = -1;
+              for (let j = 0; j < this.players.length; j += 1) {
+                if (j === i) {
+                  continue;
+                }
+                const victim = this.players[j] as Player;
+                if (!victim.alive || victim.hp <= 0) {
+                  continue;
+                }
+                const victimH = victim.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+                const t = segmentAABB(
+                  mx,
+                  my,
+                  ex,
+                  ey,
+                  victim.x,
+                  victim.y,
+                  victim.x + PLAYER_WIDTH,
+                  victim.y + victimH,
+                );
+                if (t !== null && t < bestT) {
+                  bestT = t;
+                  bestIdx = j;
+                }
+              }
+              if (bestIdx < 0) {
+                continue;
+              }
+              const wall = this.tileMap.raycast(mx, my, ex, ey);
+              if (wall.hit && wall.t < bestT) {
+                continue;
+              }
+              const target = this.players[bestIdx] as Player;
+              if (
+                (protectionAtStart[bestIdx] ?? 0) > 0 ||
+                (target.protectionTicks ?? 0) > 0
+              ) {
+                continue;
+              }
+              const hitY = my + (ey - my) * bestT;
+              const isHead = hitY - target.y < HEADSHOT_BAND_PX;
+              const damage = isHead ? Math.round(stat.damage * stat.headshotMult) : stat.damage;
+              target.hp -= damage;
+              target.ticksSinceDamage = 0;
+              events.push("damage");
+              if (target.hp <= 0) {
+                target.hp = 0;
+                target.alive = false;
+                target.respawnTicks = RESPAWN_TICKS;
+                events.push("kill");
+              }
+            }
+          }
+        } else if (!player.reloading) {
+          player.reloading = true;
+          player.reloadTicks = stat.reload;
+        }
+      }
+    }
     this.tick += 1;
-    return [];
+    return events as string[];
   }
 
-  /** Deterministic digest over tick plus every player's motion state. */
+  /** Deterministic digest over tick plus every player's motion and combat state. */
   hash(): string {
     let text = `${this.seed}:${this.tick}:${this.marker}`;
     for (const player of this.players) {
-      text += `:${player.x},${player.y},${player.vx},${player.vy},${player.fuel},${player.onGround ? 1 : 0}`;
+      text += `:${player.x},${player.y},${player.vx},${player.vy},${player.fuel},${player.onGround ? 1 : 0},${player.hp},${player.alive ? 1 : 0},${player.magAmmo},${player.protectionTicks ?? 0},${player.respawnTicks}`;
     }
     let h = 0x811c9dc5;
     for (let i = 0; i < text.length; i += 1) {

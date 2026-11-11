@@ -47,3 +47,9 @@ export const WEAPON_RHINO_INTERVAL_TICKS = 3;
 export const MELEE_COOLDOWN_S = 0.5;
 export const GRENADE_COOLDOWN_S = 0.6;
 export const GRENADE_FUSE_S = 2.4;
+// Health / regen / respawn tuning.
+export const HEALTH_MAX = 100;
+export const HEALTH_REGEN_PER_S = 10;
+export const HEALTH_REGEN_DELAY_TICKS = 300;
+export const RESPAWN_TICKS = 180;
+export const PROTECTION_TICKS = 90;

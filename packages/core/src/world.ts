@@ -48,6 +48,8 @@ import {
   JETPACK_REGEN_AIR_PER_S,
   JETPACK_REGEN_DELAY_S,
   JETPACK_REGEN_GROUND_PER_S,
+  MATCH_SCORE_LIMIT,
+  MATCH_TIME_LIMIT_TICKS,
   MAX_FALL,
   MOVE_X_QUANT,
   PICKUP_RADIUS_PX,
@@ -63,6 +65,7 @@ import {
 } from "./constants";
 import type { Pickup, PickupKind, Player, Projectile, Prop, PropKind } from "./entities";
 import type { WorldEvent } from "./events";
+import { isMatchOver, standingsFor, type MatchMode } from "./match";
 import { TILE_SIZE, TileMap } from "./map";
 import { createRng, type Rng } from "./rng";
 import { WEAPONS, type WeaponId } from "./weapons";
@@ -120,6 +123,12 @@ export type WorldMapInput = TileMap | string[] | string;
 export interface WorldOptions {
   /** Seed for the deterministic PRNG. */
   seed?: number;
+  /** Match mode (only "ffa" implemented; stored verbatim). */
+  mode?: MatchMode;
+  /** Kills to win (positive integer, else 25). */
+  scoreLimit?: number;
+  /** Ticks to time-limit (positive integer, else 18000). */
+  timeLimitTicks?: number;
   /** Map override: TileMap instance or ASCII rows. */
   map?: WorldMapInput;
   /** ASCII rows override (alias for map-as-rows). */
@@ -269,6 +278,14 @@ export class World {
   readonly props: Prop[] = [];
   /** Map pickups (weapon pads, health packs, grenade packs). */
   readonly pickups: Pickup[] = [];
+  /** FFA kills per player-array position (scores[i] owns players[i]). */
+  readonly scores: number[] = [];
+  /** Match mode (only "ffa" implemented). */
+  readonly mode: MatchMode;
+  /** Kills to win. */
+  readonly scoreLimit: number;
+  /** Ticks to time-limit. */
+  readonly timeLimitTicks: number;
   private readonly tileMap: TileMap;
   private readonly marker: number;
   private readonly rng: Rng;
@@ -280,6 +297,17 @@ export class World {
 
   constructor(options: WorldOptions = {}) {
     this.seed = options.seed ?? 0;
+    this.mode = options.mode ?? "ffa";
+    const scoreLimit = options.scoreLimit;
+    this.scoreLimit =
+      scoreLimit !== undefined && Number.isInteger(scoreLimit) && scoreLimit > 0
+        ? scoreLimit
+        : MATCH_SCORE_LIMIT;
+    const timeLimitTicks = options.timeLimitTicks;
+    this.timeLimitTicks =
+      timeLimitTicks !== undefined && Number.isInteger(timeLimitTicks) && timeLimitTicks > 0
+        ? timeLimitTicks
+        : MATCH_TIME_LIMIT_TICKS;
     const rng = createRng(this.seed);
     // Prove the seed flows into state: drawn once, covered by hash().
     this.marker = rng.nextUint32();
@@ -303,7 +331,7 @@ export class World {
     return this.tileMap;
   }
 
-  /** Snapshot alias exposing the shared arrays plus tick/seed. */
+  /** Snapshot alias exposing the shared arrays plus tick/seed/scores. */
   get state(): {
     tick: number;
     seed: number;
@@ -311,7 +339,11 @@ export class World {
     projectiles: Projectile[];
     props: Prop[];
     pickups: Pickup[];
+    scores: number[];
+    mode: MatchMode;
+    matchOver: boolean;
   } {
+    this.syncScores();
     return {
       tick: this.tick,
       seed: this.seed,
@@ -319,7 +351,67 @@ export class World {
       projectiles: this.projectiles,
       props: this.props,
       pickups: this.pickups,
+      scores: this.scores,
+      mode: this.mode,
+      matchOver: this.matchOver,
     };
+  }
+
+  /** True once a score cap or the time cap is reached. */
+  get matchOver(): boolean {
+    const scores = (this as { scores?: number[] }).scores ?? [];
+    return isMatchOver(
+      scores,
+      this.tick,
+      this.scoreLimit ?? MATCH_SCORE_LIMIT,
+      this.timeLimitTicks ?? MATCH_TIME_LIMIT_TICKS,
+    );
+  }
+
+  /** Leader id, or -1 when no players exist. */
+  get winner(): number {
+    const order = this.standings();
+    return order.length > 0 ? (order[0] as number) : -1;
+  }
+
+  /** Player ids ordered by score desc, id asc on ties. */
+  standings(): number[] {
+    this.syncScores();
+    return standingsFor(
+      this.scores,
+      this.players.map((p) => p.id),
+    );
+  }
+
+  /**
+   * Credit a kill to a player id; no-op for unknown ids and once the
+   * match is over (the triggering kill counts, later kills don't).
+   */
+  registerKill(playerId: number): void {
+    this.syncScores();
+    if (this.matchOver) {
+      return;
+    }
+    const idx = this.players.findIndex((p) => p.id === playerId);
+    if (idx < 0 || idx >= this.scores.length) {
+      return;
+    }
+    this.scores[idx] = (this.scores[idx] ?? 0) + 1;
+  }
+
+  /** Backfill scores so scores.length tracks players.length. */
+  private syncScores(): void {
+    let scores = (this as { scores?: number[] }).scores;
+    if (scores === undefined) {
+      scores = [];
+      (this as { scores: number[] }).scores = scores;
+    }
+    while (scores.length < this.players.length) {
+      scores.push(0);
+    }
+    if (scores.length > this.players.length) {
+      scores.length = this.players.length;
+    }
   }
 
   /**
@@ -541,6 +633,10 @@ export class World {
     // Standing check: solid tile directly under the feet.
     player.onGround = this.tileMap.isSolidAt(px + PLAYER_WIDTH / 2, py + PLAYER_HEIGHT + 1);
     this.players.push(player);
+    if ((this as { scores?: number[] }).scores === undefined) {
+      (this as { scores: number[] }).scores = [];
+    }
+    this.scores.push(0);
     this.sim.push({ prevJet: false, wasThrust: false, sinceThrust: JETPACK_REGEN_DELAY_S });
     return player;
   }
@@ -579,6 +675,8 @@ export class World {
     if (this.sim.length > this.players.length) {
       this.sim.length = this.players.length;
     }
+    this.syncScores();
+    const matchOverAtStart = this.matchOver;
     const dt = 1 / TICK_HZ;
     const events: WorldEvent[] = [];
     // Tick-start protection snapshot: counters tick in player order before
@@ -942,6 +1040,7 @@ export class World {
                 target.alive = false;
                 target.respawnTicks = RESPAWN_TICKS;
                 events.push("kill");
+                this.registerKill(player.id);
               }
             }
           } else if (stat.kind === "projectile") {
@@ -1003,6 +1102,9 @@ export class World {
       }
     }
     this.tick += 1;
+    if (!matchOverAtStart && this.matchOver) {
+      events.push("matchEnd");
+    }
     return events as string[];
   }
 
@@ -1016,7 +1118,8 @@ export class World {
     events: WorldEvent[],
     protectionAtStart: number[],
   ): void {
-    void ownerId;
+    const ownerIdx =
+      ownerId >= 0 ? this.players.findIndex((p) => p.id === ownerId) : -1;
     events.push("explode");
     for (let j = 0; j < this.players.length; j += 1) {
       const victim = this.players[j] as Player;
@@ -1042,6 +1145,9 @@ export class World {
         victim.alive = false;
         victim.respawnTicks = RESPAWN_TICKS;
         events.push("kill");
+        if (ownerIdx >= 0 && victim.id !== ownerId) {
+          this.registerKill(ownerId);
+        }
       }
     }
     for (const prop of this.props) {
@@ -1394,6 +1500,8 @@ export class World {
   /** Deterministic digest over tick plus every player's motion and combat state. */
   hash(): string {
     let text = `${this.seed}:${this.tick}:${this.marker}`;
+    const hashScores = (this as { scores?: number[] }).scores ?? [];
+    text += `:${this.mode ?? "ffa"},${this.scoreLimit ?? MATCH_SCORE_LIMIT},${this.timeLimitTicks ?? MATCH_TIME_LIMIT_TICKS}:${hashScores.join(",")}`;
     for (const player of this.players) {
       text += `:${player.x},${player.y},${player.vx},${player.vy},${player.fuel},${player.onGround ? 1 : 0},${player.hp},${player.alive ? 1 : 0},${player.magAmmo},${player.protectionTicks ?? 0},${player.respawnTicks},${player.grenades ?? GRENADE_MAX},${player.grenadeCooldownTicks ?? 0}`;
     }

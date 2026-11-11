@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Scrapline — walking skeleton</title>
+    <title>Scrapline</title>
     <style>
       body {
         margin: 0;
@@ -16,17 +16,55 @@
         gap: 12px;
         padding: 24px;
       }
+      #stage {
+        position: relative;
+        width: min(640px, 90vw);
+      }
       #game {
         border: 1px solid #334155;
-        width: min(640px, 90vw);
+        width: 100%;
         height: auto;
+        display: block;
+        background: #0b1020;
+      }
+      #menu {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: rgba(5, 7, 15, 0.82);
+      }
+      #menu h1 {
+        margin: 0;
+        font-size: 28px;
+        letter-spacing: 1px;
+      }
+      #play {
+        font-size: 16px;
+        padding: 10px 22px;
+        border: 1px solid #7df9ff;
+        border-radius: 6px;
+        background: #0b1020;
+        color: #7df9ff;
+        cursor: pointer;
+      }
+      #play:hover {
+        background: #16213a;
       }
     </style>
   </head>
   <body>
-    <h1>Scrapline</h1>
-    <canvas id="game" width="640" height="360"></canvas>
+    <div id="stage">
+      <canvas id="game" width="640" height="360"></canvas>
+      <div id="menu">
+        <h1>Scrapline</h1>
+        <button id="play">Play vs bots</button>
+      </div>
+    </div>
     <p>If the canvas above stays black, JavaScript is disabled.</p>
-    <script src="/main.js"></script>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

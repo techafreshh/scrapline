@@ -1,6 +1,13 @@
-// Window augmentation for the skeleton tick counter. Kept in a separate
-// declaration file so main.ts stays in the JavaScript subset of TypeScript
-// (no type syntax) while still typechecking under strict DOM lib settings.
-interface Window {
-  __scraplineTick: number;
+// Window augmentation for the client mirrors. Kept in a separate
+// declaration file so main.ts stays modular while still typechecking
+// under strict DOM lib settings.
+import type { InputMirror } from "./input";
+
+declare global {
+  interface Window {
+    __scraplineTick: number;
+    __scraplineInput: InputMirror;
+  }
 }
+
+export {};

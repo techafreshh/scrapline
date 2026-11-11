@@ -7,11 +7,12 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "node server.js",
+    "build:client": "npm run build --workspace=@scrapline/client",
+    "dev": "npm run build:client && node server.js",
     "start": "node server.js",
     "build": "tsc -b",
     "lint": "eslint .",
-    "test": "tsc -b && vitest run packages/core && node --test tests/skeleton.test.js"
+    "test": "npm run build:client && tsc -b && vitest run packages/core packages/client && node --test tests/skeleton.test.js"
   },
   "engines": {
     "node": ">=20"

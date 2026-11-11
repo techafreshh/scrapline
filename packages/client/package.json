@@ -2,6 +2,15 @@
   "name": "@scrapline/client",
   "private": true,
   "version": "0.0.1",
-  "description": "Scrapline browser client (walking skeleton)",
-  "type": "commonjs"
+  "description": "Scrapline browser client (PixiJS + Vite)",
+  "type": "commonjs",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "pixi.js": "^8.0.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
 }

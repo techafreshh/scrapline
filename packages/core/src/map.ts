@@ -784,3 +784,231 @@ export class TileMap {
     return astar({ width: this.widthTiles, height: this.heightTiles, blocked }, startX, startY, goalX, goalY, options);
   }
 }
+
+/** ASCII marker for solid tiles in map files (`#` is the only solid char). */
+export const SOLID_MARKER = "#";
+/** ASCII marker for empty (walkable) tiles. */
+export const EMPTY_MARKER = ".";
+/** ASCII marker for player spawns (walkable). */
+export const SPAWN_MARKER = "S";
+/** ASCII marker for weapon pads (walkable). */
+export const PAD_MARKER = "P";
+/** ASCII marker for health crates (walkable). */
+export const HEALTH_MARKER = "H";
+/** ASCII marker for grenade crates (walkable). */
+export const GRENADE_MARKER = "G";
+
+/** Alias of {@link SPAWN_MARKER} (harness-tolerant spelling). */
+export const MARKER_SPAWN = SPAWN_MARKER;
+/** Alias of {@link PAD_MARKER} (harness-tolerant spelling). */
+export const MARKER_PAD = PAD_MARKER;
+/** Alias of {@link HEALTH_MARKER} (harness-tolerant spelling). */
+export const MARKER_HEALTH = HEALTH_MARKER;
+/** Alias of {@link GRENADE_MARKER} (harness-tolerant spelling). */
+export const MARKER_GRENADE = GRENADE_MARKER;
+
+/** Map legend: every marker char accepted in `src/maps/*.txt` files. */
+export const MAP_LEGEND = {
+  solid: SOLID_MARKER,
+  empty: EMPTY_MARKER,
+  spawn: SPAWN_MARKER,
+  pad: PAD_MARKER,
+  health: HEALTH_MARKER,
+  grenade: GRENADE_MARKER,
+} as const;
+
+/** Tile-marker lists parsed from ASCII map rows plus the collision map. */
+export interface MapSymbols {
+  /** Player spawn tiles (`S`, row-major scan order). */
+  spawns: TilePos[];
+  /** Weapon pad tiles (`P`, row-major scan order). */
+  pads: TilePos[];
+  /** Health crate tiles (`H`, row-major scan order). */
+  health: TilePos[];
+  /** Grenade crate tiles (`G`, row-major scan order). */
+  grenades: TilePos[];
+  /** Collision map built from the same rows (markers are free, `#` solid). */
+  map: TileMap;
+}
+
+/** One unreachable spawn-to-pad pair. */
+export interface UnreachablePair {
+  /** Spawn tile with no A-star path to `to`. */
+  from: TilePos;
+  /** Weapon pad tile unreachable from `from`. */
+  to: TilePos;
+}
+
+/** Detailed reachability report (see {@link validateMapReachable}). */
+export interface MapReachability {
+  /** True when every spawn reaches every weapon pad. */
+  ok: boolean;
+  /** Spawn-to-pad pairs with no A-star path (empty when `ok`). */
+  unreachable: UnreachablePair[];
+}
+
+function toRowsList(rows: string[] | string): string[] {
+  const list = typeof rows === "string" ? rows.split("\n") : rows.slice();
+  return list.map((r) => (r.endsWith("\r") ? r.slice(0, -1) : r));
+}
+
+/**
+ * Parse ASCII map rows into marker lists plus the collision map.
+ *
+ * Legend: `#` solid, everything else free; `S` spawn, `P` weapon pad,
+ * `H` health crate, `G` grenade crate, `.` empty. When `spawnOverride`
+ * is given it replaces the `S` scan (the "spawn array" side of the
+ * "`S` or spawn array" contract).
+ */
+export function parseMapSymbols(
+  rows: string[] | string,
+  spawnOverride?: VecLike[],
+): MapSymbols {
+  const list = toRowsList(rows);
+  const spawns: TilePos[] = [];
+  const pads: TilePos[] = [];
+  const health: TilePos[] = [];
+  const grenades: TilePos[] = [];
+  for (let y = 0; y < list.length; y += 1) {
+    const row = list[y] as string;
+    for (let x = 0; x < row.length; x += 1) {
+      const ch = row[x];
+      if (ch === SPAWN_MARKER) {
+        spawns.push({ x, y });
+      } else if (ch === PAD_MARKER) {
+        pads.push({ x, y });
+      } else if (ch === HEALTH_MARKER) {
+        health.push({ x, y });
+      } else if (ch === GRENADE_MARKER) {
+        grenades.push({ x, y });
+      }
+    }
+  }
+  const map = new TileMap(list);
+  if (spawnOverride !== undefined) {
+    const over: TilePos[] = spawnOverride.map((v) => {
+      const p = toVec(v);
+      return { x: Math.floor(p.x), y: Math.floor(p.y) };
+    });
+    return { spawns: over, pads, health, grenades, map };
+  }
+  return { spawns, pads, health, grenades, map };
+}
+
+function resolveReachableArgs(
+  symbolsOrRows: MapSymbols | { spawns: TilePos[]; pads: TilePos[] } | string[] | string,
+  map?: TileMap | GridLike | { isSolidTile(tx: number, ty: number): boolean },
+): { spawns: TilePos[]; pads: TilePos[]; grid: TileMap | GridLike | { isSolidTile(tx: number, ty: number): boolean } } {
+  if (Array.isArray(symbolsOrRows) || typeof symbolsOrRows === "string") {
+    const parsed = parseMapSymbols(symbolsOrRows as string[] | string);
+    const grid = (map ?? parsed.map) as TileMap;
+    return { spawns: parsed.spawns, pads: parsed.pads, grid };
+  }
+  const symbols = symbolsOrRows as MapSymbols | { spawns: TilePos[]; pads: TilePos[] };
+  const grid = (map ?? (symbols as MapSymbols).map) as TileMap;
+  return { spawns: symbols.spawns ?? [], pads: symbols.pads ?? [], grid };
+}
+
+function hasTileMapFindPath(
+  grid: unknown,
+): grid is { findPath(start: VecLike, goal: VecLike, opts?: FindPathOptions): TilePos[] } {
+  return (
+    grid !== null &&
+    typeof grid === "object" &&
+    typeof (grid as { findPath?: unknown }).findPath === "function"
+  );
+}
+
+/**
+ * List every spawn-to-pad pair with no 4-directional A-star path.
+ * Uses default `findPath` options (`allowDiagonal: false`, `jet: false`);
+ * `jet` never affects passability, only uphill cost.
+ */
+export function findUnreachablePairs(
+  symbolsOrRows: MapSymbols | { spawns: TilePos[]; pads: TilePos[] } | string[] | string,
+  map?: TileMap | GridLike | { isSolidTile(tx: number, ty: number): boolean },
+  opts: FindPathOptions = {},
+): UnreachablePair[] {
+  const { spawns, pads, grid } = resolveReachableArgs(symbolsOrRows, map);
+  const missing: UnreachablePair[] = [];
+  for (const from of spawns) {
+    for (const to of pads) {
+      const path = hasTileMapFindPath(grid)
+        ? grid.findPath(from, to, opts)
+        : findPath(grid as GridLike, from, to, opts);
+      if (path.length === 0) {
+        missing.push({ from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y } });
+      }
+    }
+  }
+  return missing;
+}
+
+/** Alias of {@link findUnreachablePairs} (harness-tolerant name). */
+export function getUnreachablePairs(
+  symbolsOrRows: MapSymbols | { spawns: TilePos[]; pads: TilePos[] } | string[] | string,
+  map?: TileMap | GridLike | { isSolidTile(tx: number, ty: number): boolean },
+  opts: FindPathOptions = {},
+): UnreachablePair[] {
+  return findUnreachablePairs(symbolsOrRows, map, opts);
+}
+
+/**
+ * Report full reachability details: every spawn reaches every weapon pad.
+ * Empty spawns/pads fail (`ok: false`) so unmarked maps never validate.
+ */
+export function validateMapReachability(
+  symbolsOrRows: MapSymbols | { spawns: TilePos[]; pads: TilePos[] } | string[] | string,
+  map?: TileMap | GridLike | { isSolidTile(tx: number, ty: number): boolean },
+  opts: FindPathOptions = {},
+): MapReachability {
+  const { spawns, pads } = resolveReachableArgs(symbolsOrRows, map);
+  if (spawns.length === 0 || pads.length === 0) {
+    const unreachable: UnreachablePair[] = [];
+    for (const from of spawns) {
+      for (const to of pads) {
+        unreachable.push({ from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y } });
+      }
+    }
+    return { ok: false, unreachable };
+  }
+  const unreachable = findUnreachablePairs(symbolsOrRows, map, opts);
+  return { ok: unreachable.length === 0, unreachable };
+}
+
+/**
+ * True when every spawn reaches every weapon pad via 4-directional A-star
+ * (`allowDiagonal: false`, `jet: false` defaults). Empty spawns/pads
+ * return false. Accepts parsed symbols (with `symbols.map` as the grid)
+ * or raw ASCII rows; an explicit `map` grid overrides `symbols.map`.
+ */
+export function validateMapReachable(
+  symbolsOrRows: MapSymbols | { spawns: TilePos[]; pads: TilePos[] } | string[] | string,
+  map?: TileMap | GridLike | { isSolidTile(tx: number, ty: number): boolean },
+  opts: FindPathOptions = {},
+): boolean {
+  return validateMapReachability(symbolsOrRows, map, opts).ok;
+}
+
+/**
+ * Throwing wrapper around {@link validateMapReachable}: throws listing
+ * every unreachable spawn-to-pad pair, otherwise returns void.
+ */
+export function assertMapReachable(
+  symbolsOrRows: MapSymbols | { spawns: TilePos[]; pads: TilePos[] } | string[] | string,
+  map?: TileMap | GridLike | { isSolidTile(tx: number, ty: number): boolean },
+  opts: FindPathOptions = {},
+): void {
+  const { spawns, pads } = resolveReachableArgs(symbolsOrRows, map);
+  if (spawns.length === 0) {
+    throw new Error("map has no spawns (S)");
+  }
+  if (pads.length === 0) {
+    throw new Error("map has no weapon pads (P)");
+  }
+  const unreachable = findUnreachablePairs(symbolsOrRows, map, opts);
+  if (unreachable.length > 0) {
+    const pairs = unreachable.map((p) => `(${p.from.x},${p.from.y})->(${p.to.x},${p.to.y})`).join(", ");
+    throw new Error(`map has ${unreachable.length} unreachable spawn->pad pair(s): ${pairs}`);
+  }
+}

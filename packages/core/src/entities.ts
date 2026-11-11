@@ -52,6 +52,18 @@ export interface Player {
   reloading: boolean;
   /** Ticks until respawn (0 when alive). */
   respawnTicks: number;
+  /** Ticks of spawn protection left (damage ignored while > 0). */
+  protectionTicks?: number;
+  /** Ticks until the next shot is allowed. */
+  cooldownTicks?: number;
+  /** Ticks left in the active reload (0 when not reloading). */
+  reloadTicks?: number;
+  /** Ticks since last damage taken (regen delay gate). */
+  ticksSinceDamage?: number;
+  /** Spawn x recorded at addPlayer (respawn target). */
+  spawnX?: number;
+  /** Spawn y recorded at addPlayer (respawn target). */
+  spawnY?: number;
 }
 
 /** A projectile in flight. */

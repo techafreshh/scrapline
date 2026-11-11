@@ -29,6 +29,8 @@ export interface WeaponStat {
   kind: "hitscan" | "projectile";
   /** Display name. */
   name: string;
+  /** Fixed headshot multiplier applied in the top 15px band. */
+  headshotMult: number;
   /** Splash radius in pixels (rocket only). */
   splashRadius?: number;
   /** Splash damage (rocket only). */
@@ -47,6 +49,7 @@ export const WEAPONS: Record<WeaponId, WeaponStat> = Object.freeze({
     pellets: 1,
     kind: "hitscan",
     name: "Pistol",
+    headshotMult: 1.5,
   }),
   smg: Object.freeze({
     damage: 11,
@@ -58,6 +61,7 @@ export const WEAPONS: Record<WeaponId, WeaponStat> = Object.freeze({
     pellets: 1,
     kind: "hitscan",
     name: "SMG",
+    headshotMult: 1.3,
   }),
   rifle: Object.freeze({
     damage: 17,
@@ -69,6 +73,7 @@ export const WEAPONS: Record<WeaponId, WeaponStat> = Object.freeze({
     pellets: 1,
     kind: "hitscan",
     name: "Rifle",
+    headshotMult: 1.5,
   }),
   shotgun: Object.freeze({
     damage: 9,
@@ -80,6 +85,7 @@ export const WEAPONS: Record<WeaponId, WeaponStat> = Object.freeze({
     pellets: 8,
     kind: "hitscan",
     name: "Shotgun",
+    headshotMult: 1.3,
   }),
   sniper: Object.freeze({
     damage: 95,
@@ -91,6 +97,7 @@ export const WEAPONS: Record<WeaponId, WeaponStat> = Object.freeze({
     pellets: 1,
     kind: "hitscan",
     name: "Sniper",
+    headshotMult: 1.6,
   }),
   rocket: Object.freeze({
     damage: 110,
@@ -102,6 +109,7 @@ export const WEAPONS: Record<WeaponId, WeaponStat> = Object.freeze({
     pellets: 1,
     kind: "projectile",
     name: "Rocket",
+    headshotMult: 1.0,
     splashRadius: 150,
     splashDamage: 110,
   }),

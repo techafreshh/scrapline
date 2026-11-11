@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scrapline — walking skeleton</title>
+    <style>
+      body {
+        margin: 0;
+        background: #05070f;
+        color: #cbd5e1;
+        font-family: system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 24px;
+      }
+      #game {
+        border: 1px solid #334155;
+        width: min(640px, 90vw);
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Scrapline</h1>
+    <canvas id="game" width="640" height="360"></canvas>
+    <p>If the canvas above stays black, JavaScript is disabled.</p>
+    <script src="/main.js"></script>
+  </body>
+</html>

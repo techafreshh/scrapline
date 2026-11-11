@@ -9,6 +9,7 @@ const path = require("node:path");
 
 let child = null;
 let base = "";
+let port = 0;
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -22,7 +23,16 @@ function freePort() {
 }
 
 async function get(pathname) {
-  const res = await fetch(base + pathname);
+  return getUrl(base + pathname);
+}
+
+async function getFrom(host, pathname) {
+  const h = host.includes(":") ? `[${host}]` : host;
+  return getUrl(`http://${h}:${port}${pathname}`);
+}
+
+async function getUrl(url) {
+  const res = await fetch(url);
   return {
     status: res.status,
     contentType: res.headers.get("content-type") || "",
@@ -31,7 +41,7 @@ async function get(pathname) {
 }
 
 before(async () => {
-  const port = await freePort();
+  port = await freePort();
   base = `http://127.0.0.1:${port}`;
   child = spawn(process.execPath, ["server.js"], {
     cwd: path.join(__dirname, ".."),
@@ -67,6 +77,15 @@ test("GET /api/health returns 200 JSON containing status ok", async () => {
   assert.equal(health.status, 200);
   assert.match(health.contentType, /application\/json/);
   assert.match(health.text, /"status":"ok"/);
+});
+
+test("GET /api/health answers on every loopback (localhost and ::1)", async () => {
+  for (const host of ["localhost", "::1"]) {
+    const health = await getFrom(host, "/api/health");
+    assert.equal(health.status, 200, `health via ${host}`);
+    assert.match(health.contentType, /application\/json/, `content-type via ${host}`);
+    assert.match(health.text, /"status":"ok"/, `body via ${host}`);
+  }
 });
 
 test("GET / serves a page containing the game canvas", async () => {

@@ -11,7 +11,7 @@
     "start": "node server.js",
     "build": "tsc -b",
     "lint": "eslint .",
-    "test": "tsc -b && node --test tests/skeleton.test.js"
+    "test": "tsc -b && vitest run packages/core && node --test tests/skeleton.test.js"
   },
   "engines": {
     "node": ">=20"
@@ -21,6 +21,7 @@
     "eslint": "^10.14.0",
     "globals": "^17.14.0",
     "typescript": "^5.6.3",
-    "typescript-eslint": "^8.72.2"
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^5.1.0"
   }
 }

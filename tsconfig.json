@@ -10,5 +10,6 @@
   "references": [
     { "path": "./packages/core" },
     { "path": "./packages/client" }
-  ]
+  ],
+  "exclude": ["packages/*/test"]
 }

@@ -1,9 +1,11 @@
 // Deterministic 60 Hz simulation stub — the seed of packages/core.
 //
-// The sim is sacred: this module imports nothing and touches no DOM, Node,
-// clock, or Math.random APIs. All entropy flows through the seeded PRNG below.
+// The sim is sacred: this module imports only relative sim modules and
+// touches no DOM, Node, clock, or Math.random APIs. All entropy flows
+// through the seeded PRNG in ./rng.
 
 import { AIM_STEPS, MOVE_X_QUANT } from "./constants";
+import { createRng } from "./rng";
 
 export { TICK_HZ, AIM_STEPS, MOVE_X_QUANT } from "./constants";
 
@@ -17,17 +19,7 @@ export interface WorldOptions {
   seed?: number;
 }
 
-// The ONLY randomness source in the sim: mulberry32 with derived streams.
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// The ONLY randomness source in the sim lives in ./rng (createRng).
 
 export function quantizeMoveX(value: number): number {
   const clamped = Math.min(1, Math.max(-1, value));
@@ -46,13 +38,13 @@ export class World {
   readonly seed: number;
   private x = 0;
   private readonly marker: number;
-  private readonly prng: () => number;
+  private readonly rng: ReturnType<typeof createRng>;
 
   constructor(options: WorldOptions = {}) {
     this.seed = options.seed ?? 0;
-    this.prng = mulberry32(this.seed);
+    this.rng = createRng(this.seed);
     // Prove the seed flows into state: drawn once, covered by hash().
-    this.marker = Math.floor(this.prng() * 0xffffffff);
+    this.marker = this.rng.nextUint32();
   }
 
   step(inputs: WorldInput[] = []): string[] {

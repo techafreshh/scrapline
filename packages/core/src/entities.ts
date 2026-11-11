@@ -52,6 +52,10 @@ export interface Player {
   reloading: boolean;
   /** Ticks until respawn (0 when alive). */
   respawnTicks: number;
+  /** Grenade slots remaining (max 3, backfilled for pre-lap players). */
+  grenades?: number;
+  /** Ticks until the next grenade throw is allowed. */
+  grenadeCooldownTicks?: number;
   /** Ticks of spawn protection left (damage ignored while > 0). */
   protectionTicks?: number;
   /** Ticks until the next shot is allowed. */

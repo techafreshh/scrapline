@@ -47,6 +47,27 @@ export const WEAPON_RHINO_INTERVAL_TICKS = 3;
 export const MELEE_COOLDOWN_S = 0.5;
 export const GRENADE_COOLDOWN_S = 0.6;
 export const GRENADE_FUSE_S = 2.4;
+// Explosives tuning (issue #8): rockets fly straight with splash, grenades
+// throw/bounce on a fuse, barrels chain-explode. Pure literals only.
+export const GRENADE_THROW_SPEED_PX_S = 760;
+export const GRENADE_GRAVITY = 1300;
+export const GRENADE_BOUNCE = 0.45;
+export const GRENADE_DAMAGE = 115;
+export const GRENADE_RADIUS_PX = 165;
+export const GRENADE_FUSE_TICKS = 144;
+export const GRENADE_COOLDOWN_TICKS = 36;
+export const GRENADE_MAX = 3;
+export const ROCKET_SPEED_PX_S = 900;
+export const BARREL_HP = 30;
+export const BARREL_W = 26;
+export const BARREL_H = 34;
+export const BARREL_RESPAWN_TICKS = 1800;
+export const BARREL_EXPLODE_DAMAGE = 80;
+export const BARREL_EXPLODE_RADIUS_PX = 120;
+export const CRATE_HP = 60;
+export const CRATE_W = 30;
+export const CRATE_H = 30;
+export const CRATE_RESPAWN_TICKS = 1500;
 // Health / regen / respawn tuning.
 export const HEALTH_MAX = 100;
 export const HEALTH_REGEN_PER_S = 10;

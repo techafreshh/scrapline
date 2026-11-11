@@ -6,7 +6,7 @@
 // string[]; these literals are the members it may emit.
 
 /** Every event World.step() may emit. */
-export type WorldEvent = "shot" | "damage" | "kill" | "hop" | "land";
+export type WorldEvent = "shot" | "damage" | "kill" | "hop" | "land" | "explode" | "bounce";
 
 /** Frozen list of every event name (probe/iteration order). */
 export const WORLD_EVENTS: readonly WorldEvent[] = Object.freeze([
@@ -15,4 +15,6 @@ export const WORLD_EVENTS: readonly WorldEvent[] = Object.freeze([
   "kill",
   "hop",
   "land",
+  "explode",
+  "bounce",
 ]);

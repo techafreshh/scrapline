@@ -69,7 +69,6 @@ describe("WEAPONS table", () => {
       crouching: false,
       alive: true,
       magAmmo: 12,
-      reserveAmmo: 48,
       reloading: false,
       respawnTicks: 0,
     };

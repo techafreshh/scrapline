@@ -68,6 +68,8 @@ export interface FramePlayer {
   aim: number;
   alive: boolean;
   onGround: boolean;
+  /** Barrel tip in world coords (body center + aim dir * BARREL_LENGTH). */
+  barrel: { x: number; y: number };
 }
 
 /** Projectile dot for one frame. */
@@ -138,6 +140,23 @@ export function worldToScreen(
 }
 
 /**
+ * Barrel length in world px. At the fixed CAMERA_ZOOM = 2 this renders
+ * as 16 screen px, centered in the required 8-20px band under either
+ * a screen-pixel or a world-unit reading.
+ */
+export const BARREL_LENGTH = 8;
+
+/** Barrel tip from a body center along an aim angle (canvas y-down). */
+export function barrelEndpoint(
+  centerX: number,
+  centerY: number,
+  aim: number,
+  length: number = BARREL_LENGTH,
+): { x: number; y: number } {
+  return { x: centerX + Math.cos(aim) * length, y: centerY + Math.sin(aim) * length };
+}
+
+/**
  * Build the pure view-model from a world state. Accepts an explicit map
  * (TileMap compatible) or falls back to the default arena dims; never
  * touches the DOM, so it stays unit-testable under node.
@@ -152,16 +171,23 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
         };
   return {
     tick: state.tick,
-    players: state.players.map((p, index) => ({
-      index,
-      x: p.x,
-      y: p.y,
-      w: PLAYER_WIDTH,
-      h: p.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT,
-      aim: p.aim,
-      alive: p.alive,
-      onGround: p.onGround,
-    })),
+    players: state.players.map((p, index) => {
+      const w = PLAYER_WIDTH;
+      const h = p.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+      const cx = p.x + w / 2;
+      const cy = p.y + h / 2;
+      return {
+        index,
+        x: p.x,
+        y: p.y,
+        w,
+        h,
+        aim: p.aim,
+        alive: p.alive,
+        onGround: p.onGround,
+        barrel: barrelEndpoint(cx, cy, p.aim),
+      };
+    }),
     projectiles: state.projectiles.map((p) => ({
       x: p.x,
       y: p.y,
@@ -271,6 +297,16 @@ function playerColor(index: number, alive: boolean): number {
   return index === 0 ? 0x7df9ff : 0xfb923c;
 }
 
+/** Barrel stroke color: local pale, enemies warm red (threat cue). */
+export function barrelColor(index: number): number {
+  return index === 0 ? 0xf8fafc : 0xef4444;
+}
+
+/** Canvas2D twin of barrelColor. */
+export function barrelCss(index: number): string {
+  return index === 0 ? "#f8fafc" : "#ef4444";
+}
+
 function tileColor(tx: number, ty: number): number {
   return (tx + ty) % 2 === 0 ? 0x16213b : 0x101a30;
 }
@@ -312,7 +348,15 @@ function flashCss(kind: Flash["kind"]): string {
 }
 
 function paintFramePixi(
-  graphics: { clear(): unknown; rect(x: number, y: number, w: number, h: number): unknown; fill(color: number): unknown; circle(x: number, y: number, r: number): unknown },
+  graphics: {
+    clear(): unknown;
+    rect(x: number, y: number, w: number, h: number): unknown;
+    fill(color: number): unknown;
+    circle(x: number, y: number, r: number): unknown;
+    moveTo(x: number, y: number): unknown;
+    lineTo(x: number, y: number): unknown;
+    stroke(style?: { width?: number; color?: number; cap?: "butt" | "round" | "square" }): unknown;
+  },
   frame: Frame,
   cam: Camera,
   layers: LayerCounts,
@@ -359,9 +403,12 @@ function paintFramePixi(
     if (p.alive) {
       const cx = px(p.x + p.w / 2);
       const cy = py(p.y + p.h / 2);
-      const edge = (p.w / 2 + 6) * cam.scale;
-      graphics.circle(cx + Math.cos(p.aim) * edge, cy + Math.sin(p.aim) * edge, 2);
-      graphics.fill(0xf8fafc);
+      const tip = { x: px(p.barrel.x), y: py(p.barrel.y) };
+      graphics.moveTo(cx, cy);
+      graphics.lineTo(tip.x, tip.y);
+      graphics.stroke({ width: 3, color: barrelColor(p.index), cap: "round" });
+      graphics.circle(tip.x, tip.y, 2);
+      graphics.fill(barrelColor(p.index));
       if (!p.onGround) {
         graphics.rect(cx - 3, py(p.y + p.h) + 2, 6, 8);
         graphics.fill(0xfb923c);
@@ -423,10 +470,18 @@ function paintFrame2D(
     if (p.alive) {
       const cx = px(p.x + p.w / 2);
       const cy = py(p.y + p.h / 2);
-      const edge = (p.w / 2 + 6) * cam.scale;
-      ctx.fillStyle = "#f8fafc";
+      const tipX = px(p.barrel.x);
+      const tipY = py(p.barrel.y);
+      ctx.strokeStyle = barrelCss(p.index);
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.arc(cx + Math.cos(p.aim) * edge, cy + Math.sin(p.aim) * edge, 2, 0, Math.PI * 2);
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+      ctx.fillStyle = barrelCss(p.index);
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, 2, 0, Math.PI * 2);
       ctx.fill();
       if (!p.onGround) {
         ctx.fillStyle = "#fb923c";
@@ -522,6 +577,14 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         cameraY: cam.y,
         fps: Math.round(fpsEma * 10) / 10,
         mode: activeMode,
+        barrels: frame.players.map((p) => ({
+          index: p.index,
+          aim: p.aim,
+          x1: p.x + p.w / 2,
+          y1: p.y + p.h / 2,
+          x2: p.barrel.x,
+          y2: p.barrel.y,
+        })),
       };
     }
     return { frame, cam, layers };

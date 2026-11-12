@@ -9,6 +9,7 @@ declare global {
     __scraplineTick: number;
     __scraplineInput: InputMirror;
     __scraplineWorld: World | null;
+    __matchConfig: { bots: number; tier: string; map: string } | null;
     __scraplineDebug: {
       entitiesDrawn: number;
       tilesDrawn: number;

@@ -128,6 +128,61 @@
         color: #7df9ff;
         cursor: pointer;
       }
+      #setup {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: rgba(5, 7, 15, 0.82);
+      }
+      #setup h2 {
+        margin: 0;
+        font-size: 22px;
+        letter-spacing: 1px;
+      }
+      .setup-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .setup-row button {
+        font-size: 14px;
+        padding: 6px 12px;
+        border: 1px solid #334155;
+        border-radius: 6px;
+        background: #0b1020;
+        color: #cbd5e1;
+        cursor: pointer;
+      }
+      .setup-row button:hover {
+        background: #16213a;
+      }
+      .setup-row button[aria-pressed="true"] {
+        border-color: #7df9ff;
+        color: #7df9ff;
+      }
+      #bots-value {
+        min-width: 2ch;
+        text-align: center;
+        font-size: 16px;
+        color: #f8fafc;
+      }
+      #start {
+        font-size: 14px;
+        padding: 8px 18px;
+        border: 1px solid #7df9ff;
+        border-radius: 6px;
+        background: #0b1020;
+        color: #7df9ff;
+        cursor: pointer;
+      }
+      #start:hover {
+        background: #16213a;
+      }
     </style>
   </head>
   <body>
@@ -136,6 +191,27 @@
       <div id="menu">
         <h1>Scrapline</h1>
         <button id="play">Play vs bots</button>
+      </div>
+      <div id="setup" style="display: none">
+        <h2>Match setup</h2>
+        <div class="setup-row">
+          <span>Bots</span>
+          <button id="bots-minus" aria-label="Fewer bots">-</button>
+          <span id="bots-value">3</span>
+          <button id="bots-plus" aria-label="More bots">+</button>
+        </div>
+        <div class="setup-row">
+          <button data-tier="easy" aria-pressed="false">easy</button>
+          <button data-tier="normal" aria-pressed="true">normal</button>
+          <button data-tier="hard" aria-pressed="false">hard</button>
+          <button data-tier="elite" aria-pressed="false">elite</button>
+        </div>
+        <div class="setup-row">
+          <button data-map="kilima" aria-pressed="true">kilima</button>
+          <button data-map="dune" aria-pressed="false">dune</button>
+          <button data-map="frostbite" aria-pressed="false">frostbite</button>
+        </div>
+        <button id="start">Start</button>
       </div>
       <div id="hud" style="display: none">
         <div>HP <span id="hud-health">100</span></div>

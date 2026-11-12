@@ -40,6 +40,8 @@ export interface Player {
   weapon: WeaponId;
   /** True when standing on ground. */
   onGround: boolean;
+  /** Visual mirror of jet thrust this tick (excluded from hash). */
+  jetting?: boolean;
   /** True when crouching. */
   crouching: boolean;
   /** True when alive. */

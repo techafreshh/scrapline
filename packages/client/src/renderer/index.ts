@@ -95,6 +95,10 @@ export interface FramePlayer {
   aim: number;
   alive: boolean;
   onGround: boolean;
+  /** True while the jetpack is thrusting this frame. */
+  jetting: boolean;
+  /** True while spawn protection is active. */
+  protected: boolean;
   /** Barrel tip in world coords (body center + aim dir * BARREL_LENGTH). */
   barrel: { x: number; y: number };
 }
@@ -212,6 +216,8 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
         aim: p.aim,
         alive: p.alive,
         onGround: p.onGround,
+        jetting: p.jetting === true,
+        protected: (p.protectionTicks ?? 0) > 0,
         barrel: barrelEndpoint(cx, cy, p.aim),
       };
     }),
@@ -363,7 +369,7 @@ function playerColor(index: number, alive: boolean): number {
   if (!alive) {
     return 0x475569;
   }
-  return index === 0 ? 0x7df9ff : 0xfb923c;
+  return index === 0 ? 0x00e5ff : 0xfb923c;
 }
 
 /** Barrel stroke color: local pale, enemies warm red (threat cue). */
@@ -472,20 +478,46 @@ function paintFramePixi(
     graphics.fill(proj.kind === "grenade" ? 0xa3e635 : 0xf97316);
   }
   for (const p of frame.players) {
+    const blink = blinkAlpha(frame.tick, p.protected);
+    const bodyColor = playerPaintColor(p.index, p.alive, victimFlash.has(p.index));
     graphics.rect(px(p.x), py(p.y), p.w * cam.scale, p.h * cam.scale);
-    graphics.fill(playerPaintColor(p.index, p.alive, victimFlash.has(p.index)));
+    graphics.fill({ color: bodyColor, alpha: blink });
     if (p.alive) {
       const cx = px(p.x + p.w / 2);
       const cy = py(p.y + p.h / 2);
+      const bodyW = p.w * cam.scale;
+      const bodyH = p.h * cam.scale;
+      // Visor stripe across the upper body.
+      graphics.rect(px(p.x) + bodyW * 0.15, py(p.y) + bodyH * 0.12, bodyW * 0.7, Math.max(2, bodyH * 0.14));
+      graphics.fill({ color: 0x0f172a, alpha: blink });
+      // Jetpack unit on the back (left edge of the body).
+      graphics.rect(px(p.x) - 5 * cam.scale, py(p.y) + bodyH * 0.25, 5 * cam.scale, bodyH * 0.4);
+      graphics.fill({ color: 0x334155, alpha: blink });
+      // Held-weapon silhouette under the barrel line: dark stock
+      // from the body center to the gun midpoint, then the bright
+      // barrel stroke from the midpoint to the unchanged tip.
+      const mid = gunMidpoint(p.x + p.w / 2, p.y + p.h / 2, p.aim);
+      const midScreen = { x: px(mid.x), y: py(mid.y) };
       const tip = { x: px(p.barrel.x), y: py(p.barrel.y) };
       graphics.moveTo(cx, cy);
+      graphics.lineTo(midScreen.x, midScreen.y);
+      graphics.stroke({ width: 6, color: 0x1e293b, alpha: blink, cap: "round" });
+      graphics.moveTo(midScreen.x, midScreen.y);
       graphics.lineTo(tip.x, tip.y);
-      graphics.stroke({ width: 3, color: barrelColor(p.index), cap: "round" });
+      graphics.stroke({ width: 3, color: barrelColor(p.index), alpha: blink, cap: "round" });
       graphics.circle(tip.x, tip.y, 2);
-      graphics.fill(barrelColor(p.index));
-      if (!p.onGround) {
-        graphics.rect(cx - 3, py(p.y + p.h) + 2, 6, 8);
-        graphics.fill(0xfb923c);
+      graphics.fill({ color: barrelColor(p.index), alpha: blink });
+      // Jet flame flicker below the feet while thrusting.
+      if (p.jetting) {
+        const scale = flameScale(frame.tick, p.index);
+        const flame = flameAlpha(frame.tick, p.index) * blink;
+        const feetY = py(p.y + p.h);
+        const outer = 5 * scale * cam.scale;
+        graphics.circle(cx, feetY + outer + 2, outer);
+        graphics.fill({ color: 0xfb923c, alpha: flame });
+        const inner = outer * 0.55;
+        graphics.circle(cx, feetY + outer + 2, inner);
+        graphics.fill({ color: 0xfde047, alpha: flame });
       }
     }
   }
@@ -566,29 +598,62 @@ function paintFrame2D(
     ctx.fill();
   }
   for (const p of frame.players) {
+    const blink = blinkAlpha(frame.tick, p.protected);
+    ctx.save();
+    ctx.globalAlpha = blink;
     ctx.fillStyle = playerPaintCss(p.index, p.alive, victimFlash.has(p.index));
     ctx.fillRect(px(p.x), py(p.y), p.w * cam.scale, p.h * cam.scale);
     if (p.alive) {
       const cx = px(p.x + p.w / 2);
       const cy = py(p.y + p.h / 2);
+      const bodyW = p.w * cam.scale;
+      const bodyH = p.h * cam.scale;
+      // Visor stripe across the upper body.
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(px(p.x) + bodyW * 0.15, py(p.y) + bodyH * 0.12, bodyW * 0.7, Math.max(2, bodyH * 0.14));
+      // Jetpack unit on the back (left edge of the body).
+      ctx.fillStyle = "#334155";
+      ctx.fillRect(px(p.x) - 5 * cam.scale, py(p.y) + bodyH * 0.25, 5 * cam.scale, bodyH * 0.4);
+      // Held-weapon silhouette under the barrel line.
+      const mid = gunMidpoint(p.x + p.w / 2, p.y + p.h / 2, p.aim);
+      const midX = px(mid.x);
+      const midY = py(mid.y);
       const tipX = px(p.barrel.x);
       const tipY = py(p.barrel.y);
-      ctx.strokeStyle = barrelCss(p.index);
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = 6;
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(cx, cy);
+      ctx.lineTo(midX, midY);
+      ctx.stroke();
+      ctx.strokeStyle = barrelCss(p.index);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(midX, midY);
       ctx.lineTo(tipX, tipY);
       ctx.stroke();
       ctx.fillStyle = barrelCss(p.index);
       ctx.beginPath();
       ctx.arc(tipX, tipY, 2, 0, Math.PI * 2);
       ctx.fill();
-      if (!p.onGround) {
+      // Jet flame flicker below the feet while thrusting.
+      if (p.jetting) {
+        const scale = flameScale(frame.tick, p.index);
+        ctx.globalAlpha = blink * flameAlpha(frame.tick, p.index);
+        const feetY = py(p.y + p.h);
+        const outer = 5 * scale * cam.scale;
         ctx.fillStyle = "#fb923c";
-        ctx.fillRect(cx - 3, py(p.y + p.h) + 2, 6, 8);
+        ctx.beginPath();
+        ctx.arc(cx, feetY + outer + 2, outer, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#fde047";
+        ctx.beginPath();
+        ctx.arc(cx, feetY + outer + 2, outer * 0.55, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
+    ctx.restore();
   }
   for (const flash of flashes) {
     const radius = flashRadius(flash.kind, flash.ttl);
@@ -691,7 +756,62 @@ export function playerPaintCss(index: number, alive: boolean, flashed: boolean):
   if (flashed) {
     return VICTIM_TINT_CSS;
   }
-  return !alive ? "#475569" : index === 0 ? "#7df9ff" : "#fb923c";
+  return !alive ? "#475569" : index === 0 ? "#00e5ff" : "#fb923c";
+}
+
+/** Jet-flame flicker scale band (multiplies the base flame radius). */
+export const FLAME_SCALE_MIN = 0.7;
+export const FLAME_SCALE_MAX = 1.4;
+/** Jet-flame flicker opacity band. */
+export const FLAME_ALPHA_MIN = 0.65;
+export const FLAME_ALPHA_MAX = 0.99;
+/** Spawn-blink half-period in ticks (opacity toggles each period). */
+export const BLINK_PERIOD_TICKS = 6;
+/** Spawn-blink dim opacity (bright phase is 1). */
+export const BLINK_DIM_ALPHA = 0.25;
+/** Gun-silhouette fraction of BARREL_LENGTH (tip math in barrelEndpoint untouched). */
+export const GUN_SILHOUETTE_FRACTION = 0.55;
+
+/**
+ * Jet-flame flicker scale for a tick/player. Integer-hash noise in
+ * [FLAME_SCALE_MIN, FLAME_SCALE_MAX]; the +61 mod-100 step keeps any
+ * 3 consecutive ticks non-constant. Pure: no DOM, no clock.
+ */
+export function flameScale(tick: number, index: number): number {
+  const h = (Math.imul(tick, 2654435761) + Math.imul(index + 1, 40503)) >>> 0;
+  return FLAME_SCALE_MIN + ((h % 100) / 100) * (FLAME_SCALE_MAX - FLAME_SCALE_MIN);
+}
+
+/**
+ * Jet-flame flicker opacity for a tick/player. Integer-hash noise in
+ * [FLAME_ALPHA_MIN, FLAME_ALPHA_MAX]; the +19 mod-100 step keeps any
+ * 3 consecutive ticks non-constant. Pure: no DOM, no clock.
+ */
+export function flameAlpha(tick: number, index: number): number {
+  const h = (Math.imul(tick, 2246822519) + Math.imul(index + 1, 32661)) >>> 0;
+  return FLAME_ALPHA_MIN + ((h % 100) / 100) * (FLAME_ALPHA_MAX - FLAME_ALPHA_MIN);
+}
+
+/**
+ * Spawn-protection blink opacity: 1 when unprotected, else toggles
+ * between 1 and BLINK_DIM_ALPHA every BLINK_PERIOD_TICKS. Tick-derived
+ * (not wall-clock) so headless/frame-stepped probes observe it.
+ */
+export function blinkAlpha(tick: number, isProtected: boolean): number {
+  if (!isProtected) {
+    return 1;
+  }
+  return Math.floor(tick / BLINK_PERIOD_TICKS) % 2 === 0 ? 1 : BLINK_DIM_ALPHA;
+}
+
+/** Gun-silhouette endpoint: body center + aim dir * BARREL_LENGTH * fraction. */
+export function gunMidpoint(
+  centerX: number,
+  centerY: number,
+  aim: number,
+): { x: number; y: number } {
+  const length = BARREL_LENGTH * GUN_SILHOUETTE_FRACTION;
+  return { x: centerX + Math.cos(aim) * length, y: centerY + Math.sin(aim) * length };
 }
 
 /** Burst draw position: origin plus radial velocity times lived draws. */
@@ -936,6 +1056,22 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         tints: frame.players.map((p) =>
           playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
         ),
+        players: frame.players.map((p) => ({
+          index: p.index,
+          x: p.x,
+          y: p.y,
+          w: p.w,
+          h: p.h,
+          jetting: p.jetting,
+          protected: p.protected,
+          alpha: blinkAlpha(frame.tick, p.protected),
+          color: playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
+          colorCss: playerPaintCss(p.index, p.alive, victimFlash.has(p.index)),
+          flame:
+            p.jetting && p.alive
+              ? { scale: flameScale(frame.tick, p.index), alpha: flameAlpha(frame.tick, p.index) }
+              : null,
+        })),
         zoom: cam.zoom ?? 1,
         scale: cam.scale,
         trauma: cam.trauma ?? 0,

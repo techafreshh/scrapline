@@ -12,7 +12,9 @@
     "start": "node server.js",
     "build": "tsc -b && npm run build --workspace=@scrapline/env",
     "lint": "eslint .",
-    "test": "npm run build:client && npm run build && vitest run packages/core packages/client packages/env && node --test tests/skeleton.test.js"
+    "test": "npm run build:client && npm run build && vitest run packages/core packages/client packages/env && node --test tests/skeleton.test.js",
+    "bench:repro": "tsx tools/bench-repro.ts",
+    "bench:throughput": "tsx tools/bench-throughput.ts"
   },
   "engines": {
     "node": ">=20"

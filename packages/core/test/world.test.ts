@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { World } from "../src/world";
+import { WEAPONS } from "../src/weapons";
 
 describe("World run", () => {
   it("displaces 270-310px over 60 ticks holding moveX=1 on flat ground", () => {
@@ -107,5 +108,48 @@ describe("World determinism", () => {
     }
     expect(a.hash()).toBe(b.hash());
     expect(a.tick).toBe(b.tick);
+  });
+
+  it("cooldown-only difference changes the hash", () => {
+    const a = new World({ seed: 7 });
+    const b = new World({ seed: 7 });
+    a.step();
+    b.step();
+    a.players[0]!.cooldownTicks = 0;
+    b.players[0]!.cooldownTicks = WEAPONS.pistol.cooldownTicks;
+    expect(a.hash()).not.toBe(b.hash());
+  });
+
+  it("reload-only difference changes the hash", () => {
+    const a = new World({ seed: 7 });
+    const b = new World({ seed: 7 });
+    a.step();
+    b.step();
+    a.players[0]!.reloadTicks = 0;
+    b.players[0]!.reloadTicks = WEAPONS.pistol.reload;
+    expect(a.hash()).not.toBe(b.hash());
+  });
+
+  it("ticksSinceDamage-only difference changes the hash", () => {
+    const a = new World({ seed: 7 });
+    const b = new World({ seed: 7 });
+    a.step();
+    b.step();
+    a.players[0]!.ticksSinceDamage = 0;
+    b.players[0]!.ticksSinceDamage = 9999;
+    expect(a.hash()).not.toBe(b.hash());
+  });
+
+  it("identical stepped worlds with firing hash equal, stable, and 8 hex chars", () => {
+    const a = new World({ seed: 7 });
+    const b = new World({ seed: 7 });
+    for (let t = 0; t < 30; t += 1) {
+      const input = t < 10 ? { moveX: 1 } : { buttons: 4 };
+      a.step(input);
+      b.step(input);
+    }
+    expect(a.hash()).toBe(b.hash());
+    expect(a.hash()).toBe(a.hash());
+    expect(a.hash()).toMatch(/^[0-9a-f]{8}$/);
   });
 });

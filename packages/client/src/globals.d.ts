@@ -16,6 +16,14 @@ declare global {
       cameraY: number;
       fps: number;
       mode: string;
+      barrels: {
+        index: number;
+        aim: number;
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+      }[];
     };
   }
 }

@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { World } from "../../core/src/world";
 import { TILE_SIZE } from "../../core/src/map";
-import { describeFrame } from "../src/renderer/index";
+import { BARREL_LENGTH, barrelEndpoint, describeFrame } from "../src/renderer/index";
 import {
   cameraTarget,
   createCamera,
@@ -79,5 +79,43 @@ describe("describeFrame", () => {
     expect(frame.projectiles).toEqual([]);
     expect(frame.arena.width).toBe(40 * TILE_SIZE);
     expect(frame.arena.height).toBe(20 * TILE_SIZE);
+  });
+});
+
+describe("barrelEndpoint", () => {
+  const cx = 100;
+  const cy = 200;
+  it.each([
+    { aim: 0, ex: cx + BARREL_LENGTH, ey: cy },
+    { aim: Math.PI / 2, ex: cx, ey: cy + BARREL_LENGTH },
+    { aim: Math.PI, ex: cx - BARREL_LENGTH, ey: cy },
+    { aim: -Math.PI / 2, ex: cx, ey: cy - BARREL_LENGTH },
+  ])("aim $aim lands at pos + dir(aim) * length", ({ aim, ex, ey }) => {
+    const tip = barrelEndpoint(cx, cy, aim);
+    expect(tip.x).toBeCloseTo(ex, 10);
+    expect(tip.y).toBeCloseTo(ey, 10);
+  });
+
+  it("wires the enemy barrel tip through describeFrame", () => {
+    const world = new World({ seed: 1 });
+    const y = floorY();
+    world.addPlayer({ x: 100, y });
+    world.addPlayer({ x: 300, y });
+    world.step([{}, {}]);
+    const frame = describeFrame(world.state, world.map);
+    const enemy = frame.players[1];
+    const sim = world.state.players[1];
+    const expected = barrelEndpoint(
+      enemy.x + enemy.w / 2,
+      enemy.y + enemy.h / 2,
+      sim.aim,
+    );
+    expect(enemy.barrel.x).toBeCloseTo(expected.x, 10);
+    expect(enemy.barrel.y).toBeCloseTo(expected.y, 10);
+    const length = Math.hypot(
+      enemy.barrel.x - (enemy.x + enemy.w / 2),
+      enemy.barrel.y - (enemy.y + enemy.h / 2),
+    );
+    expect(length).toBeCloseTo(BARREL_LENGTH, 10);
   });
 });

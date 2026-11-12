@@ -1012,3 +1012,90 @@ export function assertMapReachable(
     throw new Error(`map has ${unreachable.length} unreachable spawn->pad pair(s): ${pairs}`);
   }
 }
+
+/**
+ * Flood the spawn-connected free region: 4-directional BFS from every
+ * spawn over non-solid tiles (jet affects cost only, never passability,
+ * so the BFS ignores it exactly like `findPath` does). Accepts the same
+ * tolerant inputs as `findUnreachablePairs` (parsed symbols or raw rows,
+ * optional explicit grid) and treats out-of-bounds as solid, mirroring
+ * `TileMap.isSolidTile`. Returns the connected free cells as `"x,y"`
+ * tile keys; spawns starting inside a solid tile seed nothing.
+ */
+export function spawnConnectedCells(
+  symbolsOrRows: MapSymbols | { spawns: TilePos[]; pads?: TilePos[] } | string[] | string,
+  map?: TileMap | GridLike | { isSolidTile(tx: number, ty: number): boolean },
+): Set<string> {
+  const { spawns, grid } = resolveReachableArgs(
+    symbolsOrRows as MapSymbols | { spawns: TilePos[]; pads: TilePos[] },
+    map,
+  );
+  let width = 0;
+  let height = 0;
+  let solidAt: (x: number, y: number) => boolean = () => true;
+  if (
+    grid !== null &&
+    grid !== undefined &&
+    typeof grid === "object" &&
+    !Array.isArray(grid) &&
+    typeof (grid as { isSolidTile?: unknown }).isSolidTile === "function"
+  ) {
+    const m = grid as TileMap;
+    width = Number(m.widthTiles ?? m.width ?? 0);
+    height = Number(m.heightTiles ?? m.height ?? 0);
+    solidAt = (x: number, y: number): boolean => m.isSolidTile(x, y);
+  } else if (grid !== null && grid !== undefined) {
+    const norm = normalizeGrid(grid as GridLike);
+    width = norm.width;
+    height = norm.height;
+    solidAt = (x: number, y: number): boolean => {
+      if (x < 0 || y < 0 || x >= width || y >= height) {
+        return true;
+      }
+      return (norm.blocked[y] as boolean[])[x] as boolean;
+    };
+  }
+  const seen = new Set<string>();
+  const queue: TilePos[] = [];
+  for (const spawn of spawns) {
+    const x = Math.floor(spawn.x);
+    const y = Math.floor(spawn.y);
+    if (x < 0 || y < 0 || x >= width || y >= height) {
+      continue;
+    }
+    if (solidAt(x, y)) {
+      continue;
+    }
+    const key = `${x},${y}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      queue.push({ x, y });
+    }
+  }
+  const dirs: ReadonlyArray<readonly [number, number]> = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ];
+  while (queue.length > 0) {
+    const cur = (queue.pop() as TilePos);
+    for (const [dx, dy] of dirs) {
+      const nx = cur.x + dx;
+      const ny = cur.y + dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+        continue;
+      }
+      if (solidAt(nx, ny)) {
+        continue;
+      }
+      const key = `${nx},${ny}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return seen;
+}

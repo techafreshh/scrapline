@@ -33,6 +33,46 @@ export interface ShotDetail {
   tick: number;
 }
 
+/**
+ * Per-hit damage detail: sim-space hit position plus victim and
+ * shooter identity for one damaged victim/prop-hit. Recorded inside
+ * World.step's damage sites (no extra RNG draws, no damage/hash
+ * impact); the renderer consumes these to spawn impact sparks and the
+ * client fires the crosshair hitmarker from the shooter id.
+ */
+export interface DamageDetail {
+  /** Victim index in the player array (-1 for prop hits). */
+  victim: number;
+  /** Victim player id (-1 for prop hits). */
+  victimId: number;
+  /** Hit-point x in world px (pellet endpoint or victim center). */
+  x: number;
+  /** Hit-point y in world px (pellet endpoint or victim center). */
+  y: number;
+  /** Shooter index in the player array. */
+  shooter: number;
+  /** Shooter player id. */
+  shooterId: number;
+}
+
+/**
+ * Per-kill detail: victim identity plus death position for one kill.
+ * Recorded at every site that emits "kill" (no extra RNG draws, no
+ * hash impact); the renderer spawns a death burst at the position.
+ */
+export interface KillDetail {
+  /** Victim index in the player array. */
+  victim: number;
+  /** Victim player id. */
+  victimId: number;
+  /** Killer player id (null for unattributed deaths). */
+  killerId: number | null;
+  /** Death-position x in world px (victim body center). */
+  x: number;
+  /** Death-position y in world px (victim body center). */
+  y: number;
+}
+
 /** Frozen list of every event name (probe/iteration order). */
 export const WORLD_EVENTS: readonly WorldEvent[] = Object.freeze([
   "shot",

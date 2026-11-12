@@ -23,6 +23,7 @@ import {
 import { createRng, type Rng } from "../rng";
 import { WEAPONS, type WeaponId } from "../weapons";
 import type { WorldInput } from "../world";
+import { BUTTON_CROUCH, BUTTON_FIRE, BUTTON_GRENADE, BUTTON_JET } from "../world";
 import { getTier, rampTier, type TierName, type TierProfile } from "./tiers";
 
 /** Replan rate in Hz (one tick() call carries one full replan). */
@@ -1150,10 +1151,12 @@ export class BotBrain {
     norm: ReturnType<BotBrain["normalize"]>,
     anchor: { x: number; y: number } | null,
     target: SeenEnemy | null,
-  ): { moveX: number; jet: boolean; desiredRange: number } {
+  ): { moveX: number; jet: boolean; desiredRange: number; crouch: boolean } {
     const profile = this.profile;
     const self = norm.self;
     const band = COMBAT_BANDS[self.weapon] ?? COMBAT_BANDS.pistol;
+    const fightCrouch = (jet: boolean): boolean =>
+      !jet && (!self.onGroundKnown || self.onGround);
 
     if (goal === "fight" && target !== null) {
       const dx = target.x - self.x;
@@ -1202,7 +1205,7 @@ export class BotBrain {
       if (!jet && self.onGroundKnown && self.onGround && moveX !== 0) {
         jet = this.terrainBlocks(norm.map, self.x, self.y, moveX);
       }
-      return { moveX, jet, desiredRange: band.ideal };
+      return { moveX, jet, desiredRange: band.ideal, crouch: fightCrouch(jet) };
     }
 
     if (goal === "evade") {
@@ -1220,7 +1223,7 @@ export class BotBrain {
       if (!jet && self.onGroundKnown && self.onGround && moveX !== 0) {
         jet = this.terrainBlocks(norm.map, self.x, self.y, moveX);
       }
-      return { moveX, jet, desiredRange: THREAT_RADIUS_PX };
+      return { moveX, jet, desiredRange: THREAT_RADIUS_PX, crouch: false };
     }
 
     let dest: { x: number; y: number } | null;
@@ -1250,7 +1253,7 @@ export class BotBrain {
       }
     }
     if (dest === null) {
-      return { moveX: 0, jet: false, desiredRange: 0 };
+      return { moveX: 0, jet: false, desiredRange: 0, crouch: false };
     }
     const waypoint = this.waypointFor(
       norm.map,
@@ -1271,6 +1274,7 @@ export class BotBrain {
       moveX,
       jet,
       desiredRange: Math.hypot(dest.x - self.x, dest.y - self.y),
+      crouch: false,
     };
   }
 
@@ -1378,7 +1382,7 @@ export class BotBrain {
     if (!self.alive) {
       this.goalState = "roam";
       this.desiredRangeState = 0;
-      return this.output(0, this.lastAim, false, false, "roam", 0);
+      return this.output(0, this.lastAim, false, false, "roam", 0, false, false);
     }
 
     const { target } = this.perceive(norm);
@@ -1482,7 +1486,7 @@ export class BotBrain {
     }
 
     this.desiredRangeState = move.desiredRange;
-    return this.output(move.moveX, aim, move.jet, fire, goal, move.desiredRange, grenade);
+    return this.output(move.moveX, aim, move.jet, fire, goal, move.desiredRange, grenade, move.crouch);
   }
 
   private output(
@@ -1493,25 +1497,29 @@ export class BotBrain {
     goal: Goal,
     desiredRange: number,
     grenade = false,
+    crouch = false,
   ): BrainOutput {
     const quantizedMove = quantizeMoveXLocal(moveX);
     const quantizedAim = quantizeAimLocal(aim);
     let buttons = 0;
     if (jet) {
-      buttons |= 1;
+      buttons |= BUTTON_JET;
+    }
+    if (crouch) {
+      buttons |= BUTTON_CROUCH;
     }
     if (fire) {
-      buttons |= 4;
+      buttons |= BUTTON_FIRE;
     }
     if (grenade) {
-      buttons |= 8;
+      buttons |= BUTTON_GRENADE;
     }
     return {
       moveX: quantizedMove,
       aim: quantizedAim,
       buttons,
       jet,
-      crouch: false,
+      crouch,
       fire,
       grenade,
       throw: grenade,

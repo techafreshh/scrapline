@@ -954,6 +954,8 @@ export class World {
             const shooterH = player.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
             const mx = player.x + PLAYER_WIDTH / 2;
             const my = player.y + shooterH / 2;
+            const damagedPlayers = new Set<number>();
+            const damagedProps = new Set<number>();
             for (let pellet = 0; pellet < stat.pellets; pellet += 1) {
               const spreadOffset = (this.rng.next() * 2 - 1) * stat.spread;
               const angle = player.aim + spreadOffset;
@@ -1016,7 +1018,10 @@ export class World {
               if (propIdx >= 0 && propT < bestT) {
                 const prop = this.props[propIdx] as Prop;
                 this.damageProp(prop, stat.damage, events, protectionAtStart);
-                events.push("damage");
+                if (!damagedProps.has(prop.id)) {
+                  damagedProps.add(prop.id);
+                  events.push("damage");
+                }
                 continue;
               }
               if (bestIdx < 0) {
@@ -1034,7 +1039,10 @@ export class World {
               const damage = isHead ? Math.round(stat.damage * stat.headshotMult) : stat.damage;
               target.hp -= damage;
               target.ticksSinceDamage = 0;
-              events.push("damage");
+              if (!damagedPlayers.has(bestIdx)) {
+                damagedPlayers.add(bestIdx);
+                events.push("damage");
+              }
               if (target.hp <= 0) {
                 target.hp = 0;
                 target.alive = false;

@@ -316,6 +316,110 @@ describe("combat order independence", () => {
   });
 });
 
+describe("combat shotgun events", () => {
+  function twoPlayersClose(seed = 1): World {
+    const world = new World({ seed });
+    const y = floorY();
+    world.addPlayer({ x: 100, y });
+    world.addPlayer({ x: 200, y });
+    const shooter = world.players[0];
+    if (shooter === undefined) {
+      throw new Error("expected shooter");
+    }
+    shooter.weapon = "shotgun";
+    shooter.magAmmo = WEAPONS.shotgun.mag;
+    shooter.cooldownTicks = 0;
+    return world;
+  }
+
+  it("close-range torso blast emits 1 shot + 1 damage with 72 total damage", () => {
+    const world = twoPlayersClose();
+    const events = world.step([{ fire: true, aim: 0 }, {}]);
+    expect(events.filter((e) => e === "shot")).toHaveLength(1);
+    expect(events.filter((e) => e === "damage")).toHaveLength(1);
+    expect(world.players[1]?.hp).toBe(28);
+    expect(world.players[0]?.magAmmo).toBe(WEAPONS.shotgun.mag - 1);
+  });
+
+  it("lethal blast emits 1 shot + 1 damage + 1 kill", () => {
+    const world = twoPlayersClose();
+    const victim = world.players[1];
+    if (victim === undefined) {
+      throw new Error("expected victim");
+    }
+    victim.hp = 50;
+    const events = world.step([{ fire: true, aim: 0 }, {}]);
+    expect(events.filter((e) => e === "shot")).toHaveLength(1);
+    expect(events.filter((e) => e === "damage")).toHaveLength(1);
+    expect(events.filter((e) => e === "kill")).toHaveLength(1);
+    expect(victim.hp).toBe(0);
+    expect(victim.alive).toBe(false);
+  });
+
+  it("full blast into one crate emits 1 damage with full per-pellet prop loss", () => {
+    const world = new World({ seed: 1 });
+    const y = floorY();
+    world.addPlayer({ x: 100, y });
+    const shooter = world.players[0];
+    if (shooter === undefined) {
+      throw new Error("expected shooter");
+    }
+    shooter.weapon = "shotgun";
+    shooter.magAmmo = WEAPONS.shotgun.mag;
+    shooter.cooldownTicks = 0;
+    // Crate center on the muzzle line so spread cannot miss at ~40px.
+    const my = y + 58 / 2;
+    const crate = world.addProp({ kind: "crate", x: 150, y: my - 15 });
+    const events = world.step([{ fire: true, aim: 0 }]);
+    expect(events.filter((e) => e === "shot")).toHaveLength(1);
+    expect(events.filter((e) => e === "damage")).toHaveLength(1);
+    expect(crate.alive).toBe(false);
+    expect(crate.hp).toBe(0);
+  });
+
+  it("single-pellet pistol torso shot still yields 1 shot + 1 damage", () => {
+    const world = twoPlayers200();
+    const events = world.step([{ fire: true, aim: 0 }, {}]);
+    expect(events.filter((e) => e === "shot")).toHaveLength(1);
+    expect(events.filter((e) => e === "damage")).toHaveLength(1);
+    expect(world.players[1]?.hp).toBe(80);
+  });
+
+  it("wall-blocked shotgun blast yields 1 shot with zero damage", () => {
+    const width = 40;
+    const height = 20;
+    const rows: string[] = [];
+    for (let yy = 0; yy < height; yy += 1) {
+      let row = "";
+      for (let x = 0; x < width; x += 1) {
+        if (yy >= height - 2) {
+          row += "#";
+        } else if (x === 7) {
+          row += "#";
+        } else {
+          row += ".";
+        }
+      }
+      rows.push(row);
+    }
+    const world = new World({ seed: 5, rows });
+    const y = floorY();
+    world.addPlayer({ x: 100, y });
+    world.addPlayer({ x: 300, y });
+    const shooter = world.players[0];
+    if (shooter === undefined) {
+      throw new Error("expected shooter");
+    }
+    shooter.weapon = "shotgun";
+    shooter.magAmmo = WEAPONS.shotgun.mag;
+    shooter.cooldownTicks = 0;
+    const events = world.step([{ fire: true, aim: 0 }, {}]);
+    expect(events.filter((e) => e === "shot")).toHaveLength(1);
+    expect(events).not.toContain("damage");
+    expect(world.players[1]?.hp).toBe(100);
+  });
+});
+
 describe("combat determinism", () => {
   it("same seed and fire inputs hash-equal", () => {
     const a = twoPlayers200(42);

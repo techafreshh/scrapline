@@ -21,6 +21,12 @@ declare global {
       shakeY: number;
       view: { w: number; h: number };
     } | null;
+    /** Synthesized-SFX probe mirror (engine.ts upkeep, gesture-gated). */
+    __audio:
+      | {
+          lastPlayed: Array<{ name: string; baseFreq: number; at: number }>;
+        }
+      | undefined;
     __scraplineDebug: {
       entitiesDrawn: number;
       tilesDrawn: number;

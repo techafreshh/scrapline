@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: npm run build --workspace=@scrapline/env
-      - run: pip install -e rl
+      - run: pip install -e "rl[test]"
       - run: npm run lint
       - run: npm test
-      - run: pytest rl/tests
+      - run: python -m pytest rl/tests

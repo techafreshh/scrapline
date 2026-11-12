@@ -8,7 +8,12 @@ import {
   PLAYER_HEIGHT,
   PLAYER_WIDTH,
 } from "../../core/src/constants";
-import { TICK_HZ, World, type WorldInput } from "../../core/src/world";
+import {
+  BUTTON_FIRE,
+  TICK_HZ,
+  World,
+  type WorldInput,
+} from "../../core/src/world";
 import type { DamageDetail, KillDetail, ShotDetail } from "../../core/src/events";
 import { BotBrain } from "../../core/src/bots/brain";
 import { mapRowsFor } from "./maps";
@@ -22,7 +27,17 @@ import {
   type SetupConfig,
   type SetupStorage,
 } from "./setup";
-import { bindSettings } from "./settings";
+import { bindSettings, parseVolume } from "./settings";
+import {
+  ensureAudioOnGesture,
+  groupShotWeapons,
+  playBounce,
+  playDryFire,
+  playExplosion,
+  playReload,
+  playShot,
+  setVolume,
+} from "./audio/engine";
 import {
   applyKeyEvent,
   applyMouseButton,
@@ -272,6 +287,13 @@ function stepOnce(): string[] {
     botCached = brains.map((brain, k) => brain.tick(world, k + 1));
   }
   const inputs: WorldInput[] = [local, ...botCached];
+  // SFX snapshot: reload/dry-fire intents diff pre- vs post-step without
+  // touching the sacred sim (prevProjectileIds snapshot idiom).
+  const focus = world.players[0];
+  const preMagAmmo = focus?.magAmmo ?? -1;
+  const preReloading = focus?.reloading === true;
+  const preAlive = focus?.alive === true;
+  const fireHeld = (local.buttons & BUTTON_FIRE) !== 0;
   const prevScores = world.scores.slice();
   const prevAlive = world.players.map((p) => p.alive);
   // Projectile ids before the step: rocket launches never emit
@@ -281,11 +303,28 @@ function stepOnce(): string[] {
     prevProjectileIds.add(proj.id);
   }
   const events = world.step(inputs);
+  // Dry-fire clicks when the trigger is held on an empty magazine;
+  // reload blips on the false->true edge (throttled in the engine).
+  const postFocus = world.players[0];
+  if (fireHeld && preMagAmmo === 0 && preAlive) {
+    playDryFire();
+  } else if (
+    postFocus !== undefined &&
+    postFocus.reloading &&
+    !preReloading
+  ) {
+    playReload();
+  }
   const stepShots: ShotDetail[] = [];
   const stepDamages: DamageDetail[] = [];
   for (const shot of world.drainShotDetails()) {
     shotsThisFrame.push(shot);
     stepShots.push(shot);
+  }
+  // One SFX play per firing, never per pellet: group drained details by
+  // shooter (the spawnShots muzzled-set idiom) into a single playShot.
+  for (const weapon of groupShotWeapons(stepShots)) {
+    playShot(weapon);
   }
   for (const damage of world.drainDamageDetails()) {
     damagesThisFrame.push(damage);
@@ -306,6 +345,7 @@ function stepOnce(): string[] {
     camera !== null &&
     rocketLaunchedSince(prevProjectileIds, world.projectiles, 0)
   ) {
+    playShot("rocket");
     addTrauma(camera, 0.25);
   }
   // Camera kick: a nearby explosion rattles the local player. Trauma
@@ -327,6 +367,14 @@ function stepOnce(): string[] {
         addTrauma(camera, 0.35 * (1 - minDist / EXPLODE_SHAKE_RADIUS));
       }
     }
+  }
+  // Grenade voices are local-player-agnostic (audible at any distance,
+  // like the shake anchor fallback): bounce blips, explosion booms.
+  if (events.includes("bounce")) {
+    playBounce();
+  }
+  if (events.includes("explode")) {
+    playExplosion();
   }
   for (const kill of world.drainKillDetails()) {
     killsThisFrame.push(kill);
@@ -550,6 +598,9 @@ let lastLocalKiller: string | null = null;
 
 /** Hide the menu, build the offline World plus tiered bots, start. */
 function startMatch(config: SetupConfig): void {
+  // Gesture unlock: startMatch always runs inside a click-handler stack,
+  // so the AudioContext is created/resumed here, never at import time.
+  ensureAudioOnGesture();
   cancelAnimationFrame(rafId);
   const parsed = parseSetup(config);
   matchConfig = parsed;
@@ -641,6 +692,31 @@ const setupBinder = bindSetup(document, storage, (config: SetupConfig) => {
   startMatch(config);
 });
 const settingsBinder = bindSettings(document, storage);
+// The settings slider stays the single volume surface: seed the engine
+// gain from the persisted volume and track the slider live (0 mutes).
+setVolume(settingsBinder.volume);
+const volumeSlider = document.getElementById("volume");
+if (volumeSlider instanceof HTMLInputElement) {
+  volumeSlider.addEventListener("input", () => {
+    setVolume(parseVolume(volumeSlider.value));
+  });
+}
+// Autoplay-guard fallback: unlock on the first gesture even outside
+// startMatch (creation still only ever happens in a gesture stack).
+window.addEventListener(
+  "pointerdown",
+  () => {
+    ensureAudioOnGesture();
+  },
+  { once: true },
+);
+window.addEventListener(
+  "keydown",
+  () => {
+    ensureAudioOnGesture();
+  },
+  { once: true },
+);
 
 /** Reveal a menu overlay by id; missing elements are no-ops. */
 function showOverlay(id: string): void {

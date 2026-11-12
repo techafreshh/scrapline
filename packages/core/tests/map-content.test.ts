@@ -94,6 +94,93 @@ describe("map content", () => {
     }
   });
 
+  it("kilima holds 3+ jet-required pickups 96px+ above the lowest spawns", () => {
+    const kilima = mapNames.find((name) => name.endsWith("kilima.txt"));
+    expect(kilima).toBeDefined();
+    const rows = rowsOf(kilima as string);
+    const symbols = parseMapSymbols(rows);
+    const world = new World({ seed: 7, map: rows });
+    const lowestRow = Math.max(...symbols.spawns.map((spawn) => spawn.y));
+    const footY = (lowestRow + 1) * TILE_SIZE;
+    const fullRegion = spawnConnectedCells(symbols);
+    // No-ascent BFS from the lowest spawns: the hop rises less than one
+    // tile, so any ascent already needs the jetpack. Only lateral and
+    // downward steps are allowed here.
+    const flatRegion = new Set<string>();
+    const queue = symbols.spawns
+      .filter((spawn) => spawn.y === lowestRow)
+      .map((spawn) => ({ x: spawn.x, y: spawn.y }));
+    for (const spawn of queue) {
+      flatRegion.add(tileKey(spawn.x, spawn.y));
+    }
+    const steps: ReadonlyArray<readonly [number, number]> = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+    ];
+    while (queue.length > 0) {
+      const cur = queue.pop() as { x: number; y: number };
+      for (const [dx, dy] of steps) {
+        const nx = cur.x + dx;
+        const ny = cur.y + dy;
+        if (nx < 0 || ny < 0 || nx >= symbols.map.widthTiles || ny >= symbols.map.heightTiles) {
+          continue;
+        }
+        if (symbols.map.isSolidTile(nx, ny)) {
+          continue;
+        }
+        const key = tileKey(nx, ny);
+        if (flatRegion.has(key)) {
+          continue;
+        }
+        flatRegion.add(key);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+    let jetRequired = 0;
+    for (const pickup of world.pickups) {
+      if (footY - pickup.y < 96) {
+        continue;
+      }
+      const tx = Math.floor(pickup.x / TILE_SIZE);
+      const ty = Math.floor(pickup.y / TILE_SIZE);
+      expect(fullRegion.has(tileKey(tx, ty))).toBe(true);
+      if (!flatRegion.has(tileKey(tx, ty))) {
+        jetRequired += 1;
+      }
+    }
+    expect(jetRequired).toBeGreaterThanOrEqual(3);
+  });
+
+  it("kilima ground-spawn sightlines are mostly broken by walls", () => {
+    const kilima = mapNames.find((name) => name.endsWith("kilima.txt"));
+    expect(kilima).toBeDefined();
+    const rows = rowsOf(kilima as string);
+    const symbols = parseMapSymbols(rows);
+    const lowestRow = Math.max(...symbols.spawns.map((spawn) => spawn.y));
+    const ground = symbols.spawns.filter((spawn) => spawn.y === lowestRow);
+    expect(ground.length).toBeGreaterThanOrEqual(2);
+    let blocked = 0;
+    let total = 0;
+    for (let i = 0; i < ground.length; i += 1) {
+      for (let j = i + 1; j < ground.length; j += 1) {
+        const a = ground[i] as { x: number; y: number };
+        const b = ground[j] as { x: number; y: number };
+        const hit = symbols.map.raycast(
+          a.x * TILE_SIZE + TILE_SIZE / 2,
+          a.y * TILE_SIZE + TILE_SIZE / 2,
+          b.x * TILE_SIZE + TILE_SIZE / 2,
+          b.y * TILE_SIZE + TILE_SIZE / 2,
+        );
+        total += 1;
+        if (hit.hit) {
+          blocked += 1;
+        }
+      }
+    }
+    expect(blocked / total).toBeGreaterThanOrEqual(0.5);
+  });
+
   it("a 60s kilima roam observes 3+ pickups inside the roamer viewport", () => {
     const kilima = mapNames.find((name) => name.endsWith("kilima.txt"));
     expect(kilima).toBeDefined();

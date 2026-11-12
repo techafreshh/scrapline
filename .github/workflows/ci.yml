@@ -14,5 +14,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm run build --workspace=@scrapline/env
+      - run: pip install -e "rl[test]"
       - run: npm run lint
       - run: npm test
+      - run: python -m pytest rl/tests

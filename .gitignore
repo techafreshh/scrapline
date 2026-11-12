@@ -6,4 +6,5 @@ recon/
 *.local.md
 __pycache__/
 .venv/
+*.egg-info/
 .factory/

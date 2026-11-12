@@ -64,7 +64,7 @@ import {
   WEAPON_RESPAWN_TICKS,
 } from "./constants";
 import type { Pickup, PickupKind, Player, Projectile, Prop, PropKind } from "./entities";
-import type { WorldEvent, ShotDetail } from "./events";
+import type { DamageDetail, KillDetail, ShotDetail, WorldEvent } from "./events";
 import { isMatchOver, standingsFor, type MatchMode } from "./match";
 import { TILE_SIZE, TileMap, parseMapSymbols } from "./map";
 import { createRng, type Rng } from "./rng";
@@ -296,6 +296,10 @@ export class World {
   private nextPickupId = 0;
   /** Per-pellet hitscan details recorded by the last step(); drained by the renderer. */
   private pendingShots: ShotDetail[] = [];
+  /** Per-hit damage details recorded by the last step(); drained by the renderer. */
+  private pendingDamage: DamageDetail[] = [];
+  /** Per-kill details recorded by the last step(); drained by the renderer. */
+  private pendingKill: KillDetail[] = [];
 
   constructor(options: WorldOptions = {}) {
     this.seed = options.seed ?? 0;
@@ -719,6 +723,36 @@ export class World {
     return out;
   }
 
+  /**
+   * Drain per-hit damage details recorded by the last step().
+   * Returns and clears the queue; the next step() starts empty so
+   * details never cross ticks or grow unboundedly.
+   */
+  drainDamageDetails(): DamageDetail[] {
+    const pending = (this as unknown as { pendingDamage?: DamageDetail[] }).pendingDamage;
+    if (pending === undefined || pending.length === 0) {
+      return [];
+    }
+    const out = pending.slice();
+    pending.length = 0;
+    return out;
+  }
+
+  /**
+   * Drain per-kill details recorded by the last step().
+   * Returns and clears the queue; the next step() starts empty so
+   * details never cross ticks or grow unboundedly.
+   */
+  drainKillDetails(): KillDetail[] {
+    const pending = (this as unknown as { pendingKill?: KillDetail[] }).pendingKill;
+    if (pending === undefined || pending.length === 0) {
+      return [];
+    }
+    const out = pending.slice();
+    pending.length = 0;
+    return out;
+  }
+
   /** Alias of addPlayer (both spellings are probed). */
   spawnPlayer(x?: number, y?: number): Player;
   spawnPlayer(opts?: SpawnOptions): Player;
@@ -771,8 +805,16 @@ export class World {
     if ((this as unknown as { pendingShots?: ShotDetail[] }).pendingShots === undefined) {
       (this as unknown as { pendingShots: ShotDetail[] }).pendingShots = [];
     }
-    // Shot details never cross ticks: undrained leftovers die here.
+    if ((this as unknown as { pendingDamage?: DamageDetail[] }).pendingDamage === undefined) {
+      (this as unknown as { pendingDamage: DamageDetail[] }).pendingDamage = [];
+    }
+    if ((this as unknown as { pendingKill?: KillDetail[] }).pendingKill === undefined) {
+      (this as unknown as { pendingKill: KillDetail[] }).pendingKill = [];
+    }
+    // Shot/damage/kill details never cross ticks: undrained leftovers die here.
     (this.pendingShots as ShotDetail[]).length = 0;
+    (this.pendingDamage as DamageDetail[]).length = 0;
+    (this.pendingKill as KillDetail[]).length = 0;
     if ((this as { projectiles?: Projectile[] }).projectiles === undefined) {
       (this as { projectiles: Projectile[] }).projectiles = [];
     }
@@ -879,6 +921,14 @@ export class World {
         player.alive = false;
         player.respawnTicks = RESPAWN_TICKS - 1;
         events.push("kill");
+        const sleeperH = player.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+        this.pendingKill.push({
+          victim: i,
+          victimId: player.id,
+          killerId: null,
+          x: player.x + PLAYER_WIDTH / 2,
+          y: player.y + sleeperH / 2,
+        });
         memory.prevJet = jet;
         memory.wasThrust = false;
         continue;
@@ -1116,6 +1166,14 @@ export class World {
               if (propIdx >= 0 && propT < bestT) {
                 const prop = this.props[propIdx] as Prop;
                 this.damageProp(prop, stat.damage, events, protectionAtStart);
+                this.pendingDamage.push({
+                  victim: -1,
+                  victimId: -1,
+                  x: mx + (ex - mx) * propT,
+                  y: my + (ey - my) * propT,
+                  shooter: i,
+                  shooterId: player.id,
+                });
                 if (!damagedProps.has(prop.id)) {
                   damagedProps.add(prop.id);
                   events.push("damage");
@@ -1137,6 +1195,14 @@ export class World {
               const damage = isHead ? Math.round(stat.damage * stat.headshotMult) : stat.damage;
               target.hp -= damage;
               target.ticksSinceDamage = 0;
+              this.pendingDamage.push({
+                victim: bestIdx,
+                victimId: target.id,
+                x: mx + (ex - mx) * bestT,
+                y: hitY,
+                shooter: i,
+                shooterId: player.id,
+              });
               if (!damagedPlayers.has(bestIdx)) {
                 damagedPlayers.add(bestIdx);
                 events.push("damage");
@@ -1147,6 +1213,14 @@ export class World {
                 target.respawnTicks = RESPAWN_TICKS;
                 events.push("kill");
                 this.registerKill(player.id);
+                const lethalH = target.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
+                this.pendingKill.push({
+                  victim: bestIdx,
+                  victimId: target.id,
+                  killerId: player.id,
+                  x: target.x + PLAYER_WIDTH / 2,
+                  y: target.y + lethalH / 2,
+                });
               }
             }
           } else if (stat.kind === "projectile") {
@@ -1246,14 +1320,30 @@ export class World {
       victim.hp -= damage;
       victim.ticksSinceDamage = 0;
       events.push("damage");
+      this.pendingDamage.push({
+        victim: j,
+        victimId: victim.id,
+        x: cx,
+        y: cy,
+        shooter: ownerIdx,
+        shooterId: ownerId,
+      });
       if (victim.hp <= 0) {
         victim.hp = 0;
         victim.alive = false;
         victim.respawnTicks = RESPAWN_TICKS;
         events.push("kill");
-        if (ownerIdx >= 0 && victim.id !== ownerId) {
+        const credited = ownerIdx >= 0 && victim.id !== ownerId;
+        if (credited) {
           this.registerKill(ownerId);
         }
+        this.pendingKill.push({
+          victim: j,
+          victimId: victim.id,
+          killerId: credited ? ownerId : null,
+          x: cx,
+          y: cy,
+        });
       }
     }
     for (const prop of this.props) {

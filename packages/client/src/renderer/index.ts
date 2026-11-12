@@ -17,7 +17,7 @@ import type {
   Projectile,
   Prop,
 } from "../../../core/src/entities";
-import type { ShotDetail } from "../../../core/src/events";
+import type { DamageDetail, KillDetail, ShotDetail } from "../../../core/src/events";
 import {
   createCamera,
   projectCamera,
@@ -42,6 +42,24 @@ export const MUZZLE_TTL = 2;
 export const MAX_TRACERS = 32;
 /** Cap on live muzzle flashes (oldest dropped first). */
 export const MAX_MUZZLES = 8;
+/** Impact-spark lifetime in draws (~150ms at 60 fps). */
+export const SPARK_TTL = 9;
+/** Death-burst lifetime in draws (~300ms at 60 fps). */
+export const BURST_TTL = 18;
+/** Victim red-tint lifetime in draws (~200ms at 60 fps). */
+export const VICTIM_TTL = 12;
+/** Cap on live impact sparks (oldest dropped first). */
+export const MAX_SPARKS = 96;
+/** Cap on live death-burst particles (oldest dropped first). */
+export const MAX_BURSTS = 64;
+/** Sparks spawned per damage detail (above the >=3 probe floor). */
+export const SPARKS_PER_HIT = 6;
+/** Particles spawned per kill detail (above the >=8 probe floor). */
+export const BURST_PER_KILL = 12;
+/** Victim-hit tint in Pixi hex while a victim flash is live. */
+export const VICTIM_TINT = 0xff0000;
+/** Victim-hit tint in CSS while a victim flash is live. */
+export const VICTIM_TINT_CSS = "#ff0000";
 /** FPS exponential-moving-average weight per draw. */
 const FPS_ALPHA = 0.1;
 
@@ -226,7 +244,9 @@ export interface Renderer {
   /**
    * Draw one world state through the camera (map optional, defaults
    * like describeFrame; camera defaults to arena-centered; events
-   * feed capped fx flashes, shots feed hitscan tracers/muzzle flashes).
+   * feed capped fx flashes, shots feed hitscan tracers/muzzle
+   * flashes, damages feed impact sparks plus victim tint, kills feed
+   * death bursts).
    */
   draw(
     state: StateLike,
@@ -234,6 +254,8 @@ export interface Renderer {
     camera?: Camera | null,
     events?: string[],
     shots?: ShotDetail[],
+    damages?: DamageDetail[],
+    kills?: KillDetail[],
   ): void;
   /** Which backend survived init. */
   mode: "pixi" | "canvas2d";
@@ -262,6 +284,24 @@ export interface Tracer {
 export interface Muzzle {
   x: number;
   y: number;
+  ttl: number;
+  life: number;
+}
+
+/** One impact spark in world coords (static offset, fades out). */
+export interface Spark {
+  x: number;
+  y: number;
+  ttl: number;
+  life: number;
+}
+
+/** One death-burst particle: origin plus radial velocity in world px per draw. */
+export interface Burst {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
   ttl: number;
   life: number;
 }
@@ -392,6 +432,9 @@ function paintFramePixi(
   flashes: Flash[],
   tracers: Tracer[],
   muzzles: Muzzle[],
+  sparks: Spark[],
+  bursts: Burst[],
+  victimFlash: ReadonlyMap<number, number>,
   canvasWidth: number,
   canvasHeight: number,
 ): void {
@@ -430,7 +473,7 @@ function paintFramePixi(
   }
   for (const p of frame.players) {
     graphics.rect(px(p.x), py(p.y), p.w * cam.scale, p.h * cam.scale);
-    graphics.fill(playerColor(p.index, p.alive));
+    graphics.fill(playerPaintColor(p.index, p.alive, victimFlash.has(p.index)));
     if (p.alive) {
       const cx = px(p.x + p.w / 2);
       const cy = py(p.y + p.h / 2);
@@ -464,6 +507,15 @@ function paintFramePixi(
     graphics.circle(px(muzzle.x), py(muzzle.y), 4);
     graphics.fill({ color: 0xfff7cc, alpha: tracerOpacity(muzzle) });
   }
+  for (const spark of sparks) {
+    graphics.circle(px(spark.x), py(spark.y), 2);
+    graphics.fill({ color: 0xfef08a, alpha: tracerOpacity(spark) });
+  }
+  for (const burst of bursts) {
+    const pos = burstPosition(burst);
+    graphics.circle(px(pos.x), py(pos.y), 3);
+    graphics.fill({ color: 0xf97316, alpha: tracerOpacity(burst) });
+  }
 }
 
 function paintFrame2D(
@@ -474,6 +526,9 @@ function paintFrame2D(
   flashes: Flash[],
   tracers: Tracer[],
   muzzles: Muzzle[],
+  sparks: Spark[],
+  bursts: Burst[],
+  victimFlash: ReadonlyMap<number, number>,
   canvasWidth: number,
   canvasHeight: number,
 ): void {
@@ -511,8 +566,7 @@ function paintFrame2D(
     ctx.fill();
   }
   for (const p of frame.players) {
-    ctx.fillStyle =
-      !p.alive ? "#475569" : p.index === 0 ? "#7df9ff" : "#fb923c";
+    ctx.fillStyle = playerPaintCss(p.index, p.alive, victimFlash.has(p.index));
     ctx.fillRect(px(p.x), py(p.y), p.w * cam.scale, p.h * cam.scale);
     if (p.alive) {
       const cx = px(p.x + p.w / 2);
@@ -564,6 +618,25 @@ function paintFrame2D(
     ctx.fill();
     ctx.restore();
   }
+  for (const spark of sparks) {
+    ctx.save();
+    ctx.globalAlpha = tracerOpacity(spark);
+    ctx.fillStyle = "#fef08a";
+    ctx.beginPath();
+    ctx.arc(px(spark.x), py(spark.y), 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  for (const burst of bursts) {
+    const pos = burstPosition(burst);
+    ctx.save();
+    ctx.globalAlpha = tracerOpacity(burst);
+    ctx.fillStyle = "#f97316";
+    ctx.beginPath();
+    ctx.arc(px(pos.x), py(pos.y), 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 /** Feed step events into capped transient flashes anchored near the action. */
@@ -599,6 +672,32 @@ function pushFlashes(flashes: Flash[], frame: Frame, events: string[]): void {
       flashes.shift();
     }
   }
+}
+
+/** Pixi-hex paint color for a player: victim red while flashing, else the role color. */
+export function playerPaintColor(
+  index: number,
+  alive: boolean,
+  flashed: boolean,
+): number {
+  if (flashed) {
+    return VICTIM_TINT;
+  }
+  return playerColor(index, alive);
+}
+
+/** CSS paint color for a player: victim red while flashing, else the role color. */
+export function playerPaintCss(index: number, alive: boolean, flashed: boolean): string {
+  if (flashed) {
+    return VICTIM_TINT_CSS;
+  }
+  return !alive ? "#475569" : index === 0 ? "#7df9ff" : "#fb923c";
+}
+
+/** Burst draw position: origin plus radial velocity times lived draws. */
+export function burstPosition(burst: Burst): { x: number; y: number } {
+  const age = burst.life - burst.ttl;
+  return { x: burst.x + burst.vx * age, y: burst.y + burst.vy * age };
 }
 
 /** Tracer line width in world px. */
@@ -647,6 +746,87 @@ export function spawnShots(
   }
 }
 
+/**
+ * Convert sim damage details into impact sparks (SPARKS_PER_HIT fixed
+ * fan entries per detail, offsets within ±12px of the hit point).
+ * Pure: no DOM, no clock, no randomness, so unit-testable under node.
+ */
+export function spawnSparks(sparks: Spark[], damages: DamageDetail[]): void {
+  for (const detail of damages) {
+    for (let k = 0; k < SPARKS_PER_HIT; k += 1) {
+      const angle = (k / SPARKS_PER_HIT) * Math.PI * 2;
+      const dist = 4 + (k % 3) * 4;
+      sparks.push({
+        x: detail.x + Math.cos(angle) * dist,
+        y: detail.y + Math.sin(angle) * dist,
+        ttl: SPARK_TTL,
+        life: SPARK_TTL,
+      });
+      while (sparks.length > MAX_SPARKS) {
+        sparks.shift();
+      }
+    }
+  }
+}
+
+/**
+ * Convert sim kill details into death bursts (BURST_PER_KILL radial
+ * particles per detail, speeds 2-5 world px per draw). Pure: no DOM,
+ * no clock, no randomness, so unit-testable under node.
+ */
+export function spawnBursts(bursts: Burst[], kills: KillDetail[]): void {
+  for (const detail of kills) {
+    for (let k = 0; k < BURST_PER_KILL; k += 1) {
+      const angle = (k / BURST_PER_KILL) * Math.PI * 2;
+      const speed = 2 + (k % 4);
+      bursts.push({
+        x: detail.x,
+        y: detail.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        ttl: BURST_TTL,
+        life: BURST_TTL,
+      });
+      while (bursts.length > MAX_BURSTS) {
+        bursts.shift();
+      }
+    }
+  }
+}
+
+/**
+ * Age hit fx one draw: decrement spark/burst TTLs, drop expired
+ * entries, and tick down victim red-tint entries. Victim indices with
+ * no damage this draw keep counting down from their last hit.
+ */
+export function ageHitFx(
+  sparks: Spark[],
+  bursts: Burst[],
+  victimFlash: Map<number, number>,
+): void {
+  for (let i = sparks.length - 1; i >= 0; i -= 1) {
+    const spark = sparks[i] as Spark;
+    spark.ttl -= 1;
+    if (spark.ttl <= 0) {
+      sparks.splice(i, 1);
+    }
+  }
+  for (let i = bursts.length - 1; i >= 0; i -= 1) {
+    const burst = bursts[i] as Burst;
+    burst.ttl -= 1;
+    if (burst.ttl <= 0) {
+      bursts.splice(i, 1);
+    }
+  }
+  for (const [index, ttl] of victimFlash) {
+    if (ttl <= 1) {
+      victimFlash.delete(index);
+    } else {
+      victimFlash.set(index, ttl - 1);
+    }
+  }
+}
+
 /** Age fx one draw: decrement TTLs and drop expired entries. */
 export function ageFx(tracers: Tracer[], muzzles: Muzzle[]): void {
   for (let i = tracers.length - 1; i >= 0; i -= 1) {
@@ -677,6 +857,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   const flashes: Flash[] = [];
   const tracers: Tracer[] = [];
   const muzzles: Muzzle[] = [];
+  const sparks: Spark[] = [];
+  const bursts: Burst[] = [];
+  const victimFlash = new Map<number, number>();
 
   function trackDraw(
     state: StateLike,
@@ -684,6 +867,8 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     camera: Camera | null | undefined,
     events: string[] | undefined,
     shots: ShotDetail[] | undefined,
+    damages: DamageDetail[] | undefined,
+    kills: KillDetail[] | undefined,
   ): { frame: Frame; cam: Camera; layers: LayerCounts } {
     const frame = describeFrame(state, map ?? null);
     const cam = camera ?? createCamera(frame.arena.width, frame.arena.height);
@@ -697,6 +882,13 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     lastNow = now;
     pushFlashes(flashes, frame, events ?? []);
     spawnShots(tracers, muzzles, frame, shots ?? []);
+    spawnSparks(sparks, damages ?? []);
+    spawnBursts(bursts, kills ?? []);
+    for (const detail of damages ?? []) {
+      if (detail.victim >= 0) {
+        victimFlash.set(detail.victim, VICTIM_TTL);
+      }
+    }
     for (let i = flashes.length - 1; i >= 0; i -= 1) {
       const flash = flashes[i] as Flash;
       flash.ttl -= 1;
@@ -705,6 +897,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       }
     }
     ageFx(tracers, muzzles);
+    ageHitFx(sparks, bursts, victimFlash);
     const layers = collectLayers(frame, map ?? null, cam, canvas.width, canvas.height);
     if (typeof window !== "undefined") {
       window.__scraplineDebug = {
@@ -731,6 +924,18 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           width: t.width,
         })),
         muzzle: muzzles.map((m) => ({ x: m.x, y: m.y, ttl: m.ttl })),
+        sparks: sparks.map((s) => ({
+          x: s.x,
+          y: s.y,
+          opacity: tracerOpacity(s),
+        })),
+        bursts: bursts.map((b) => {
+          const pos = burstPosition(b);
+          return { x: pos.x, y: pos.y, opacity: tracerOpacity(b) };
+        }),
+        tints: frame.players.map((p) =>
+          playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
+        ),
       };
     }
     return { frame, cam, layers };
@@ -756,8 +961,18 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         camera?: Camera | null,
         events?: string[],
         shots?: ShotDetail[],
+        damages?: DamageDetail[],
+        kills?: KillDetail[],
       ): void {
-        const { frame, cam, layers } = trackDraw(state, map, camera, events, shots);
+        const { frame, cam, layers } = trackDraw(
+          state,
+          map,
+          camera,
+          events,
+          shots,
+          damages,
+          kills,
+        );
         paintFramePixi(
           graphics,
           frame,
@@ -766,6 +981,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           flashes.slice(),
           tracers.slice(),
           muzzles.slice(),
+          sparks.slice(),
+          bursts.slice(),
+          victimFlash,
           canvas.width,
           canvas.height,
         );
@@ -785,9 +1003,19 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         camera?: Camera | null,
         events?: string[],
         shots?: ShotDetail[],
+        damages?: DamageDetail[],
+        kills?: KillDetail[],
       ): void {
-        const { frame, cam, layers } = trackDraw(state, map, camera, events, shots);
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), canvas.width, canvas.height);
+        const { frame, cam, layers } = trackDraw(
+          state,
+          map,
+          camera,
+          events,
+          shots,
+          damages,
+          kills,
+        );
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, canvas.width, canvas.height);
       },
     };
   }

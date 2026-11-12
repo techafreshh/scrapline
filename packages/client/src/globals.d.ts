@@ -38,6 +38,18 @@ declare global {
         y: number;
         ttl: number;
       }[];
+      sparks: {
+        x: number;
+        y: number;
+        opacity: number;
+      }[];
+      bursts: {
+        x: number;
+        y: number;
+        opacity: number;
+      }[];
+      /** Per-player paint color in Pixi hex (victim red while flashing). */
+      tints: number[];
     };
   }
 }

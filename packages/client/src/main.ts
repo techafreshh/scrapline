@@ -9,7 +9,7 @@ import {
   PLAYER_WIDTH,
 } from "../../core/src/constants";
 import { TICK_HZ, World, type WorldInput } from "../../core/src/world";
-import type { ShotDetail } from "../../core/src/events";
+import type { DamageDetail, KillDetail, ShotDetail } from "../../core/src/events";
 import { BotBrain } from "../../core/src/bots/brain";
 import { mapRowsFor } from "./maps";
 import {
@@ -45,6 +45,7 @@ import {
 import {
   buildHud,
   endStandingsRows,
+  flashCrosshair,
   killsFromDiff,
   playerName,
   pushKillfeed,
@@ -230,6 +231,10 @@ function refreshAimOrigin(): void {
 
 /** Per-frame hitscan shot details drained from the sim; cleared after each draw. */
 const shotsThisFrame: ShotDetail[] = [];
+/** Per-frame damage details drained from the sim; cleared after each draw. */
+const damagesThisFrame: DamageDetail[] = [];
+/** Per-frame kill details drained from the sim; cleared after each draw. */
+const killsThisFrame: KillDetail[] = [];
 
 /**
  * Advance one fixed 60 Hz step; attribute kills to the killfeed and
@@ -257,6 +262,16 @@ function stepOnce(): string[] {
   const events = world.step(inputs);
   for (const shot of world.drainShotDetails()) {
     shotsThisFrame.push(shot);
+  }
+  for (const damage of world.drainDamageDetails()) {
+    damagesThisFrame.push(damage);
+    // Crosshair confirm: the local player (shooter id 0) dealt damage.
+    if (damage.shooterId === 0) {
+      flashCrosshair(document);
+    }
+  }
+  for (const kill of world.drainKillDetails()) {
+    killsThisFrame.push(kill);
   }
   const kills = killsFromDiff(
     prevScores,
@@ -311,9 +326,19 @@ function frame(now: number): void {
   updateCameraFromLocal();
   refreshAimOrigin();
   if (renderer !== null && camera !== null) {
-    renderer.draw(world.state, world.map, camera, eventsThisFrame, shotsThisFrame);
+    renderer.draw(
+      world.state,
+      world.map,
+      camera,
+      eventsThisFrame,
+      shotsThisFrame,
+      damagesThisFrame,
+      killsThisFrame,
+    );
   }
   shotsThisFrame.length = 0;
+  damagesThisFrame.length = 0;
+  killsThisFrame.length = 0;
   const local = world.players[0];
   if (local !== undefined) {
     if (local.alive) {

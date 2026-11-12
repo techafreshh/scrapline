@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scrapline-rl"
+version = "0.0.1"
+description = "Scrapline Gymnasium wrapper around the headless env-server stdio bridge"
+requires-python = ">=3.11"
+dependencies = [
+  "gymnasium>=1.0,<2",
+  "numpy",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scrapline_rl*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

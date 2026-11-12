@@ -705,8 +705,8 @@ export class World {
       const raw = (list[i] ?? {}) as WorldInput;
       const buttons =
         Math.floor(raw.buttons ?? 0) |
-        (raw.jet === true ? BUTTON_JET : 0) |
-        (raw.crouch === true ? BUTTON_CROUCH : 0) |
+        (raw.jet ? BUTTON_JET : 0) |
+        (raw.crouch ? BUTTON_CROUCH : 0) |
         (raw.fire ? BUTTON_FIRE : 0) |
         (raw.grenade ? BUTTON_GRENADE : 0) |
         (raw.throw ? BUTTON_THROW : 0) |

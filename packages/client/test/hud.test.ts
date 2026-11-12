@@ -3,6 +3,7 @@
 // mirroring packages/core/test builder style.
 import { describe, expect, it } from "vitest";
 import {
+  endStandingsRows,
   formatTimer,
   killsFromDiff,
   ordinal,
@@ -57,6 +58,32 @@ describe("standingsRows", () => {
     expect(rows.map((row) => row.rank)).toEqual(["1st", "2nd", "3rd"]);
     expect(rows[0]).toMatchObject({ name: "Bot 1", score: 5 });
     expect(rows[2]).toMatchObject({ name: "You", score: 3 });
+  });
+});
+
+describe("endStandingsRows", () => {
+  it("orders by kills desc with id-asc tiebreak", () => {
+    const rows = endStandingsRows([3, 5, 5], [0, 0, 0], [0, 1, 2]);
+    expect(rows.map((row) => row.id)).toEqual([1, 2, 0]);
+    expect(rows.map((row) => row.kills)).toEqual([5, 5, 3]);
+  });
+
+  it("marks only the first row winner", () => {
+    const rows = endStandingsRows([3, 5, 5], [0, 0, 0], [0, 1, 2]);
+    expect(rows.map((row) => row.winner)).toEqual([true, false, false]);
+  });
+
+  it("defaults missing death entries to 0", () => {
+    const rows = endStandingsRows([1, 0], [], [0, 1]);
+    expect(rows.map((row) => row.deaths)).toEqual([0, 0]);
+    const partial = endStandingsRows([1, 0], [2], [0, 1]);
+    expect(partial.map((row) => row.deaths)).toEqual([2, 0]);
+  });
+
+  it("names id 0 You", () => {
+    const rows = endStandingsRows([3, 5], [1, 2], [0, 1]);
+    expect(rows[1]).toMatchObject({ id: 0, name: "You", kills: 3, deaths: 1 });
+    expect(rows[0]).toMatchObject({ id: 1, name: "Bot 1", kills: 5, deaths: 2 });
   });
 });
 

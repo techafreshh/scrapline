@@ -42,10 +42,10 @@ import {
 } from "./renderer/camera";
 import {
   buildHud,
+  endStandingsRows,
   killsFromDiff,
   playerName,
   pushKillfeed,
-  standingsRows,
   updateHud,
   type HudHandles,
 } from "./hud/hud";
@@ -154,8 +154,6 @@ refreshInput();
 
 /** Live overlay handles; rebuilt idempotently on every match start. */
 let hud: HudHandles = buildHud(document);
-/** Pending end-screen timeout returning to the menu (restart cancels). */
-let endTimer: number | null = null;
 
 let renderer: Renderer | null = null;
 void createRenderer(canvas)
@@ -261,6 +259,10 @@ function stepOnce(): string[] {
   for (const kill of kills) {
     const killer = kill.killerId === null ? null : playerName(kill.killerId);
     pushKillfeed(hud, killer, playerName(kill.victimId));
+    while (deaths.length < world.players.length) {
+      deaths.push(0);
+    }
+    deaths[kill.victimId] = (deaths[kill.victimId] ?? 0) + 1;
   }
   if (events.includes("matchEnd") || world.matchOver) {
     running = false;
@@ -322,24 +324,60 @@ function frame(now: number): void {
 }
 
 /**
- * Fill the end screen with ordinal standings, show it for 6 s, then
- * fall back to the menu. Restart cancels the pending timeout.
+ * Fill the end screen with the winner callout plus a kills/deaths
+ * standings table. The overlay persists until the player picks
+ * Play again or Menu.
  */
 function showEndScreen(): void {
   if (world === null) {
     return;
   }
-  const rows = standingsRows(
+  while (deaths.length < world.players.length) {
+    deaths.push(0);
+  }
+  const rows = endStandingsRows(
     world.scores,
+    deaths,
     world.players.map((p) => p.id),
   );
+  const winnerEl = document.getElementById("end-winner");
+  if (winnerEl instanceof HTMLElement) {
+    const winner = rows[0];
+    winnerEl.textContent =
+      winner === undefined ? "Winner: -" : `Winner: ${winner.name}`;
+  }
   if (hud.endStandings !== null) {
     hud.endStandings.replaceChildren();
-    for (const row of rows) {
-      const line = document.createElement("div");
-      line.textContent = `${row.rank} ${row.name}: ${row.score}`;
-      hud.endStandings.appendChild(line);
+    const doc = hud.endStandings.ownerDocument;
+    const table = doc.createElement("table");
+    const head = doc.createElement("thead");
+    const headRow = doc.createElement("tr");
+    for (const label of ["Player", "Kills", "Deaths"]) {
+      const cell = doc.createElement("th");
+      cell.textContent = label;
+      headRow.appendChild(cell);
     }
+    head.appendChild(headRow);
+    table.appendChild(head);
+    const body = doc.createElement("tbody");
+    for (const row of rows) {
+      const tr = doc.createElement("tr");
+      if (row.winner) {
+        tr.setAttribute("class", "winner");
+      }
+      const nameCell = doc.createElement("td");
+      nameCell.textContent = row.name;
+      const killsCell = doc.createElement("td");
+      killsCell.textContent = String(row.kills);
+      const deathsCell = doc.createElement("td");
+      deathsCell.textContent = String(row.deaths);
+      tr.appendChild(nameCell);
+      tr.appendChild(killsCell);
+      tr.appendChild(deathsCell);
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    hud.endStandings.appendChild(table);
   }
   if (hud.hud !== null) {
     hud.hud.style.display = "none";
@@ -350,18 +388,6 @@ function showEndScreen(): void {
   if (hud.endScreen !== null) {
     hud.endScreen.style.display = "";
   }
-  if (endTimer !== null) {
-    window.clearTimeout(endTimer);
-  }
-  endTimer = window.setTimeout(() => {
-    endTimer = null;
-    if (hud.endScreen !== null) {
-      hud.endScreen.style.display = "none";
-    }
-    if (menu instanceof HTMLElement) {
-      menu.style.display = "";
-    }
-  }, 6000);
 }
 
 /** Null-safe localStorage surface; null when storage is unavailable. */
@@ -395,14 +421,12 @@ let matchConfig: SetupConfig = { ...DEFAULT_SETUP };
 let brains: BotBrain[] = [];
 /** Cached bot inputs between 12 Hz replans. */
 let botCached: WorldInput[] = [];
+/** Per-match death counts indexed by player id/position. */
+let deaths: number[] = [];
 
 /** Hide the menu, build the offline World plus tiered bots, start. */
 function startMatch(config: SetupConfig): void {
   cancelAnimationFrame(rafId);
-  if (endTimer !== null) {
-    window.clearTimeout(endTimer);
-    endTimer = null;
-  }
   const parsed = parseSetup(config);
   matchConfig = parsed;
   window.__matchConfig = {
@@ -443,6 +467,7 @@ function startMatch(config: SetupConfig): void {
   if (hud.killfeed !== null) {
     hud.killfeed.replaceChildren();
   }
+  deaths = new Array(match.players.length).fill(0);
   camera = createCamera(world.map.widthPixels, world.map.heightPixels);
   // Snap the fresh camera onto the local player so the match opens
   // framed (updateCamera eases 10%/frame; ~120 steps converges fully).
@@ -492,11 +517,19 @@ if (playButton instanceof HTMLButtonElement) {
 const restartButton = document.getElementById("restart");
 if (restartButton instanceof HTMLButtonElement) {
   restartButton.addEventListener("click", () => {
-    if (endTimer !== null) {
-      window.clearTimeout(endTimer);
-      endTimer = null;
-    }
     startMatch(matchConfig);
+  });
+}
+
+const endMenuButton = document.getElementById("end-menu");
+if (endMenuButton instanceof HTMLButtonElement) {
+  endMenuButton.addEventListener("click", () => {
+    if (hud.endScreen !== null) {
+      hud.endScreen.style.display = "none";
+    }
+    if (menu instanceof HTMLElement) {
+      menu.style.display = "";
+    }
   });
 }
 

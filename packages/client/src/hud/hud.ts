@@ -68,6 +68,40 @@ export function standingsRows(
   }));
 }
 
+/** One end-screen line: player id, display name, kills, deaths, winner flag. */
+export interface EndStandingsRow {
+  id: number;
+  name: string;
+  kills: number;
+  deaths: number;
+  winner: boolean;
+}
+
+/**
+ * End-screen rows ordered by kills desc, id asc on ties (via the core
+ * standingsFor helper, never re-sorted by hand). Only the first row
+ * reads winner true; missing deaths entries default to 0.
+ */
+export function endStandingsRows(
+  scores: readonly number[],
+  deaths: readonly number[],
+  ids: readonly number[],
+): EndStandingsRow[] {
+  const killsById = new Map<number, number>();
+  const deathsById = new Map<number, number>();
+  for (let k = 0; k < ids.length; k += 1) {
+    killsById.set(ids[k] as number, scores[k] ?? 0);
+    deathsById.set(ids[k] as number, deaths[k] ?? 0);
+  }
+  return standingsFor(scores, ids).map((id, index) => ({
+    id,
+    name: playerName(id),
+    kills: killsById.get(id) ?? 0,
+    deaths: deathsById.get(id) ?? deaths[id] ?? 0,
+    winner: index === 0,
+  }));
+}
+
 /** One attributed kill: killer null when nobody scored (suicide/barrel). */
 export interface KillPair {
   killerId: number | null;

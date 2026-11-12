@@ -128,6 +128,42 @@
         color: #7df9ff;
         cursor: pointer;
       }
+      #restart:hover {
+        background: #16213a;
+      }
+      #end-menu {
+        font-size: 14px;
+        padding: 8px 18px;
+        border: 1px solid #7df9ff;
+        border-radius: 6px;
+        background: #0b1020;
+        color: #7df9ff;
+        cursor: pointer;
+      }
+      #end-menu:hover {
+        background: #16213a;
+      }
+      #end-winner {
+        font-size: 16px;
+        color: #7df9ff;
+      }
+      #end-standings table {
+        border-collapse: collapse;
+        font-size: 14px;
+        color: #e2e8f0;
+      }
+      #end-standings th,
+      #end-standings td {
+        border: 1px solid #334155;
+        padding: 4px 10px;
+      }
+      #end-standings th {
+        color: #7df9ff;
+      }
+      #end-standings tr.winner td {
+        color: #7df9ff;
+        font-weight: bold;
+      }
       #setup {
         position: absolute;
         inset: 0;
@@ -224,8 +260,10 @@
       <div id="respawn" style="display: none"></div>
       <div id="end-screen" style="display: none">
         <h2>Match over</h2>
+        <div id="end-winner"></div>
         <div id="end-standings"></div>
         <button id="restart">Play again</button>
+        <button id="end-menu">Menu</button>
       </div>
     </div>
     <p>If the canvas above stays black, JavaScript is disabled.</p>

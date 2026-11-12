@@ -12,6 +12,28 @@ export const CAMERA_LERP = 0.1;
 /** Backing-store size the clamp math assumes (matches #game 640x360). */
 const CLAMP_CANVAS_W = 640;
 const CLAMP_CANVAS_H = 360;
+/** FFA-vs-bots match size: the local player plus three scripted bots. */
+export const MATCH_SPAWN_COUNT = 4;
+/** Gap between adjacent match spawns in world px (clustered in one view). */
+export const MATCH_SPAWN_GAP = 20;
+
+/**
+ * Four clustered FFA spawn x-positions centered on the arena midpoint.
+ * The whole cluster spans 3 * MATCH_SPAWN_GAP (60px), inside half the
+ * camera view (CLAMP_CANVAS_W / (2 * CAMERA_ZOOM) = 160px) minus the
+ * CAMERA_LOOKAHEAD margin, so every bot spawns inside the initial camera
+ * viewport whatever the local player's aim direction. Entry 0 anchors
+ * the local player (leftmost); positions clamp inside [0, arenaWidth].
+ */
+export function matchSpawnXs(arenaWidthPx: number): number[] {
+  const spread = (MATCH_SPAWN_COUNT - 1) * MATCH_SPAWN_GAP;
+  const start = arenaWidthPx / 2 - spread / 2;
+  const xs: number[] = [];
+  for (let i = 0; i < MATCH_SPAWN_COUNT; i += 1) {
+    xs.push(Math.min(Math.max(start + i * MATCH_SPAWN_GAP, 0), arenaWidthPx));
+  }
+  return xs;
+}
 
 /** Viewport center in world px plus the fixed zoom scale. */
 export interface Camera {

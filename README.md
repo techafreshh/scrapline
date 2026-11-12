@@ -11,7 +11,7 @@ deterministic 60 Hz simulation core and a one-command RL training baseline.
 ## Quickstart
 
 ```sh
-npm ci
+npm install
 npm run dev
 ```
 

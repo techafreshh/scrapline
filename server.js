@@ -2,7 +2,7 @@
 // Routes: GET / -> staged root dist (or workspace dist, then source),
 // GET /main.js -> staged bundle (same fallback chain),
 // GET /assets/* -> staged assets (same fallback chain),
-// GET /api/health -> {"status":"ok"}. Everything else is a 404.
+// GET /health and GET /api/health -> {"status":"ok"}. Everything else is a 404.
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -87,7 +87,7 @@ function send(req, res, status, contentType, body) {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", "http://localhost");
   const readable = req.method === "GET" || req.method === "HEAD";
-  if (readable && url.pathname === "/api/health") {
+  if (readable && (url.pathname === "/health" || url.pathname === "/api/health")) {
     send(req, res, 200, "application/json", '{"status":"ok"}');
     return;
   }

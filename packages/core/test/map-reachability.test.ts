@@ -4,8 +4,10 @@ import {
   assertMapReachable,
   findPath,
   parseMapSymbols,
+  spawnConnectedCells,
   validateMapReachable,
 } from "../src/map";
+import { World } from "../src/world";
 
 // Auto-discovering arena files: one ASCII file per map, no registry to
 // update when a tinkerer drops in a new arena. Raw-text glob keeps this
@@ -23,6 +25,10 @@ function rowsOf(name: string): string[] {
     .trim()
     .split("\n")
     .map((r) => (r.endsWith("\r") ? r.slice(0, -1) : r));
+}
+
+function tileKey(x: number, y: number): string {
+  return `${x},${y}`;
 }
 
 function farthestSpawnPair(spawns: { x: number; y: number }[]): [
@@ -53,14 +59,14 @@ describe("map files", () => {
     expect(mapNames.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("every arena is a 40x20 grid using only .#SPHG", () => {
+  it("every arena is a 40x20 grid using only .#SPHGB", () => {
     expect(mapNames.length).toBeGreaterThan(0);
     for (const name of mapNames) {
       const rows = rowsOf(name);
       expect(rows.length).toBe(20);
       for (const row of rows) {
         expect(row.length).toBe(40);
-        expect(row).toMatch(/^[.#SPHG]+$/);
+        expect(row).toMatch(/^[.#SPHGB]+$/);
       }
     }
   });
@@ -114,6 +120,47 @@ describe("map reachability", () => {
     expect(path[path.length - 1]).toEqual({ x: b.x, y: b.y });
     const methodPath = symbols.map.findPath(a, b);
     expect(methodPath.length).toBeGreaterThan(0);
+  });
+
+  it("kilima outpost arena meets the count and weapon-coverage contract", () => {
+    const kilima = mapNames.find((name) => name.endsWith("kilima.txt"));
+    expect(kilima).toBeDefined();
+    const rows = rowsOf(kilima as string);
+    const symbols = parseMapSymbols(rows);
+    expect(symbols.spawns.length).toBe(12);
+    expect(symbols.pads.length).toBeGreaterThanOrEqual(5);
+    expect(symbols.health.length).toBeGreaterThanOrEqual(2);
+    expect(symbols.grenades.length).toBeGreaterThanOrEqual(1);
+    const bouncePads = rows.join("").split("").filter((ch) => ch === "B").length;
+    expect(bouncePads).toBeGreaterThanOrEqual(1);
+    const world = new World({ seed: 7, map: rows });
+    const weapons = new Set(
+      world.pickups.filter((pickup) => pickup.kind === "weapon").map((pickup) => pickup.weapon),
+    );
+    for (const required of ["rifle", "shotgun", "sniper", "rocket"] as const) {
+      expect(weapons.has(required)).toBe(true);
+    }
+    for (const spawn of symbols.spawns) {
+      expect(symbols.map.isSolidTile(spawn.x, spawn.y)).toBe(false);
+    }
+    const region = spawnConnectedCells(symbols);
+    let platformTiles = 0;
+    for (let y = 0; y < symbols.map.heightTiles; y += 1) {
+      for (let x = 0; x < symbols.map.widthTiles; x += 1) {
+        if (!symbols.map.isSolidTile(x, y)) {
+          continue;
+        }
+        if (
+          region.has(tileKey(x + 1, y)) ||
+          region.has(tileKey(x - 1, y)) ||
+          region.has(tileKey(x, y + 1)) ||
+          region.has(tileKey(x, y - 1))
+        ) {
+          platformTiles += 1;
+        }
+      }
+    }
+    expect(platformTiles).toBeGreaterThanOrEqual(10);
   });
 
   it("TileMap treats markers as free tiles and # as solid", () => {

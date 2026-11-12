@@ -936,6 +936,11 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         tints: frame.players.map((p) =>
           playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
         ),
+        zoom: cam.zoom ?? 1,
+        scale: cam.scale,
+        trauma: cam.trauma ?? 0,
+        shakeX: cam.shakeX ?? 0,
+        shakeY: cam.shakeY ?? 0,
       };
     }
     return { frame, cam, layers };

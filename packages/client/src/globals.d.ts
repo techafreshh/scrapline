@@ -10,6 +10,17 @@ declare global {
     __scraplineInput: InputMirror;
     __scraplineWorld: World | null;
     __matchConfig: { bots: number; tier: string; map: string } | null;
+    __camera: {
+      x: number;
+      y: number;
+      scale: number;
+      zoom: number;
+      targetZoom: number;
+      trauma: number;
+      shakeX: number;
+      shakeY: number;
+      view: { w: number; h: number };
+    } | null;
     __scraplineDebug: {
       entitiesDrawn: number;
       tilesDrawn: number;
@@ -50,6 +61,16 @@ declare global {
       }[];
       /** Per-player paint color in Pixi hex (victim red while flashing). */
       tints: number[];
+      /** Active zoom multiplier (1 / 0.8 / 0.64). */
+      zoom: number;
+      /** Effective world-to-screen scale. */
+      scale: number;
+      /** Screen-shake trauma in [0, 1]. */
+      trauma: number;
+      /** Current screen-px shake offset. */
+      shakeX: number;
+      /** Current screen-px shake offset. */
+      shakeY: number;
     };
   }
 }

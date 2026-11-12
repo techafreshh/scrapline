@@ -66,7 +66,7 @@ import {
 import type { Pickup, PickupKind, Player, Projectile, Prop, PropKind } from "./entities";
 import type { WorldEvent } from "./events";
 import { isMatchOver, standingsFor, type MatchMode } from "./match";
-import { TILE_SIZE, TileMap } from "./map";
+import { TILE_SIZE, TileMap, parseMapSymbols } from "./map";
 import { createRng, type Rng } from "./rng";
 import { WEAPONS, type WeaponId } from "./weapons";
 
@@ -313,16 +313,23 @@ export class World {
     this.marker = rng.nextUint32();
     this.rng = rng;
     const fromMap = options.map;
+    let mapRows: string[] | null = null;
     if (isTileMap(fromMap)) {
       this.tileMap = fromMap;
     } else if (typeof fromMap === "string" || Array.isArray(fromMap)) {
-      this.tileMap = new TileMap(toRows(fromMap));
+      mapRows = toRows(fromMap);
+      this.tileMap = new TileMap(mapRows);
     } else if (options.rows !== undefined) {
-      this.tileMap = new TileMap(toRows(options.rows));
+      mapRows = toRows(options.rows);
+      this.tileMap = new TileMap(mapRows);
     } else if (options.mapRows !== undefined) {
-      this.tileMap = new TileMap(toRows(options.mapRows));
+      mapRows = toRows(options.mapRows);
+      this.tileMap = new TileMap(mapRows);
     } else {
       this.tileMap = new TileMap(defaultRows());
+    }
+    if (mapRows !== null) {
+      this.spawnMapEntities(mapRows);
     }
   }
 
@@ -411,6 +418,54 @@ export class World {
     }
     if (scores.length > this.players.length) {
       scores.length = this.players.length;
+    }
+  }
+
+  /**
+   * Materialize pickups/props from ASCII markers so bare Worlds and
+   * env-server episodes share one spawn path (TileMap instances carry
+   * no rows, so they spawn nothing; marker-less rows yield nothing).
+   * Pure index cycles: no PRNG draws, replay hashes stay bit-identical.
+   */
+  private spawnMapEntities(rows: string[]): void {
+    const symbols = parseMapSymbols(rows);
+    const padWeapons: WeaponId[] = ["rifle", "shotgun", "sniper", "smg", "rocket"];
+    for (let i = 0; i < symbols.pads.length; i += 1) {
+      const tile = symbols.pads[i] as { x: number; y: number };
+      this.addPickup(
+        "weapon",
+        tile.x * TILE_SIZE + 16,
+        tile.y * TILE_SIZE + 16,
+        padWeapons[i % padWeapons.length] as WeaponId,
+      );
+    }
+    for (const tile of symbols.health) {
+      this.addPickup("health", tile.x * TILE_SIZE + 16, tile.y * TILE_SIZE + 16);
+    }
+    for (const tile of symbols.grenades) {
+      this.addPickup("grenades", tile.x * TILE_SIZE + 16, tile.y * TILE_SIZE + 16);
+    }
+    // One prop per weapon pad, alternating kinds; sideways placement
+    // keeps 32px center separation so the pad stays collectible.
+    for (let i = 0; i < symbols.pads.length; i += 1) {
+      const tile = symbols.pads[i] as { x: number; y: number };
+      const kind: PropKind = i % 2 === 0 ? "barrel" : "crate";
+      const w = kind === "barrel" ? BARREL_W : CRATE_W;
+      const h = kind === "barrel" ? BARREL_H : CRATE_H;
+      const preferred = i % 2 === 0 ? 1 : -1;
+      const sides = [preferred, -preferred];
+      for (const dx of sides) {
+        const nx = tile.x + dx;
+        const ny = tile.y;
+        if (nx < 0 || ny < 0 || nx >= this.tileMap.widthTiles || ny >= this.tileMap.heightTiles) {
+          continue;
+        }
+        if (this.tileMap.isSolidTile(nx, ny)) {
+          continue;
+        }
+        this.addProp(kind, nx * TILE_SIZE + 16 - w / 2, ny * TILE_SIZE + 16 - h / 2);
+        break;
+      }
     }
   }
 

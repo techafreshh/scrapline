@@ -64,7 +64,7 @@ import {
   WEAPON_RESPAWN_TICKS,
 } from "./constants";
 import type { Pickup, PickupKind, Player, Projectile, Prop, PropKind } from "./entities";
-import type { WorldEvent } from "./events";
+import type { WorldEvent, ShotDetail } from "./events";
 import { isMatchOver, standingsFor, type MatchMode } from "./match";
 import { TILE_SIZE, TileMap, parseMapSymbols } from "./map";
 import { createRng, type Rng } from "./rng";
@@ -294,6 +294,8 @@ export class World {
   private nextProjectileId = 0;
   private nextPropId = 0;
   private nextPickupId = 0;
+  /** Per-pellet hitscan details recorded by the last step(); drained by the renderer. */
+  private pendingShots: ShotDetail[] = [];
 
   constructor(options: WorldOptions = {}) {
     this.seed = options.seed ?? 0;
@@ -702,6 +704,21 @@ export class World {
     return player;
   }
 
+  /**
+   * Drain per-pellet hitscan details recorded by the last step().
+   * Returns and clears the queue; the next step() starts empty so
+   * details never cross ticks or grow unboundedly.
+   */
+  drainShotDetails(): ShotDetail[] {
+    const pending = (this as unknown as { pendingShots?: ShotDetail[] }).pendingShots;
+    if (pending === undefined || pending.length === 0) {
+      return [];
+    }
+    const out = pending.slice();
+    pending.length = 0;
+    return out;
+  }
+
   /** Alias of addPlayer (both spellings are probed). */
   spawnPlayer(x?: number, y?: number): Player;
   spawnPlayer(opts?: SpawnOptions): Player;
@@ -751,6 +768,11 @@ export class World {
     const reloadIntent: boolean[] = [];
     const grenadeIntent: boolean[] = [];
     // Tolerate pre-lap serialized worlds missing the new arrays.
+    if ((this as unknown as { pendingShots?: ShotDetail[] }).pendingShots === undefined) {
+      (this as unknown as { pendingShots: ShotDetail[] }).pendingShots = [];
+    }
+    // Shot details never cross ticks: undrained leftovers die here.
+    (this.pendingShots as ShotDetail[]).length = 0;
     if ((this as { projectiles?: Projectile[] }).projectiles === undefined) {
       (this as { projectiles: Projectile[] }).projectiles = [];
     }
@@ -1073,6 +1095,21 @@ export class World {
                 }
               }
               const wall = this.tileMap.raycast(mx, my, ex, ey);
+              // Tracer endpoint: nearest of player/prop/wall along the
+              // pellet ray (t = 1 on a full miss). Recorded before the
+              // damage branches so every pellet leaves exactly one detail.
+              const endT = Math.min(bestT, propT, wall.hit ? wall.t : Infinity);
+              const et = endT === Infinity ? 1 : endT;
+              this.pendingShots.push({
+                ox: mx,
+                oy: my,
+                x: mx + (ex - mx) * et,
+                y: my + (ey - my) * et,
+                weapon: player.weapon,
+                shooterId: player.id,
+                shooter: i,
+                tick: this.tick,
+              });
               if (wall.hit && wall.t < bestT && wall.t < propT) {
                 continue;
               }

@@ -42,7 +42,10 @@
         font-size: 28px;
         letter-spacing: 1px;
       }
-      #play {
+      #play,
+      #quick-play,
+      #settings-open,
+      #howto-open {
         font-size: 16px;
         padding: 10px 22px;
         border: 1px solid #7df9ff;
@@ -51,8 +54,16 @@
         color: #7df9ff;
         cursor: pointer;
       }
-      #play:hover {
+      #play:hover,
+      #quick-play:hover,
+      #settings-open:hover,
+      #howto-open:hover {
         background: #16213a;
+      }
+      #quick-play {
+        font-size: 20px;
+        font-weight: bold;
+        padding: 12px 30px;
       }
       #hud {
         position: absolute;
@@ -164,7 +175,9 @@
         color: #7df9ff;
         font-weight: bold;
       }
-      #setup {
+      #setup,
+      #settings,
+      #howto {
         position: absolute;
         inset: 0;
         display: flex;
@@ -174,10 +187,44 @@
         gap: 12px;
         background: rgba(5, 7, 15, 0.82);
       }
-      #setup h2 {
+      #setup h2,
+      #settings h2,
+      #howto h2 {
         margin: 0;
         font-size: 22px;
         letter-spacing: 1px;
+      }
+      #zoom-hint {
+        margin: 0;
+        font-size: 13px;
+        color: #94a3b8;
+      }
+      #controls-table {
+        border-collapse: collapse;
+        font-size: 14px;
+        color: #e2e8f0;
+      }
+      #controls-table th,
+      #controls-table td {
+        border: 1px solid #334155;
+        padding: 4px 10px;
+      }
+      #controls-table th {
+        color: #7df9ff;
+      }
+      #settings-close,
+      #howto-close {
+        font-size: 14px;
+        padding: 8px 18px;
+        border: 1px solid #7df9ff;
+        border-radius: 6px;
+        background: #0b1020;
+        color: #7df9ff;
+        cursor: pointer;
+      }
+      #settings-close:hover,
+      #howto-close:hover {
+        background: #16213a;
       }
       .setup-row {
         display: flex;
@@ -226,7 +273,10 @@
       <canvas id="game" width="640" height="360"></canvas>
       <div id="menu">
         <h1>Scrapline</h1>
+        <button id="quick-play">Quick Play</button>
         <button id="play">Play vs bots</button>
+        <button id="settings-open">Settings</button>
+        <button id="howto-open">How to Play</button>
       </div>
       <div id="setup" style="display: none">
         <h2>Match setup</h2>
@@ -248,6 +298,34 @@
           <button data-map="frostbite" aria-pressed="false">frostbite</button>
         </div>
         <button id="start">Start</button>
+      </div>
+      <div id="settings" style="display: none">
+        <h2>Settings</h2>
+        <div class="setup-row">
+          <label for="volume">Master volume</label>
+          <input type="range" id="volume" min="0" max="1" step="0.01" />
+        </div>
+        <p id="zoom-hint">Zoom hint: press Z to cycle camera zoom.</p>
+        <button id="settings-close">Close</button>
+      </div>
+      <div id="howto" style="display: none">
+        <h2>How to Play</h2>
+        <table id="controls-table">
+          <thead>
+            <tr><th>Action</th><th>Keys</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Move left / right</td><td>A / D or arrow keys</td></tr>
+            <tr><td>Jump</td><td>Space, W, or up arrow</td></tr>
+            <tr><td>Jetpack (hold to fly)</td><td>Space, W, or up arrow</td></tr>
+            <tr><td>Fire weapon</td><td>Left mouse button</td></tr>
+            <tr><td>Grenade</td><td>G or right mouse button</td></tr>
+            <tr><td>Reload</td><td>R</td></tr>
+            <tr><td>Crouch</td><td>S or down arrow</td></tr>
+            <tr><td>Zoom camera</td><td>Z</td></tr>
+          </tbody>
+        </table>
+        <button id="howto-close">Close</button>
       </div>
       <div id="hud" style="display: none">
         <div>HP <span id="hud-health">100</span></div>

@@ -9,6 +9,7 @@ import {
   PLAYER_WIDTH,
 } from "../../core/src/constants";
 import { TICK_HZ, World, type WorldInput } from "../../core/src/world";
+import type { ShotDetail } from "../../core/src/events";
 import { BotBrain } from "../../core/src/bots/brain";
 import { mapRowsFor } from "./maps";
 import {
@@ -227,6 +228,9 @@ function refreshAimOrigin(): void {
   aimOrigin.y = (center.y * rect.height) / canvas.height;
 }
 
+/** Per-frame hitscan shot details drained from the sim; cleared after each draw. */
+const shotsThisFrame: ShotDetail[] = [];
+
 /**
  * Advance one fixed 60 Hz step; attribute kills to the killfeed and
  * show the end screen on matchEnd. Returns the step's sim events
@@ -251,6 +255,9 @@ function stepOnce(): string[] {
   const prevScores = world.scores.slice();
   const prevAlive = world.players.map((p) => p.alive);
   const events = world.step(inputs);
+  for (const shot of world.drainShotDetails()) {
+    shotsThisFrame.push(shot);
+  }
   const kills = killsFromDiff(
     prevScores,
     world.scores,
@@ -304,8 +311,9 @@ function frame(now: number): void {
   updateCameraFromLocal();
   refreshAimOrigin();
   if (renderer !== null && camera !== null) {
-    renderer.draw(world.state, world.map, camera, eventsThisFrame);
+    renderer.draw(world.state, world.map, camera, eventsThisFrame, shotsThisFrame);
   }
+  shotsThisFrame.length = 0;
   const local = world.players[0];
   if (local !== undefined) {
     if (local.alive) {

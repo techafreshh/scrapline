@@ -25,6 +25,19 @@ declare global {
         x2: number;
         y2: number;
       }[];
+      tracers: {
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+        opacity: number;
+        width: number;
+      }[];
+      muzzle: {
+        x: number;
+        y: number;
+        ttl: number;
+      }[];
     };
   }
 }

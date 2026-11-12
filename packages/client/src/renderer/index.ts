@@ -17,6 +17,7 @@ import type {
   Projectile,
   Prop,
 } from "../../../core/src/entities";
+import type { ShotDetail } from "../../../core/src/events";
 import {
   createCamera,
   projectCamera,
@@ -33,6 +34,14 @@ const DEFAULT_ARENA_TILES_H = 20;
 const FLASH_TTL = 10;
 /** Cap on live event flashes (oldest dropped first). */
 const MAX_FLASHES = 24;
+/** Tracer line lifetime in draws (~150ms at 60 fps). */
+export const TRACER_TTL = 9;
+/** Muzzle-flash lifetime in draws (the required 1-2 frames). */
+export const MUZZLE_TTL = 2;
+/** Cap on live tracer lines (oldest dropped first). */
+export const MAX_TRACERS = 32;
+/** Cap on live muzzle flashes (oldest dropped first). */
+export const MAX_MUZZLES = 8;
 /** FPS exponential-moving-average weight per draw. */
 const FPS_ALPHA = 0.1;
 
@@ -217,13 +226,14 @@ export interface Renderer {
   /**
    * Draw one world state through the camera (map optional, defaults
    * like describeFrame; camera defaults to arena-centered; events
-   * feed capped fx flashes).
+   * feed capped fx flashes, shots feed hitscan tracers/muzzle flashes).
    */
   draw(
     state: StateLike,
     map?: MapLike | TileMapLike | null,
     camera?: Camera | null,
     events?: string[],
+    shots?: ShotDetail[],
   ): void;
   /** Which backend survived init. */
   mode: "pixi" | "canvas2d";
@@ -235,6 +245,25 @@ interface Flash {
   y: number;
   kind: "explode" | "bounce" | "shot";
   ttl: number;
+}
+
+/** One fading hitscan tracer line in world coords. */
+export interface Tracer {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  width: number;
+  ttl: number;
+  life: number;
+}
+
+/** One short-lived muzzle flash in world coords. */
+export interface Muzzle {
+  x: number;
+  y: number;
+  ttl: number;
+  life: number;
 }
 
 /** Solid tile cell to paint. */
@@ -351,16 +380,18 @@ function paintFramePixi(
   graphics: {
     clear(): unknown;
     rect(x: number, y: number, w: number, h: number): unknown;
-    fill(color: number): unknown;
+    fill(style: number | { color?: number; alpha?: number }): unknown;
     circle(x: number, y: number, r: number): unknown;
     moveTo(x: number, y: number): unknown;
     lineTo(x: number, y: number): unknown;
-    stroke(style?: { width?: number; color?: number; cap?: "butt" | "round" | "square" }): unknown;
+    stroke(style?: { width?: number; color?: number; alpha?: number; cap?: "butt" | "round" | "square" }): unknown;
   },
   frame: Frame,
   cam: Camera,
   layers: LayerCounts,
   flashes: Flash[],
+  tracers: Tracer[],
+  muzzles: Muzzle[],
   canvasWidth: number,
   canvasHeight: number,
 ): void {
@@ -419,6 +450,20 @@ function paintFramePixi(
     graphics.circle(px(flash.x), py(flash.y), flashRadius(flash.kind, flash.ttl));
     graphics.fill(flashColor(flash.kind));
   }
+  for (const tracer of tracers) {
+    graphics.moveTo(px(tracer.x1), py(tracer.y1));
+    graphics.lineTo(px(tracer.x2), py(tracer.y2));
+    graphics.stroke({
+      width: tracer.width,
+      color: 0xfde047,
+      alpha: tracerOpacity(tracer),
+      cap: "round",
+    });
+  }
+  for (const muzzle of muzzles) {
+    graphics.circle(px(muzzle.x), py(muzzle.y), 4);
+    graphics.fill({ color: 0xfff7cc, alpha: tracerOpacity(muzzle) });
+  }
 }
 
 function paintFrame2D(
@@ -427,6 +472,8 @@ function paintFrame2D(
   cam: Camera,
   layers: LayerCounts,
   flashes: Flash[],
+  tracers: Tracer[],
+  muzzles: Muzzle[],
   canvasWidth: number,
   canvasHeight: number,
 ): void {
@@ -496,6 +543,27 @@ function paintFrame2D(
     ctx.arc(px(flash.x), py(flash.y), radius, 0, Math.PI * 2);
     ctx.fill();
   }
+  for (const tracer of tracers) {
+    ctx.save();
+    ctx.globalAlpha = tracerOpacity(tracer);
+    ctx.strokeStyle = "#fde047";
+    ctx.lineWidth = tracer.width;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(px(tracer.x1), py(tracer.y1));
+    ctx.lineTo(px(tracer.x2), py(tracer.y2));
+    ctx.stroke();
+    ctx.restore();
+  }
+  for (const muzzle of muzzles) {
+    ctx.save();
+    ctx.globalAlpha = tracerOpacity(muzzle);
+    ctx.fillStyle = "#fff7cc";
+    ctx.beginPath();
+    ctx.arc(px(muzzle.x), py(muzzle.y), 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 /** Feed step events into capped transient flashes anchored near the action. */
@@ -533,6 +601,70 @@ function pushFlashes(flashes: Flash[], frame: Frame, events: string[]): void {
   }
 }
 
+/** Tracer line width in world px. */
+const TRACER_WIDTH = 2;
+
+/** Fade fraction for a tracer or muzzle (post-decrement, so < 1 on frame one). */
+export function tracerOpacity(fx: { ttl: number; life: number }): number {
+  return Math.max(0, Math.min(1, fx.ttl / fx.life));
+}
+
+/**
+ * Convert sim shot details into tracer segments (one per pellet) plus
+ * one muzzle entry per firing shooter at the barrel tip. Pure: no DOM,
+ * no clock, so it stays unit-testable under node.
+ */
+export function spawnShots(
+  tracers: Tracer[],
+  muzzles: Muzzle[],
+  frame: Frame,
+  shots: ShotDetail[],
+): void {
+  const muzzled = new Set<number>();
+  for (const shot of shots) {
+    tracers.push({
+      x1: shot.ox,
+      y1: shot.oy,
+      x2: shot.x,
+      y2: shot.y,
+      width: TRACER_WIDTH,
+      ttl: TRACER_TTL,
+      life: TRACER_TTL,
+    });
+    while (tracers.length > MAX_TRACERS) {
+      tracers.shift();
+    }
+    if (!muzzled.has(shot.shooter)) {
+      muzzled.add(shot.shooter);
+      const shooter = frame.players[shot.shooter];
+      const tip =
+        shooter !== undefined ? shooter.barrel : { x: shot.ox, y: shot.oy };
+      muzzles.push({ x: tip.x, y: tip.y, ttl: MUZZLE_TTL, life: MUZZLE_TTL });
+      while (muzzles.length > MAX_MUZZLES) {
+        muzzles.shift();
+      }
+    }
+  }
+}
+
+/** Age fx one draw: decrement TTLs and drop expired entries. */
+export function ageFx(tracers: Tracer[], muzzles: Muzzle[]): void {
+  for (let i = tracers.length - 1; i >= 0; i -= 1) {
+    const tracer = tracers[i] as Tracer;
+    tracer.ttl -= 1;
+    if (tracer.ttl <= 0) {
+      tracers.splice(i, 1);
+    }
+  }
+  for (let i = muzzles.length - 1; i >= 0; i -= 1) {
+    const muzzle = muzzles[i] as Muzzle;
+    muzzle.ttl -= 1;
+    if (muzzle.ttl <= 0) {
+      muzzles.splice(i, 1);
+    }
+  }
+}
+
 /**
  * Build a renderer for the canvas. PixiJS v8 (`await app.init({canvas})`)
  * is tried first; any failure (notably missing WebGL in headless
@@ -543,12 +675,15 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   let fpsEma = 60;
   let activeMode: "pixi" | "canvas2d" = "canvas2d";
   const flashes: Flash[] = [];
+  const tracers: Tracer[] = [];
+  const muzzles: Muzzle[] = [];
 
   function trackDraw(
     state: StateLike,
     map: MapLike | TileMapLike | null | undefined,
     camera: Camera | null | undefined,
     events: string[] | undefined,
+    shots: ShotDetail[] | undefined,
   ): { frame: Frame; cam: Camera; layers: LayerCounts } {
     const frame = describeFrame(state, map ?? null);
     const cam = camera ?? createCamera(frame.arena.width, frame.arena.height);
@@ -561,6 +696,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     }
     lastNow = now;
     pushFlashes(flashes, frame, events ?? []);
+    spawnShots(tracers, muzzles, frame, shots ?? []);
     for (let i = flashes.length - 1; i >= 0; i -= 1) {
       const flash = flashes[i] as Flash;
       flash.ttl -= 1;
@@ -568,6 +704,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         flashes.splice(i, 1);
       }
     }
+    ageFx(tracers, muzzles);
     const layers = collectLayers(frame, map ?? null, cam, canvas.width, canvas.height);
     if (typeof window !== "undefined") {
       window.__scraplineDebug = {
@@ -585,6 +722,15 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           x2: p.barrel.x,
           y2: p.barrel.y,
         })),
+        tracers: tracers.map((t) => ({
+          x1: t.x1,
+          y1: t.y1,
+          x2: t.x2,
+          y2: t.y2,
+          opacity: tracerOpacity(t),
+          width: t.width,
+        })),
+        muzzle: muzzles.map((m) => ({ x: m.x, y: m.y, ttl: m.ttl })),
       };
     }
     return { frame, cam, layers };
@@ -609,14 +755,17 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         map?: MapLike | TileMapLike | null,
         camera?: Camera | null,
         events?: string[],
+        shots?: ShotDetail[],
       ): void {
-        const { frame, cam, layers } = trackDraw(state, map, camera, events);
+        const { frame, cam, layers } = trackDraw(state, map, camera, events, shots);
         paintFramePixi(
           graphics,
           frame,
           cam,
           layers,
           flashes.slice(),
+          tracers.slice(),
+          muzzles.slice(),
           canvas.width,
           canvas.height,
         );
@@ -635,9 +784,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         map?: MapLike | TileMapLike | null,
         camera?: Camera | null,
         events?: string[],
+        shots?: ShotDetail[],
       ): void {
-        const { frame, cam, layers } = trackDraw(state, map, camera, events);
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), canvas.width, canvas.height);
+        const { frame, cam, layers } = trackDraw(state, map, camera, events, shots);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), canvas.width, canvas.height);
       },
     };
   }

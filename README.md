@@ -48,8 +48,9 @@ npm run preview
 ```
 
 `npm run build` compiles the client Vite bundle, typechecks, builds the
-headless env-server, and stages a byte copy of `packages/client/dist` to the
-repo-root `dist/`. Open <http://localhost:3000> (or serve `dist/` from any
+headless env-server, and stages a filtered copy of `packages/client/dist` to the
+repo-root `dist/` (web artifacts only — TypeScript byproducts such as `.d.ts`
+and `tsconfig.tsbuildinfo` are excluded). Open <http://localhost:3000> (or serve `dist/` from any
 static host — asset URLs are relative, so `file://` and subpath hosts work
 too) and click **Play vs bots** to play offline.
 
@@ -89,7 +90,7 @@ cd rl && python -m scrapline_rl.eval --model ../model.zip --episodes 10 --tier n
 | `packages/env` | Headless RL gateway: stdio JSON-lines env-server (`reset`/`step`/`close`), observation vector, versioned action map |
 | `rl/` | Gymnasium wrapper (`ScraplineEnv`), PPO training baseline, per-tier eval harness |
 | `server.js` | Zero-dependency static server: prefers staged root `dist/`, falls back to `packages/client/dist`, then client source |
-| `tools/` | `stage-dist.js` (root `dist/` staging), throughput / repro benches |
+| `tools/` | `stage-dist.js` (root `dist/` staging, excluding compiler byproducts), throughput / repro benches |
 | `tests/` | Live HTTP contract probes (`node --test tests/skeleton.test.js`) |
 
 ## Scripts

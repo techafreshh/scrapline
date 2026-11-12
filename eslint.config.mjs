@@ -6,7 +6,7 @@ import tseslint from "typescript-eslint";
 import globals from "globals";
 
 export default [
-  { ignores: ["**/node_modules/**", "**/dist/**", "**/*.tsbuildinfo"] },
+  { ignores: ["**/node_modules/**", "**/dist/**", "**/dist-types/**", "**/*.tsbuildinfo"] },
   js.configs.recommended,
   // Scope the TS recommended rules to TS files: unscoped, they would flag
   // legitimate CommonJS require() calls and catch bindings in *.js.

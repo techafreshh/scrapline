@@ -454,9 +454,16 @@ export class World {
       const h = kind === "barrel" ? BARREL_H : CRATE_H;
       const preferred = i % 2 === 0 ? 1 : -1;
       const sides = [preferred, -preferred];
+      const candidates: Array<{ x: number; y: number }> = [];
       for (const dx of sides) {
-        const nx = tile.x + dx;
-        const ny = tile.y;
+        candidates.push({ x: tile.x + dx, y: tile.y });
+      }
+      // Fallback: the tile above the pad sponsors a prop when both
+      // lateral cells are solid or out of bounds.
+      candidates.push({ x: tile.x, y: tile.y - 1 });
+      for (const candidate of candidates) {
+        const nx = candidate.x;
+        const ny = candidate.y;
         if (nx < 0 || ny < 0 || nx >= this.tileMap.widthTiles || ny >= this.tileMap.heightTiles) {
           continue;
         }

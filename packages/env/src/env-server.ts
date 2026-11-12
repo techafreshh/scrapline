@@ -3,7 +3,7 @@
 //
 // Protocol (stdout carries only protocol lines, diagnostics go to stderr):
 //   {"op":"reset","seed":1234,"tier":"normal","bots":3,"map":"kilima"}
-//     -> {"obs":[...90 floats...],"info":{"tick":0,"scores":[...]}}
+//     -> {"obs":[...92 floats...],"info":{"tick":0,"scores":[...]}}
 //   {"op":"step","action":[2,4,1,0,1,0,0,0]}
 //     -> {"obs":[...],"reward":0.5,"terminated":false,"truncated":false,
 //         "info":{"tick":1,"scores":[...],"events":[...]}}. One step
@@ -22,7 +22,7 @@ import {
   type VictimView,
 } from "../../core/src/bots/director";
 import { decodeAction } from "./action";
-import { buildObservation } from "./observation";
+import { buildObs } from "./observation";
 
 /** Live episode: world plus the per-episode brains, director, and views. */
 interface Episode {
@@ -145,7 +145,7 @@ function handleReset(msg: Record<string, unknown>): unknown {
     prevAim: 0,
   };
   return {
-    obs: buildObservation(world, 0),
+    obs: buildObs(world, 0),
     info: { tick: world.tick, scores: world.scores.slice() },
   };
 }
@@ -267,7 +267,7 @@ function handleStep(msg: Record<string, unknown>): unknown {
   active.prevAlive = world.players.map((p) => p.alive);
 
   return {
-    obs: buildObservation(world, 0),
+    obs: buildObs(world, 0),
     reward,
     terminated,
     truncated: false,

@@ -12,7 +12,13 @@ import {
   AIM_STEP,
   decodeAction,
 } from "../src/action";
-import { OBS_LENGTH, OBS_VERSION, buildObservation } from "../src/observation";
+import {
+  OBS_LENGTH,
+  OBS_VERSION,
+  SCHEMA_VERSION,
+  buildObs,
+  buildObservation,
+} from "../src/observation";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..", "..", "..");
@@ -175,38 +181,79 @@ describe("action decoder", () => {
 });
 
 describe("observation encoder", () => {
-  it("pins schema version 1 and length 90", () => {
+  it('pins SCHEMA_VERSION "1.0" with length 92', () => {
+    expect(SCHEMA_VERSION).toBe("1.0");
+    expect(typeof SCHEMA_VERSION).toBe("string");
     expect(OBS_VERSION).toBe(1);
-    expect(OBS_LENGTH).toBe(90);
+    expect(OBS_LENGTH).toBe(92);
   });
 
-  it("emits 90 finite floats on every bundled map and the default arena", () => {
+  it("emits 92 finite floats on every bundled map and the default arena", () => {
     for (const name of ["kilima", "dune", "frostbite"]) {
       const world = new World({ seed: 7, map: readMapRows(name) });
       for (let i = 0; i < 4; i += 1) {
         world.addPlayer(120 + i * 200);
       }
       world.step([{ fire: true, aim: 0 }, {}, {}, {}]);
-      const obs = buildObservation(world, 0);
-      expect(obs.length).toBe(90);
+      const obs = buildObs(world, 0);
+      expect(obs.length).toBe(92);
+      expect(Array.isArray(obs)).toBe(true);
       for (const value of obs) {
         expect(Number.isFinite(value)).toBe(true);
       }
     }
     const bare = new World({ seed: 7 });
     bare.addPlayer();
-    const obs = buildObservation(bare, 0);
-    expect(obs.length).toBe(90);
+    const obs = buildObs(bare, 0);
+    expect(obs.length).toBe(92);
     expect(obs.every((value) => Number.isFinite(value))).toBe(true);
+  });
+
+  it("keeps obs length constant across two builds", () => {
+    const world = new World({ seed: 7, map: readMapRows("kilima") });
+    for (let i = 0; i < 4; i += 1) {
+      world.addPlayer(120 + i * 200);
+    }
+    const first = buildObs(world, 0);
+    const second = buildObs(world, 0);
+    expect(second.length).toBe(first.length);
+    expect(first.length).toBe(92);
+    expect(buildObservation(world, 0)).toEqual(first);
   });
 
   it("zero-pads missing enemies, projectiles, and pickups", () => {
     const world = new World({ seed: 3 });
     world.addPlayer();
-    const obs = buildObservation(world, 0);
-    expect(obs.length).toBe(90);
+    const obs = buildObs(world, 0);
+    expect(obs.length).toBe(92);
     // Enemy section (15..32) is all padding with a single player.
     expect(obs.slice(15, 33).every((value) => value === 0)).toBe(true);
+  });
+
+  it("hides wall-occluded enemies from the nearest-3 slots", () => {
+    const rows = [
+      "........",
+      "........",
+      "...#....",
+      "...#....",
+      "...#....",
+      "...#....",
+      "...#....",
+      "########",
+    ];
+    const hidden = new World({ seed: 1, map: rows });
+    hidden.addPlayer(40, 100);
+    hidden.addPlayer(200, 100);
+    expect(hidden.map.raycast(53, 129, 213, 129).hit).toBe(true);
+    const obsHidden = buildObs(hidden, 0);
+    expect(obsHidden.length).toBe(92);
+    expect(obsHidden.slice(15, 33).every((value) => value === 0)).toBe(true);
+
+    const seen = new World({ seed: 1, map: rows });
+    seen.addPlayer(40, 100);
+    seen.addPlayer(70, 100);
+    const obsSeen = buildObs(seen, 0);
+    expect(obsSeen.slice(15, 21).some((value) => value !== 0)).toBe(true);
   });
 });
 

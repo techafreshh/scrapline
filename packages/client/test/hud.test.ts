@@ -8,6 +8,7 @@ import {
   killsFromDiff,
   ordinal,
   playerName,
+  pushKillfeed,
   standingsRows,
   updateHud,
   type HudHandles,
@@ -119,6 +120,8 @@ describe("updateHud ammo", () => {
       hud: null,
       health: null,
       fuel: null,
+      grenades: null,
+      weapon: null,
       ammo,
       score: null,
       timer: null,
@@ -132,6 +135,8 @@ describe("updateHud ammo", () => {
       fuel: 100,
       magAmmo: 7,
       weaponName: "Pistol",
+      grenades: 3,
+      killedBy: null,
       scores: [0],
       ids: [0],
       tick: 0,
@@ -142,5 +147,153 @@ describe("updateHud ammo", () => {
     expect("reserveAmmo" in snapshot).toBe(false);
     updateHud(handles, snapshot);
     expect(ammo.textContent).toBe("Pistol 7");
+  });
+});
+
+describe("updateHud resources", () => {
+  function resourceHandles(): {
+    handles: HudHandles;
+    weapon: { textContent: string | null };
+    grenades: { textContent: string | null };
+    fuel: { style: { width: string } };
+    respawn: { textContent: string | null; style: { display: string } };
+  } {
+    const weapon = { textContent: "" };
+    const grenades = { textContent: "" };
+    const fuel = { style: { width: "" } };
+    const respawn = { textContent: "", style: { display: "none" } };
+    const handles = {
+      hud: null,
+      health: null,
+      fuel,
+      grenades,
+      weapon,
+      ammo: null,
+      score: null,
+      timer: null,
+      killfeed: null,
+      respawn,
+      endScreen: null,
+      endStandings: null,
+    } as unknown as HudHandles;
+    return { handles, weapon, grenades, fuel, respawn };
+  }
+
+  function baseSnapshot(overrides: Partial<HudSnapshot>): HudSnapshot {
+    return {
+      hp: 100,
+      fuel: 100,
+      magAmmo: 7,
+      weaponName: "rifle",
+      grenades: 3,
+      killedBy: null,
+      scores: [0],
+      ids: [0],
+      tick: 0,
+      timeLimitTicks: 18000,
+      localAlive: true,
+      respawnTicks: 0,
+      ...overrides,
+    } as HudSnapshot;
+  }
+
+  it("mirrors the weapon id verbatim in lowercase", () => {
+    const { handles, weapon } = resourceHandles();
+    updateHud(handles, baseSnapshot({ weaponName: "rocket" }));
+    expect(weapon.textContent).toBe("rocket");
+  });
+
+  it("mirrors the grenade count as plain text", () => {
+    const { handles, grenades } = resourceHandles();
+    updateHud(handles, baseSnapshot({ grenades: 2 }));
+    expect(grenades.textContent).toBe("2");
+  });
+
+  it("maps fuel 0/100 to 0%/100% width", () => {
+    const { handles, fuel } = resourceHandles();
+    updateHud(handles, baseSnapshot({ fuel: 0 }));
+    expect(fuel.style.width).toBe("0%");
+    updateHud(handles, baseSnapshot({ fuel: 100 }));
+    expect(fuel.style.width).toBe("100%");
+  });
+
+  it("renders eliminated-by in the respawn node while dead, hides it alive", () => {
+    const { handles, respawn } = resourceHandles();
+    updateHud(
+      handles,
+      baseSnapshot({ localAlive: false, respawnTicks: 180, killedBy: "Bot 1" }),
+    );
+    expect(respawn.style.display).toBe("");
+    expect(respawn.textContent).toMatch(/eliminated by Bot 1/);
+    updateHud(handles, baseSnapshot({ localAlive: true, killedBy: null }));
+    expect(respawn.style.display).toBe("none");
+  });
+
+  it("falls back to the plain respawn text when the killer is null", () => {
+    const { handles, respawn } = resourceHandles();
+    updateHud(
+      handles,
+      baseSnapshot({ localAlive: false, respawnTicks: 120, killedBy: null }),
+    );
+    expect(respawn.textContent).toMatch(/Respawning in/);
+    expect(respawn.textContent).not.toMatch(/eliminated by/);
+  });
+});
+
+describe("pushKillfeed entry class", () => {
+  it("tags entries with kill-entry and keeps the 5-entry cap", () => {
+    const created: { textContent: string | null; attrs: Map<string, string> }[] = [];
+    const children: object[] = [];
+    const feed = {
+      ownerDocument: {
+        createElement: () => {
+          const entry = {
+            textContent: null as string | null,
+            attrs: new Map<string, string>(),
+            setAttribute: (key: string, value: string): void => {
+              entry.attrs.set(key, value);
+            },
+            getAttribute: (key: string): string | null =>
+              entry.attrs.get(key) ?? null,
+          };
+          created.push(entry);
+          return entry;
+        },
+      },
+      appendChild: (child: object): void => {
+        children.push(child);
+      },
+      removeChild: (child: object): void => {
+        const index = children.indexOf(child);
+        if (index >= 0) {
+          children.splice(index, 1);
+        }
+      },
+      get children(): object[] {
+        return children;
+      },
+    };
+    const handles = {
+      hud: null,
+      health: null,
+      fuel: null,
+      grenades: null,
+      weapon: null,
+      ammo: null,
+      score: null,
+      timer: null,
+      killfeed: feed,
+      respawn: null,
+      endScreen: null,
+      endStandings: null,
+    } as unknown as HudHandles;
+    for (let i = 0; i < 7; i += 1) {
+      pushKillfeed(handles, `Bot ${i + 1}`, "You");
+    }
+    expect(children.length).toBe(5);
+    for (const entry of created) {
+      expect(entry.attrs.get("class")).toBe("kill-entry");
+    }
+    expect(created[6]?.textContent).toBe("Bot 7 killed You");
   });
 });

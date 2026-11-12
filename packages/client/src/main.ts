@@ -260,6 +260,9 @@ function stepOnce(): string[] {
   for (const kill of kills) {
     const killer = kill.killerId === null ? null : playerName(kill.killerId);
     pushKillfeed(hud, killer, playerName(kill.victimId));
+    if (kill.victimId === 0) {
+      lastLocalKiller = killer;
+    }
     while (deaths.length < world.players.length) {
       deaths.push(0);
     }
@@ -305,11 +308,16 @@ function frame(now: number): void {
   }
   const local = world.players[0];
   if (local !== undefined) {
+    if (local.alive) {
+      lastLocalKiller = null;
+    }
     updateHud(hud, {
       hp: local.hp,
       fuel: local.fuel,
       magAmmo: local.magAmmo,
       weaponName: local.weapon,
+      grenades: local.grenades ?? 0,
+      killedBy: lastLocalKiller,
       scores: world.scores,
       ids: world.players.map((p) => p.id),
       tick: world.tick,
@@ -424,6 +432,8 @@ let brains: BotBrain[] = [];
 let botCached: WorldInput[] = [];
 /** Per-match death counts indexed by player id/position. */
 let deaths: number[] = [];
+/** Display name of the local player's most recent killer; cleared on respawn. */
+let lastLocalKiller: string | null = null;
 
 /** Hide the menu, build the offline World plus tiered bots, start. */
 function startMatch(config: SetupConfig): void {
@@ -469,6 +479,7 @@ function startMatch(config: SetupConfig): void {
     hud.killfeed.replaceChildren();
   }
   deaths = new Array(match.players.length).fill(0);
+  lastLocalKiller = null;
   camera = createCamera(world.map.widthPixels, world.map.heightPixels);
   // Snap the fresh camera onto the local player so the match opens
   // framed (updateCamera eases 10%/frame; ~120 steps converges fully).

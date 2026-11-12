@@ -144,6 +144,8 @@ export interface HudSnapshot {
   fuel: number;
   magAmmo: number;
   weaponName: string;
+  grenades: number;
+  killedBy: string | null;
   scores: readonly number[];
   ids: readonly number[];
   tick: number;
@@ -157,6 +159,8 @@ export interface HudHandles {
   hud: HTMLElement | null;
   health: HTMLElement | null;
   fuel: HTMLElement | null;
+  grenades: HTMLElement | null;
+  weapon: HTMLElement | null;
   ammo: HTMLElement | null;
   score: HTMLElement | null;
   timer: HTMLElement | null;
@@ -177,6 +181,8 @@ export function buildHud(doc: Document): HudHandles {
     hud: byId(doc, "hud"),
     health: byId(doc, "hud-health"),
     fuel: byId(doc, "hud-fuel"),
+    grenades: byId(doc, "hud-grenades"),
+    weapon: byId(doc, "hud-weapon"),
     ammo: byId(doc, "hud-ammo"),
     score: byId(doc, "hud-score"),
     timer: byId(doc, "hud-timer"),
@@ -196,6 +202,12 @@ export function updateHud(handles: HudHandles, snapshot: HudSnapshot): void {
     const pct = Math.min(100, Math.max(0, (snapshot.fuel / JETPACK_FUEL_MAX) * 100));
     handles.fuel.style.width = `${pct}%`;
   }
+  if (handles.grenades !== null) {
+    handles.grenades.textContent = String(snapshot.grenades);
+  }
+  if (handles.weapon !== null) {
+    handles.weapon.textContent = snapshot.weaponName;
+  }
   if (handles.ammo !== null) {
     handles.ammo.textContent = `${snapshot.weaponName} ${snapshot.magAmmo}`;
   }
@@ -213,7 +225,10 @@ export function updateHud(handles: HudHandles, snapshot: HudSnapshot): void {
     } else {
       handles.respawn.style.display = "";
       const secs = Math.max(1, Math.ceil(snapshot.respawnTicks / TICK_HZ));
-      handles.respawn.textContent = `Respawning in ${secs}s`;
+      handles.respawn.textContent =
+        snapshot.killedBy === null || snapshot.killedBy === ""
+          ? `Respawning in ${secs}s`
+          : `eliminated by ${snapshot.killedBy} \u2014 Respawning in ${secs}s`;
     }
   }
 }
@@ -229,6 +244,7 @@ export function pushKillfeed(
     return;
   }
   const entry = feed.ownerDocument.createElement("div");
+  entry.setAttribute("class", "kill-entry");
   entry.textContent =
     killer === null || killer === "" ? `${victim} died` : `${killer} killed ${victim}`;
   feed.appendChild(entry);

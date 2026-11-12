@@ -42,16 +42,53 @@ export function matchSpawnXs(
   return xs;
 }
 
-/** Viewport center in world px plus the fixed zoom scale. */
+/** Zoom-level multipliers cycled by the zoom key (1x, 0.8x, 0.64x). */
+export const ZOOM_LEVELS: readonly number[] = [1, 0.8, 0.64];
+/** Max world-px view size the zoom clamp allows (width x height). */
+export const MAX_VIEW_W = 2100;
+export const MAX_VIEW_H = 1280;
+/** Trauma decay per second (linear). */
+export const TRAUMA_DECAY = 0.8;
+/** Screen-px shake amplitude at trauma 1 (scales with trauma squared). */
+export const MAX_SHAKE_PX = 14;
+/** Zoom lerp rate per second toward the target multiplier. */
+export const ZOOM_LERP_RATE = 8;
+/** Shake oscillation frequency in radians per second. */
+export const SHAKE_FREQ = 30;
+/** Nearby-explosion trauma radius in world px. */
+export const EXPLODE_SHAKE_RADIUS = 500;
+/** Viewport center in world px plus zoom, trauma, and shake state. */
 export interface Camera {
   x: number;
   y: number;
   scale: number;
+  /** Active zoom multiplier (lerps toward targetZoom). */
+  zoom: number;
+  /** Pending zoom multiplier from ZOOM_LEVELS. */
+  targetZoom: number;
+  /** Screen-shake trauma in [0, 1]; decays linearly per frame. */
+  trauma: number;
+  /** Current screen-px shake offset (backing-store px). */
+  shakeX: number;
+  /** Current screen-px shake offset (backing-store px). */
+  shakeY: number;
+  /** Accumulated camera time in seconds (drives the shake phase). */
+  time: number;
 }
 
-/** Fresh camera centered on the arena at the fixed zoom. */
+/** Fresh camera centered on the arena at the default zoom. */
 export function createCamera(arenaW: number, arenaH: number): Camera {
-  return { x: arenaW / 2, y: arenaH / 2, scale: CAMERA_ZOOM };
+  return {
+    x: arenaW / 2,
+    y: arenaH / 2,
+    scale: CAMERA_ZOOM,
+    zoom: 1,
+    targetZoom: 1,
+    trauma: 0,
+    shakeX: 0,
+    shakeY: 0,
+    time: 0,
+  };
 }
 
 /** Clamp a viewport center so the view stays inside the arena bounds. */
@@ -77,7 +114,9 @@ function clampCenter(
 
 /**
  * Ease the camera 10% toward the clamped target. Converges in well
- * under 30 frames from anywhere in the arena.
+ * under 30 frames from anywhere in the arena. Also lerps the zoom
+ * scale toward the target multiplier (clamped to the max view size),
+ * decays trauma linearly, and recomputes the quadrature shake offset.
  */
 export function updateCamera(
   cam: Camera,
@@ -85,13 +124,50 @@ export function updateCamera(
   targetY: number,
   arenaW: number,
   arenaH: number,
+  dtSeconds: number = 1 / 60,
 ): void {
   const clamped = clampCenter(targetX, targetY, arenaW, arenaH, cam.scale);
   cam.x += (clamped.x - cam.x) * CAMERA_LERP;
   cam.y += (clamped.y - cam.y) * CAMERA_LERP;
+  const dt = Math.max(0, dtSeconds);
+  cam.zoom += (cam.targetZoom - cam.zoom) * Math.min(1, dt * ZOOM_LERP_RATE);
+  const minScale = Math.max(CLAMP_CANVAS_W / MAX_VIEW_W, CLAMP_CANVAS_H / MAX_VIEW_H);
+  cam.scale = Math.max(minScale, CAMERA_ZOOM * cam.zoom);
   const re = clampCenter(cam.x, cam.y, arenaW, arenaH, cam.scale);
   cam.x = re.x;
   cam.y = re.y;
+  cam.time += dt;
+  cam.trauma = Math.max(0, cam.trauma - TRAUMA_DECAY * dt);
+  // Quadrature sinusoids: magnitude stays exactly the amplitude, so the
+  // offset never samples near zero on the frame a probe happens to poll.
+  const amp = MAX_SHAKE_PX * cam.trauma * cam.trauma;
+  const phase = cam.time * SHAKE_FREQ;
+  cam.shakeX = amp * Math.sin(phase);
+  cam.shakeY = amp * Math.cos(phase);
+}
+
+/** Add trauma, clamped to [0, 1]. */
+export function addTrauma(cam: Camera, amount: number): void {
+  cam.trauma = Math.min(1, Math.max(0, cam.trauma + amount));
+}
+
+/** Advance the target zoom through ZOOM_LEVELS with wraparound. */
+export function cycleZoom(cam: Camera): void {
+  const current = ZOOM_LEVELS.indexOf(cam.targetZoom);
+  const next =
+    current < 0
+      ? ZOOM_LEVELS[0]
+      : ZOOM_LEVELS[(current + 1) % ZOOM_LEVELS.length];
+  cam.targetZoom = next ?? 1;
+}
+
+/** World-px view size for the given backing-store canvas dimensions. */
+export function viewSize(
+  cam: Camera,
+  canvasW: number,
+  canvasH: number,
+): { w: number; h: number } {
+  return { w: canvasW / cam.scale, h: canvasH / cam.scale };
 }
 
 /** Follow target: player center pushed 96px along the aim direction. */

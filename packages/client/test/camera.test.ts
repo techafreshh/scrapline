@@ -5,13 +5,16 @@
 import { describe, expect, it } from "vitest";
 import { TILE_SIZE } from "../../core/src/map";
 import {
+  addTrauma,
   CAMERA_LOOKAHEAD,
   CAMERA_ZOOM,
   cameraTarget,
   createCamera,
+  cycleZoom,
   matchSpawnXs,
   projectCamera,
   updateCamera,
+  viewSize,
   visibleTileRange,
 } from "../src/renderer/camera";
 
@@ -72,6 +75,68 @@ describe("projectCamera", () => {
     const screen = projectCamera(cam, 640, 360, cam.x, cam.y);
     expect(screen.x).toBeCloseTo(320, 9);
     expect(screen.y).toBeCloseTo(180, 9);
+  });
+});
+
+describe("zoom cycle", () => {
+  it("cycles 1 -> 0.8 -> 0.64 -> 1", () => {
+    const cam = createCamera(ARENA_W, ARENA_H);
+    expect(cam.zoom).toBeCloseTo(1, 9);
+    cycleZoom(cam);
+    expect(cam.targetZoom).toBeCloseTo(0.8, 9);
+    cycleZoom(cam);
+    expect(cam.targetZoom).toBeCloseTo(0.64, 9);
+    cycleZoom(cam);
+    expect(cam.targetZoom).toBeCloseTo(1, 9);
+  });
+
+  it("converges to 0.8 within 600ms and returns to 1 after a full cycle", () => {
+    const cam = createCamera(ARENA_W, ARENA_H);
+    cycleZoom(cam);
+    for (let i = 0; i < 36; i += 1) {
+      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+    }
+    expect(cam.zoom).toBeCloseTo(0.8, 1);
+    expect(cam.scale).toBeCloseTo(CAMERA_ZOOM * 0.8, 1);
+    cycleZoom(cam);
+    cycleZoom(cam);
+    for (let i = 0; i < 120; i += 1) {
+      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+    }
+    expect(cam.zoom).toBeCloseTo(1, 2);
+  });
+
+  it("keeps the fully zoomed-out view within 2100x1280 world px", () => {
+    const cam = createCamera(ARENA_W, ARENA_H);
+    cycleZoom(cam);
+    cycleZoom(cam);
+    for (let i = 0; i < 120; i += 1) {
+      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+    }
+    const view = viewSize(cam, 640, 360);
+    expect(view.w).toBeLessThanOrEqual(2100);
+    expect(view.h).toBeLessThanOrEqual(1280);
+  });
+});
+
+describe("trauma shake", () => {
+  it("offsets more than 2px right after trauma and under 1px after 1.5s", () => {
+    const cam = createCamera(ARENA_W, ARENA_H);
+    addTrauma(cam, 0.5);
+    updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+    expect(Math.hypot(cam.shakeX, cam.shakeY)).toBeGreaterThan(2);
+    for (let i = 0; i < 90; i += 1) {
+      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+    }
+    expect(Math.hypot(cam.shakeX, cam.shakeY)).toBeLessThan(1);
+  });
+
+  it("clamps trauma to [0, 1]", () => {
+    const cam = createCamera(ARENA_W, ARENA_H);
+    addTrauma(cam, 5);
+    expect(cam.trauma).toBeLessThanOrEqual(1);
+    addTrauma(cam, -5);
+    expect(cam.trauma).toBeGreaterThanOrEqual(0);
   });
 });
 

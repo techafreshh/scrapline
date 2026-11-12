@@ -35,11 +35,15 @@ import {
 } from "./input";
 import { createRenderer, type Renderer } from "./renderer/index";
 import {
+  addTrauma,
   cameraTarget,
   createCamera,
+  cycleZoom,
+  EXPLODE_SHAKE_RADIUS,
   matchSpawnXs,
   projectCamera,
   updateCamera,
+  viewSize,
   type Camera,
 } from "./renderer/camera";
 import {
@@ -76,6 +80,7 @@ const GAME_KEYS = new Set([
   "KeyS",
   "KeyG",
   "KeyR",
+  "KeyZ",
 ]);
 
 const el = document.getElementById("game");
@@ -112,6 +117,13 @@ window.addEventListener("keydown", (e: KeyboardEvent) => {
   const id = eventKey(e);
   if (GAME_KEYS.has(id) || id === " ") {
     e.preventDefault();
+  }
+  // Zoom key: cycle the match camera through 1x / 0.8x / 0.64x.
+  // Repeats ignored; pre-match (no camera yet) is a no-op.
+  if ((id === "KeyZ" || id === "z" || id === "Z") && !e.repeat) {
+    if (camera !== null) {
+      cycleZoom(camera);
+    }
   }
   applyKeyEvent(keys, id, true);
   refreshInput();
@@ -181,7 +193,7 @@ const menu = document.getElementById("menu");
 const playButton = document.getElementById("play");
 
 /** Ease the shared camera toward the local player plus aim look-ahead. */
-function updateCameraFromLocal(): void {
+function updateCameraFromLocal(dtSeconds: number): void {
   if (world === null || camera === null) {
     return;
   }
@@ -201,6 +213,7 @@ function updateCameraFromLocal(): void {
     target.y,
     world.map.widthPixels,
     world.map.heightPixels,
+    dtSeconds,
   );
 }
 
@@ -260,14 +273,52 @@ function stepOnce(): string[] {
   const prevScores = world.scores.slice();
   const prevAlive = world.players.map((p) => p.alive);
   const events = world.step(inputs);
+  const stepShots: ShotDetail[] = [];
+  const stepDamages: DamageDetail[] = [];
   for (const shot of world.drainShotDetails()) {
     shotsThisFrame.push(shot);
+    stepShots.push(shot);
   }
   for (const damage of world.drainDamageDetails()) {
     damagesThisFrame.push(damage);
+    stepDamages.push(damage);
     // Crosshair confirm: the local player (shooter id 0) dealt damage.
     if (damage.shooterId === 0) {
       flashCrosshair(document);
+    }
+    // Camera kick: the local player (victim id 0) took damage.
+    if (damage.victimId === 0 && camera !== null) {
+      addTrauma(camera, 0.5);
+    }
+  }
+  // Camera kick: the local player fired the rocket.
+  if (
+    camera !== null &&
+    stepShots.some((shot) => shot.weapon === "rocket" && shot.shooterId === 0)
+  ) {
+    addTrauma(camera, 0.25);
+  }
+  // Camera kick: a nearby explosion rattles the local player. Trauma
+  // scales down with distance; unknown positions add a small fallback.
+  if (events.includes("explode") && camera !== null) {
+    const localPlayer = world.players[0];
+    if (localPlayer !== undefined) {
+      const height = localPlayer.crouching
+        ? PLAYER_CROUCH_HEIGHT
+        : PLAYER_HEIGHT;
+      const cx = localPlayer.x + PLAYER_WIDTH / 2;
+      const cy = localPlayer.y + height / 2;
+      if (stepDamages.length === 0) {
+        addTrauma(camera, 0.15);
+      } else {
+        let minDist = Infinity;
+        for (const detail of stepDamages) {
+          minDist = Math.min(minDist, Math.hypot(detail.x - cx, detail.y - cy));
+        }
+        if (minDist <= EXPLODE_SHAKE_RADIUS) {
+          addTrauma(camera, 0.35 * (1 - minDist / EXPLODE_SHAKE_RADIUS));
+        }
+      }
     }
   }
   for (const kill of world.drainKillDetails()) {
@@ -323,18 +374,40 @@ function frame(now: number): void {
   if (camera === null) {
     camera = createCamera(world.map.widthPixels, world.map.heightPixels);
   }
-  updateCameraFromLocal();
+  updateCameraFromLocal(dt);
   refreshAimOrigin();
   if (renderer !== null && camera !== null) {
+    // Shaken copy for paint only: the aim origin above stays jitter-free
+    // while the drawn frame (and the debug cameraX/Y mirror) kicks.
+    const renderCam: Camera = {
+      ...camera,
+      x: camera.x + camera.shakeX / camera.scale,
+      y: camera.y + camera.shakeY / camera.scale,
+    };
     renderer.draw(
       world.state,
       world.map,
-      camera,
+      renderCam,
       eventsThisFrame,
       shotsThisFrame,
       damagesThisFrame,
       killsThisFrame,
     );
+  }
+  // Authoritative camera probe mirror (zoom multiplier, scale, trauma,
+  // screen-px shake, and the clamped world-px view size).
+  if (camera !== null) {
+    window.__camera = {
+      x: camera.x,
+      y: camera.y,
+      scale: camera.scale,
+      zoom: camera.zoom,
+      targetZoom: camera.targetZoom,
+      trauma: camera.trauma,
+      shakeX: camera.shakeX,
+      shakeY: camera.shakeY,
+      view: viewSize(camera, canvas.width, canvas.height),
+    };
   }
   shotsThisFrame.length = 0;
   damagesThisFrame.length = 0;
@@ -514,6 +587,17 @@ function startMatch(config: SetupConfig): void {
   deaths = new Array(match.players.length).fill(0);
   lastLocalKiller = null;
   camera = createCamera(world.map.widthPixels, world.map.heightPixels);
+  window.__camera = {
+    x: camera.x,
+    y: camera.y,
+    scale: camera.scale,
+    zoom: camera.zoom,
+    targetZoom: camera.targetZoom,
+    trauma: camera.trauma,
+    shakeX: camera.shakeX,
+    shakeY: camera.shakeY,
+    view: viewSize(camera, canvas.width, canvas.height),
+  };
   // Snap the fresh camera onto the local player so the match opens
   // framed (updateCamera eases 10%/frame; ~120 steps converges fully).
   const local = world.players[0];

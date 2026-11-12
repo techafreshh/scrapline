@@ -294,6 +294,21 @@ describe("env-server protocol", () => {
     expect(info["scores"]).toEqual([0, 0, 0, 0]);
   });
 
+  it("kilima reset fills the pickup section and repeats it on same-seed reset", async () => {
+    const proc = launch();
+    proc.send({ op: "reset", seed: 1234, tier: "normal", bots: 3, map: "kilima" });
+    const first = await proc.next();
+    const firstObs = first["obs"] as number[];
+    expect(firstObs.length).toBe(OBS_LENGTH);
+    // Pickup section: the 20 floats after self 15 + enemies 18 + projectiles 20.
+    const pads = firstObs.slice(53, 73);
+    expect(pads.length).toBe(20);
+    expect(pads.some((value) => value !== 0)).toBe(true);
+    proc.send({ op: "reset", seed: 1234, tier: "normal", bots: 3, map: "kilima" });
+    const second = await proc.next();
+    expect(second["obs"]).toEqual(firstObs);
+  });
+
   it("step replies with numeric reward and same-length obs", async () => {
     const proc = launch();
     proc.send({ op: "reset", seed: 1234, tier: "normal", bots: 3, map: "kilima" });

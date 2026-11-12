@@ -23,7 +23,7 @@ import {
 import { createRng, type Rng } from "../rng";
 import { WEAPONS, type WeaponId } from "../weapons";
 import type { WorldInput } from "../world";
-import { getTier, type TierName, type TierProfile } from "./tiers";
+import { getTier, rampTier, type TierName, type TierProfile } from "./tiers";
 
 /** Replan rate in Hz (one tick() call carries one full replan). */
 export const REPLAN_HZ = 12;
@@ -217,6 +217,12 @@ export interface BrainSnapshot {
 export interface BrainOptions {
   /** Skill tier (tolerant: unknown values fall back to normal). */
   tier?: TierName | string | TierProfile | null;
+  /** Matches played driving the tier ramp (aliases: matches, matchesPlayed). */
+  ramp?: number | null;
+  /** Alias of `ramp` (all spellings lerp the profile toward the next tier). */
+  matches?: number | null;
+  /** Alias of `ramp` (all spellings lerp the profile toward the next tier). */
+  matchesPlayed?: number | null;
   /** Seed for the deterministic stream (default 0). */
   seed?: number;
   /** Stable bot identity (matched against world players when ticked). */
@@ -399,6 +405,7 @@ export class BotBrain {
     options?: BrainOptions | TierName | string | number | TileMap | null,
   ) {
     let tierName: unknown;
+    let ramp = 0;
     let seed = 0;
     let id: number | string = 0;
     let weapon: string | null | undefined;
@@ -430,6 +437,11 @@ export class BotBrain {
         if (typeof rec["weapon"] === "string") {
           weapon = rec["weapon"] as string;
         }
+        const rampNum =
+          finiteOrNull(rec["ramp"]) ??
+          finiteOrNull(rec["matches"]) ??
+          finiteOrNull(rec["matchesPlayed"]);
+        ramp = rampNum === null ? 0 : Math.max(0, rampNum);
         map = BotBrain.toTileMap(
           (rec["map"] as BrainOptions["map"]) ?? null,
           null,
@@ -438,16 +450,17 @@ export class BotBrain {
     }
     this.seed = seed >>> 0;
     this.id = id;
-    const profile = getTier(tierName);
-    this.profile = profile;
-    this.tierName =
-      profile === getTier("easy")
+    const base = getTier(tierName);
+    const baseName: TierName =
+      base === getTier("easy")
         ? "easy"
-        : profile === getTier("hard")
+        : base === getTier("hard")
           ? "hard"
-          : profile === getTier("elite")
+          : base === getTier("elite")
             ? "elite"
             : "normal";
+    this.tierName = baseName;
+    this.profile = ramp > 0 ? rampTier(baseName, ramp) : base;
     this.defaultWeapon =
       weapon !== null &&
       weapon !== undefined &&

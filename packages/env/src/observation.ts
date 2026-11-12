@@ -1,22 +1,26 @@
-// Egocentric 90-float observation encoder (schema version 1).
+// Egocentric 92-float observation encoder (schema version "1.0").
 //
 // Layout: self 15 (hp, fuel, vx, vy, onGround, sin/cos aim, weapon
-// one-hot x6, mag fraction, reloading) + 3 nearest enemies x6 (dx, dy,
-// rel vx, rel vy, hp, dist) + 4 nearest projectiles x6 (dx, dy, vx,
-// vy, grenade one-hot, rocket one-hot) + 4 nearest active pickups x5
-// (dx, dy, weapon/health/grenades one-hot x3) + 10-ray TileMap.raycast
-// lidar fractions + 3 match features (own score, best-opp score,
-// time-left fraction). Every section zero-pads and clamps to [-1, 2].
+// one-hot x6, mag fraction, reloading) + 3 nearest *visible* enemies x6
+// (dx, dy, rel vx, rel vy, hp, dist) + 4 nearest projectiles x5 (dx, dy,
+// vx, vy, isGrenade) + 4 nearest active pickups x5 (dx, dy,
+// weapon/health/grenades one-hot x3) + 16-ray TileMap.raycast lidar
+// fractions + 3 match features (own score, best-opp score, time-left
+// fraction). Occluded or missing entries zero-pad in place; every entry
+// is Math.fround-rounded (float32-representable) and clamped to [-1, 2].
 
 import { PLAYER_HEIGHT, PLAYER_WIDTH } from "../../core/src/constants";
 import { WEAPONS, type WeaponId } from "../../core/src/weapons";
 import type { World } from "../../core/src/world";
 
-/** Observation schema version. */
+/** Observation schema version (primary contract). */
+export const SCHEMA_VERSION = "1.0";
+
+/** Deprecated numeric version; kept so #19 callers keep compiling. */
 export const OBS_VERSION = 1;
 
 /** Fixed observation length. */
-export const OBS_LENGTH = 90;
+export const OBS_LENGTH = 92;
 
 /** Weapon one-hot order (insertion order of the frozen WEAPONS table). */
 export const WEAPON_ORDER: readonly WeaponId[] = Object.freeze([
@@ -29,7 +33,7 @@ export const WEAPON_ORDER: readonly WeaponId[] = Object.freeze([
 ]);
 
 /** Lidar ray count. */
-export const LIDAR_RAYS = 10;
+export const LIDAR_RAYS = 16;
 
 /** Lidar ray length in pixels. */
 export const LIDAR_RANGE_PX = 900;
@@ -49,10 +53,11 @@ function clean(value: number): number {
 }
 
 /**
- * Build the fixed 90-float egocentric observation for `agentId`.
- * Unknown agents read player 0; missing entities zero-pad in place.
+ * Build the fixed 92-float egocentric observation for `agentId`.
+ * Unknown agents read player 0; occluded or missing entities zero-pad
+ * in place.
  */
-export function buildObservation(world: World, agentId = 0): number[] {
+export function buildObs(world: World, agentId = 0): number[] {
   const obs: number[] = [];
   const players = world.players;
   const agent = players.find((p) => p.id === agentId) ?? players[0];
@@ -83,9 +88,17 @@ export function buildObservation(world: World, agentId = 0): number[] {
     obs.push(agent.reloading ? 1 : 0);
   }
 
-  // 3 nearest enemies (18).
+  // 3 nearest visible enemies (18): alive with a wall-free line of
+  // sight from the agent center; occluded slots zero-pad.
   const others = players
-    .filter((p) => agent === undefined || p.id !== agent.id)
+    .filter(
+      (p) => agent !== undefined && p.id !== agent.id && p.alive === true,
+    )
+    .filter((p) => {
+      const ex = p.x + PLAYER_WIDTH / 2;
+      const ey = p.y + PLAYER_HEIGHT / 2;
+      return world.map.raycast(ax, ay, ex, ey).hit === false;
+    })
     .map((p) => ({
       p,
       dist: Math.hypot(p.x + PLAYER_WIDTH / 2 - ax, p.y + PLAYER_HEIGHT / 2 - ay),
@@ -110,7 +123,8 @@ export function buildObservation(world: World, agentId = 0): number[] {
     obs.push(entry.dist / 1800);
   }
 
-  // 4 nearest projectiles (24).
+  // 4 nearest projectiles (20): dx, dy, vx, vy, isGrenade (1 grenade,
+  // 0 rocket; the sim only ever spawns those two kinds).
   const shots = world.projectiles
     .map((pr) => ({ pr, dist: Math.hypot(pr.x - ax, pr.y - ay) }))
     .sort((a, b) => a.dist - b.dist)
@@ -118,7 +132,7 @@ export function buildObservation(world: World, agentId = 0): number[] {
   for (let i = 0; i < 4; i += 1) {
     const entry = shots[i];
     if (entry === undefined) {
-      for (let k = 0; k < 6; k += 1) {
+      for (let k = 0; k < 5; k += 1) {
         obs.push(0);
       }
       continue;
@@ -128,7 +142,6 @@ export function buildObservation(world: World, agentId = 0): number[] {
     obs.push(entry.pr.vx / 1150);
     obs.push(entry.pr.vy / 1150);
     obs.push(entry.pr.kind === "grenade" ? 1 : 0);
-    obs.push(entry.pr.kind === "rocket" ? 1 : 0);
   }
 
   // 4 nearest active pickups (20).
@@ -152,7 +165,7 @@ export function buildObservation(world: World, agentId = 0): number[] {
     obs.push(entry.pk.kind === "grenades" ? 1 : 0);
   }
 
-  // 10-ray lidar (10): full-circle fan around the current aim.
+  // 16-ray lidar (16): full-circle fan around the current aim.
   const twoPi = Math.PI * 2;
   for (let k = 0; k < LIDAR_RAYS; k += 1) {
     const ray = aim + (k * twoPi) / LIDAR_RAYS;
@@ -179,5 +192,12 @@ export function buildObservation(world: World, agentId = 0): number[] {
   obs.push(bestOpp / limit);
   obs.push(Math.min(1, Math.max(0, timeLeft)));
 
-  return obs.map(clean);
+  return obs.map((value) => clean(Math.fround(value)));
+}
+
+/**
+ * Deprecated alias of buildObs; kept so #19 callers keep compiling.
+ */
+export function buildObservation(world: World, agentId = 0): number[] {
+  return buildObs(world, agentId);
 }

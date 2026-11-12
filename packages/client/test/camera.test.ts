@@ -6,8 +6,10 @@ import { describe, expect, it } from "vitest";
 import { TILE_SIZE } from "../../core/src/map";
 import {
   CAMERA_LOOKAHEAD,
+  CAMERA_ZOOM,
   cameraTarget,
   createCamera,
+  matchSpawnXs,
   projectCamera,
   updateCamera,
   visibleTileRange,
@@ -70,6 +72,34 @@ describe("projectCamera", () => {
     const screen = projectCamera(cam, 640, 360, cam.x, cam.y);
     expect(screen.x).toBeCloseTo(320, 9);
     expect(screen.y).toBeCloseTo(180, 9);
+  });
+});
+
+describe("matchSpawnXs", () => {
+  it("returns four spawns clustered near the arena center", () => {
+    const xs = matchSpawnXs(ARENA_W);
+    expect(xs).toHaveLength(4);
+    for (const x of xs) {
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(ARENA_W);
+    }
+    const mid = ARENA_W / 2;
+    for (const x of xs) {
+      expect(Math.abs(x - mid)).toBeLessThanOrEqual(ARENA_W / 2);
+    }
+  });
+
+  it("keeps every bot within one camera half-view of the local spawn", () => {
+    const xs = matchSpawnXs(ARENA_W);
+    const halfView = 640 / (2 * CAMERA_ZOOM);
+    for (const x of xs.slice(1)) {
+      expect(Math.abs(x - xs[0])).toBeLessThanOrEqual(halfView);
+    }
+  });
+
+  it("anchors the local spawn first (leftmost of the cluster)", () => {
+    const xs = matchSpawnXs(ARENA_W);
+    expect(xs[0]).toBe(Math.min(...xs));
   });
 });
 

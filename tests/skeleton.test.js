@@ -79,9 +79,25 @@ test("GET /api/health returns 200 JSON containing status ok", async () => {
   assert.match(health.text, /"status":"ok"/);
 });
 
+test("GET /health returns 200 JSON containing status ok", async () => {
+  const health = await get("/health");
+  assert.equal(health.status, 200);
+  assert.match(health.contentType, /application\/json/);
+  assert.match(health.text, /"status":"ok"/);
+});
+
 test("GET /api/health answers on every loopback (localhost and ::1)", async () => {
   for (const host of ["localhost", "::1"]) {
     const health = await getFrom(host, "/api/health");
+    assert.equal(health.status, 200, `health via ${host}`);
+    assert.match(health.contentType, /application\/json/, `content-type via ${host}`);
+    assert.match(health.text, /"status":"ok"/, `body via ${host}`);
+  }
+});
+
+test("GET /health answers on every loopback (localhost and ::1)", async () => {
+  for (const host of ["localhost", "::1"]) {
+    const health = await getFrom(host, "/health");
     assert.equal(health.status, 200, `health via ${host}`);
     assert.match(health.contentType, /application\/json/, `content-type via ${host}`);
     assert.match(health.text, /"status":"ok"/, `body via ${host}`);

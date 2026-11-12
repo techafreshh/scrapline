@@ -24,6 +24,7 @@ import { createRenderer, type Renderer } from "./renderer/index";
 import {
   cameraTarget,
   createCamera,
+  matchSpawnXs,
   projectCamera,
   updateCamera,
   type Camera,
@@ -359,10 +360,10 @@ function startMatch(): void {
   }
   const seed = Math.floor(Math.random() * SEED_RANGE);
   const match = new World({ seed });
-  match.addPlayer({ x: 100 });
-  match.addPlayer({ x: 400 });
-  match.addPlayer({ x: 700 });
-  match.addPlayer({ x: 1000 });
+  // Clustered spawns inside one camera view; index 0 stays the local player.
+  for (const x of matchSpawnXs(match.map.widthPixels)) {
+    match.addPlayer({ x });
+  }
   world = match;
   window.__scraplineWorld = world;
   hud = buildHud(document);

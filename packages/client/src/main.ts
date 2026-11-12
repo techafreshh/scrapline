@@ -42,6 +42,7 @@ import {
   EXPLODE_SHAKE_RADIUS,
   matchSpawnXs,
   projectCamera,
+  rocketLaunchedSince,
   updateCamera,
   viewSize,
   type Camera,
@@ -165,6 +166,7 @@ canvas.addEventListener("contextmenu", (e: MouseEvent) => {
 window.__scraplineTick = 0;
 window.__scraplineWorld = null;
 window.__matchConfig = null;
+window.__camera = null;
 refreshInput();
 
 /** Live overlay handles; rebuilt idempotently on every match start. */
@@ -272,6 +274,12 @@ function stepOnce(): string[] {
   const inputs: WorldInput[] = [local, ...botCached];
   const prevScores = world.scores.slice();
   const prevAlive = world.players.map((p) => p.alive);
+  // Projectile ids before the step: rocket launches never emit
+  // ShotDetails, so local fire is detected as a new owned projectile.
+  const prevProjectileIds = new Set<number>();
+  for (const proj of world.projectiles) {
+    prevProjectileIds.add(proj.id);
+  }
   const events = world.step(inputs);
   const stepShots: ShotDetail[] = [];
   const stepDamages: DamageDetail[] = [];
@@ -291,33 +299,32 @@ function stepOnce(): string[] {
       addTrauma(camera, 0.5);
     }
   }
-  // Camera kick: the local player fired the rocket.
+  // Camera kick: the local player fired the rocket. Projectile
+  // weapons never produce ShotDetails, so detect the new rocket
+  // projectile owned by player 0 instead of scanning drained shots.
   if (
     camera !== null &&
-    stepShots.some((shot) => shot.weapon === "rocket" && shot.shooterId === 0)
+    rocketLaunchedSince(prevProjectileIds, world.projectiles, 0)
   ) {
     addTrauma(camera, 0.25);
   }
   // Camera kick: a nearby explosion rattles the local player. Trauma
-  // scales down with distance; unknown positions add a small fallback.
+  // scales down with distance; with no damage position known the
+  // explosion stays too far to feel, so no fallback shake is added.
   if (events.includes("explode") && camera !== null) {
     const localPlayer = world.players[0];
-    if (localPlayer !== undefined) {
+    if (localPlayer !== undefined && stepDamages.length > 0) {
       const height = localPlayer.crouching
         ? PLAYER_CROUCH_HEIGHT
         : PLAYER_HEIGHT;
       const cx = localPlayer.x + PLAYER_WIDTH / 2;
       const cy = localPlayer.y + height / 2;
-      if (stepDamages.length === 0) {
-        addTrauma(camera, 0.15);
-      } else {
-        let minDist = Infinity;
-        for (const detail of stepDamages) {
-          minDist = Math.min(minDist, Math.hypot(detail.x - cx, detail.y - cy));
-        }
-        if (minDist <= EXPLODE_SHAKE_RADIUS) {
-          addTrauma(camera, 0.35 * (1 - minDist / EXPLODE_SHAKE_RADIUS));
-        }
+      let minDist = Infinity;
+      for (const detail of stepDamages) {
+        minDist = Math.min(minDist, Math.hypot(detail.x - cx, detail.y - cy));
+      }
+      if (minDist <= EXPLODE_SHAKE_RADIUS) {
+        addTrauma(camera, 0.35 * (1 - minDist / EXPLODE_SHAKE_RADIUS));
       }
     }
   }

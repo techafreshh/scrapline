@@ -151,6 +151,37 @@ export function addTrauma(cam: Camera, amount: number): void {
   cam.trauma = Math.min(1, Math.max(0, cam.trauma + amount));
 }
 
+/** Minimal projectile identity for launch detection (World Projectile compatible). */
+export interface LaunchedProjectile {
+  id: number;
+  kind: string;
+  ownerId: number;
+}
+
+/**
+ * True when a rocket owned by `ownerId` launched between two
+ * projectile snapshots (ids seen before the sim step vs. after).
+ * Projectile weapons never emit ShotDetails, so the client detects
+ * local rocket fire this way instead of draining shot details. Pure:
+ * no DOM, no clock, so unit-testable under node.
+ */
+export function rocketLaunchedSince(
+  prevIds: ReadonlySet<number>,
+  projectiles: readonly LaunchedProjectile[],
+  ownerId: number,
+): boolean {
+  for (const proj of projectiles) {
+    if (
+      proj.kind === "rocket" &&
+      proj.ownerId === ownerId &&
+      !prevIds.has(proj.id)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Advance the target zoom through ZOOM_LEVELS with wraparound. */
 export function cycleZoom(cam: Camera): void {
   const current = ZOOM_LEVELS.indexOf(cam.targetZoom);

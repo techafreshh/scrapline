@@ -877,6 +877,9 @@ export class World {
       if (player.grenadeCooldownTicks === undefined) {
         player.grenadeCooldownTicks = 0;
       }
+      if (player.jetting === undefined) {
+        player.jetting = false;
+      }
 
       // Dead: count down to respawn at the recorded spawn point.
       if (player.alive === false) {
@@ -910,6 +913,7 @@ export class World {
         }
         memory.prevJet = jet;
         memory.wasThrust = false;
+        player.jetting = false;
         continue;
       }
 
@@ -931,6 +935,7 @@ export class World {
         });
         memory.prevJet = jet;
         memory.wasThrust = false;
+        player.jetting = false;
         continue;
       }
 
@@ -1050,6 +1055,7 @@ export class World {
 
       memory.prevJet = jet;
       memory.wasThrust = thrusting;
+      player.jetting = thrusting;
     }
     // Pickup collection runs on post-movement positions; the respawn ticks
     // run after so a consumed pad counts its first tick the same step.

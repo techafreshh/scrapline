@@ -61,6 +61,20 @@ declare global {
       }[];
       /** Per-player paint color in Pixi hex (victim red while flashing). */
       tints: number[];
+      /** Structured per-player style node: rect, jet, blink, and flame. */
+      players: {
+        index: number;
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        jetting: boolean;
+        protected: boolean;
+        alpha: number;
+        color: number;
+        colorCss: string;
+        flame: { scale: number; alpha: number } | null;
+      }[];
       /** Active zoom multiplier (1 / 0.8 / 0.64). */
       zoom: number;
       /** Effective world-to-screen scale. */

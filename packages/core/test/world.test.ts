@@ -140,6 +140,50 @@ describe("World determinism", () => {
     expect(a.hash()).not.toBe(b.hash());
   });
 
+  it("weapon-only difference changes the hash", () => {
+    const a = new World({ seed: 7 });
+    const b = new World({ seed: 7 });
+    a.step();
+    b.step();
+    a.players[0]!.weapon = "shotgun";
+    b.players[0]!.weapon = "sniper";
+    a.players[0]!.magAmmo = 5;
+    b.players[0]!.magAmmo = 5;
+    expect(a.hash()).not.toBe(b.hash());
+  });
+
+  it("aim-only difference changes the hash", () => {
+    const a = new World({ seed: 7 });
+    const b = new World({ seed: 7 });
+    a.step();
+    b.step();
+    a.players[0]!.aim = 0;
+    b.players[0]!.aim = Math.PI;
+    expect(a.hash()).not.toBe(b.hash());
+  });
+
+  it("reloading-flag-only difference changes the hash", () => {
+    const a = new World({ seed: 7 });
+    const b = new World({ seed: 7 });
+    a.step();
+    b.step();
+    a.players[0]!.reloadTicks = 60;
+    b.players[0]!.reloadTicks = 60;
+    a.players[0]!.reloading = true;
+    b.players[0]!.reloading = false;
+    expect(a.hash()).not.toBe(b.hash());
+  });
+
+  it("crouching-only difference changes the hash", () => {
+    const a = new World({ seed: 7 });
+    const b = new World({ seed: 7 });
+    a.step();
+    b.step();
+    a.players[0]!.crouching = true;
+    b.players[0]!.crouching = false;
+    expect(a.hash()).not.toBe(b.hash());
+  });
+
   it("identical stepped worlds with firing hash equal, stable, and 8 hex chars", () => {
     const a = new World({ seed: 7 });
     const b = new World({ seed: 7 });

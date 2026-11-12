@@ -1510,7 +1510,7 @@ export class World {
     const hashScores = (this as { scores?: number[] }).scores ?? [];
     text += `:${this.mode ?? "ffa"},${this.scoreLimit ?? MATCH_SCORE_LIMIT},${this.timeLimitTicks ?? MATCH_TIME_LIMIT_TICKS}:${hashScores.join(",")}`;
     for (const player of this.players) {
-      text += `:${player.x},${player.y},${player.vx},${player.vy},${player.fuel},${player.onGround ? 1 : 0},${player.hp},${player.alive ? 1 : 0},${player.magAmmo},${player.protectionTicks ?? 0},${player.respawnTicks},${player.grenades ?? GRENADE_MAX},${player.grenadeCooldownTicks ?? 0},${player.cooldownTicks ?? 0},${player.reloadTicks ?? 0},${player.ticksSinceDamage ?? 9999}`;
+      text += `:${player.x},${player.y},${player.vx},${player.vy},${player.fuel},${player.onGround ? 1 : 0},${player.hp},${player.alive ? 1 : 0},${player.magAmmo},${player.protectionTicks ?? 0},${player.respawnTicks},${player.grenades ?? GRENADE_MAX},${player.grenadeCooldownTicks ?? 0},${player.cooldownTicks ?? 0},${player.reloadTicks ?? 0},${player.ticksSinceDamage ?? 9999},${player.weapon},${player.aim},${player.reloading ? 1 : 0},${player.crouching ? 1 : 0}`;
     }
     for (const p of this.projectiles) {
       text += `:${p.kind},${p.x},${p.y},${p.vx},${p.vy},${p.lifeTicks},${p.ownerId}`;

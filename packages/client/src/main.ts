@@ -21,6 +21,7 @@ import {
   type SetupConfig,
   type SetupStorage,
 } from "./setup";
+import { bindSettings } from "./settings";
 import {
   applyKeyEvent,
   applyMouseButton,
@@ -504,6 +505,30 @@ matchConfig = loadSetup(storage);
 const setupBinder = bindSetup(document, storage, (config: SetupConfig) => {
   startMatch(config);
 });
+const settingsBinder = bindSettings(document, storage);
+
+/** Reveal a menu overlay by id; missing elements are no-ops. */
+function showOverlay(id: string): void {
+  const overlay = document.getElementById(id);
+  if (overlay instanceof HTMLElement) {
+    overlay.style.display = "";
+  }
+}
+
+/** Hide a menu overlay by id; missing elements are no-ops. */
+function hideOverlay(id: string): void {
+  const overlay = document.getElementById(id);
+  if (overlay instanceof HTMLElement) {
+    overlay.style.display = "none";
+  }
+}
+
+const quickPlayButton = document.getElementById("quick-play");
+if (quickPlayButton instanceof HTMLButtonElement) {
+  quickPlayButton.addEventListener("click", () => {
+    startMatch(loadSetup(storage));
+  });
+}
 
 if (playButton instanceof HTMLButtonElement) {
   playButton.addEventListener("click", () => {
@@ -511,6 +536,34 @@ if (playButton instanceof HTMLButtonElement) {
       menu.style.display = "none";
     }
     setupBinder.show();
+  });
+}
+
+const settingsOpen = document.getElementById("settings-open");
+if (settingsOpen instanceof HTMLButtonElement) {
+  settingsOpen.addEventListener("click", () => {
+    settingsBinder.show();
+  });
+}
+
+const settingsClose = document.getElementById("settings-close");
+if (settingsClose instanceof HTMLButtonElement) {
+  settingsClose.addEventListener("click", () => {
+    settingsBinder.hide();
+  });
+}
+
+const howtoOpen = document.getElementById("howto-open");
+if (howtoOpen instanceof HTMLButtonElement) {
+  howtoOpen.addEventListener("click", () => {
+    showOverlay("howto");
+  });
+}
+
+const howtoClose = document.getElementById("howto-close");
+if (howtoClose instanceof HTMLButtonElement) {
+  howtoClose.addEventListener("click", () => {
+    hideOverlay("howto");
   });
 }
 

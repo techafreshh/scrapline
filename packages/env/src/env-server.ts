@@ -21,7 +21,7 @@ import {
   type BotView,
   type VictimView,
 } from "../../core/src/bots/director";
-import { decodeAction } from "./action";
+import { actionToInput } from "./action";
 import { buildObs } from "./observation";
 
 /** Live episode: world plus the per-episode brains, director, and views. */
@@ -173,7 +173,12 @@ function handleStep(msg: Record<string, unknown>): unknown {
   }
   director.assignTargets(botViews, victims, world.map);
 
-  const agentInput: WorldInput = decodeAction(msg["action"], active.prevAim);
+  let agentInput: WorldInput;
+  try {
+    agentInput = actionToInput(msg["action"], active.prevAim);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "invalid action" };
+  }
   active.prevAim = agentInput.aim ?? 0;
 
   const botInputs = brains.map((brain, k) => {

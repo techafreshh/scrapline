@@ -16,6 +16,9 @@ import {
   type WorldInput,
 } from "../../core/src/world";
 
+/** Action schema version (primary contract; mirrors SCHEMA_VERSION). */
+export const ACTION_VERSION = "1.0";
+
 /** moveX quantum mirrored from the core (1/64); guarded below. */
 export const MOVE_X_STEP = 0.015625;
 
@@ -28,57 +31,75 @@ export const AIM_STEP = 0.12;
 
 /**
  * Frozen MultiDiscrete action dims: moveX in {0,1,2}, aim delta in
- * {0..8}, then binary jet/crouch/fire/grenade/reload plus a swap slot
- * that is accepted and ignored.
+ * {0..8}, then binary crouch/jet/fire/grenade/reload plus a swap slot
+ * that is validated and ignored.
  */
 export const ACTION_DIMS = Object.freeze([3, 9, 2, 2, 2, 2, 2, 2] as const);
 
 /** Action vector length. */
 export const ACTION_LENGTH = 8;
 
-/** Clamp an unknown value to a valid index in [0, size). */
-function clampIndex(value: unknown, size: number): number {
-  const n =
-    typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : 0;
-  if (n < 0) {
-    return 0;
+/**
+ * Map an 8-int MultiDiscrete action into a WorldInput, carrying aim
+ * forward: dim1 steps `(idx - 4) * AIM_STEP` accumulate onto `prevAim`
+ * and dim0 `{0,1,2}` maps to `{-1,0,+1}`. Dims 2-6 set the crouch, jet,
+ * fire, grenade, and reload booleans plus the matching button bits;
+ * dim7 is the swap slot: validated as 0/1 and ignored. Every entry must
+ * be an integer in `[0, ACTION_DIMS[i])`, else this throws.
+ */
+export function actionToInput(action: unknown, prevAim = 0): WorldInput {
+  if (!Array.isArray(action) || action.length !== ACTION_LENGTH) {
+    throw new Error(
+      `scrapline-env: invalid action: expected an array of length ${ACTION_LENGTH}`,
+    );
   }
-  if (n > size - 1) {
-    return size - 1;
+  const idx: number[] = [];
+  for (let i = 0; i < ACTION_LENGTH; i += 1) {
+    const value = action[i];
+    const size = ACTION_DIMS[i] as number;
+    if (
+      typeof value !== "number" ||
+      !Number.isInteger(value) ||
+      value < 0 ||
+      value >= size
+    ) {
+      throw new Error(
+        `scrapline-env: invalid action: entry ${i} must be an integer in [0, ${size})`,
+      );
+    }
+    idx.push(value);
   }
-  return n;
+  const base =
+    typeof prevAim === "number" && Number.isFinite(prevAim) ? prevAim : 0;
+  const moveX = quantizeMoveX((idx[0] as number) - 1);
+  const aim = quantizeAim(base + ((idx[1] as number) - 4) * AIM_STEP);
+  const crouch = (idx[2] as number) === 1;
+  const jet = (idx[3] as number) === 1;
+  const fire = (idx[4] as number) === 1;
+  const grenade = (idx[5] as number) === 1;
+  const reload = (idx[6] as number) === 1;
+  let buttons = 0;
+  if (crouch) {
+    buttons |= BUTTON_CROUCH;
+  }
+  if (jet) {
+    buttons |= BUTTON_JET;
+  }
+  if (fire) {
+    buttons |= BUTTON_FIRE;
+  }
+  if (grenade) {
+    buttons |= BUTTON_GRENADE;
+  }
+  if (reload) {
+    buttons |= BUTTON_RELOAD;
+  }
+  return { moveX, aim, buttons, crouch, jet, fire, grenade, reload };
 }
 
 /**
- * Decode an 8-int MultiDiscrete action into a WorldInput, carrying aim
- * forward: dim1 steps `(idx - 4) * AIM_STEP` accumulate onto `prevAim`
- * and dim0 `{0,1,2}` maps to `{-1,0,+1}`. Dims 2-6 set the matching
- * button bits; dim7 is the swap slot and stays a no-op. Out-of-range
- * entries clamp, missing entries read 0, and nothing throws.
+ * Deprecated alias of actionToInput; kept so older callers keep compiling.
  */
 export function decodeAction(action: unknown, prevAim = 0): WorldInput {
-  const list = Array.isArray(action) ? action : [];
-  const moveIdx = clampIndex(list[0], 3);
-  const aimIdx = clampIndex(list[1], 9);
-  const base =
-    typeof prevAim === "number" && Number.isFinite(prevAim) ? prevAim : 0;
-  const moveX = quantizeMoveX(moveIdx - 1);
-  const aim = quantizeAim(base + (aimIdx - 4) * AIM_STEP);
-  let buttons = 0;
-  if (clampIndex(list[2], 2) === 1) {
-    buttons |= BUTTON_JET;
-  }
-  if (clampIndex(list[3], 2) === 1) {
-    buttons |= BUTTON_CROUCH;
-  }
-  if (clampIndex(list[4], 2) === 1) {
-    buttons |= BUTTON_FIRE;
-  }
-  if (clampIndex(list[5], 2) === 1) {
-    buttons |= BUTTON_GRENADE;
-  }
-  if (clampIndex(list[6], 2) === 1) {
-    buttons |= BUTTON_RELOAD;
-  }
-  return { moveX, aim, buttons };
+  return actionToInput(action, prevAim);
 }

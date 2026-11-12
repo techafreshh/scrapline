@@ -9,7 +9,9 @@ import { World } from "../../core/src/world";
 import {
   ACTION_DIMS,
   ACTION_LENGTH,
+  ACTION_VERSION,
   AIM_STEP,
+  actionToInput,
   decodeAction,
 } from "../src/action";
 import {
@@ -155,28 +157,47 @@ describe("action decoder", () => {
     expect(ACTION_LENGTH).toBe(8);
   });
 
-  it("decodes the issue example to moveX 1, zero aim delta, jet+fire", () => {
-    const input = decodeAction([2, 4, 1, 0, 1, 0, 0, 0], 0);
+  it('pins ACTION_VERSION "1.0"', () => {
+    expect(ACTION_VERSION).toBe("1.0");
+    expect(typeof ACTION_VERSION).toBe("string");
+  });
+
+  it("decodes the issue example to moveX 1, fire true, jet false", () => {
+    const input = actionToInput([2, 4, 1, 0, 1, 0, 0, 0], 0);
     expect(input.moveX).toBe(1);
     expect(input.aim).toBe(0);
-    expect(input.buttons ?? 0).toBe(1 | 4);
+    expect(input.fire).toBe(true);
+    expect(input.jet).toBe(false);
+    expect(input.buttons ?? 0).toBe(2 | 4);
   });
 
   it("accumulates the aim delta onto prevAim", () => {
-    const input = decodeAction([1, 8, 0, 0, 0, 0, 0, 0], 0.5);
+    const input = actionToInput([1, 8, 0, 0, 0, 0, 0, 0], 0.5);
     expect(input.moveX).toBe(0);
     expect(Math.abs((input.aim ?? 0) - (0.5 + 4 * AIM_STEP)) < 0.01).toBe(true);
   });
 
-  it("clamps out-of-range indices and never throws", () => {
-    const input = decodeAction([99, -5, 7, -3, 2.9, 0, 0, 0], Number.NaN);
-    expect(Number.isFinite(input.moveX ?? 0)).toBe(true);
-    expect(Number.isFinite(input.aim ?? 0)).toBe(true);
-    expect(input.moveX).toBe(1);
-    expect((input.buttons ?? 0) & (1 | 4)).toBe(1 | 4);
-    expect(decodeAction(null)).toBeDefined();
-    expect(decodeAction("nope")).toBeDefined();
-    expect(decodeAction(undefined)).toBeDefined();
+  it("returns symmetric aim deltas to within 0.05 rad after 9 center steps", () => {
+    let aim = 0.7;
+    const start = aim;
+    for (let i = 0; i < 9; i += 1) {
+      aim = actionToInput([1, 4, 0, 0, 0, 0, 0, 0], aim).aim ?? 0;
+    }
+    expect(Math.abs(aim - start) < 0.05).toBe(true);
+  });
+
+  it("throws with an action message on invalid vectors", () => {
+    expect(() => actionToInput([9, 9, 9, 9, 9, 9, 9, 9], 0)).toThrow(/action/);
+    expect(() => actionToInput([1, 4, 0], 0)).toThrow(/action/);
+    expect(() => actionToInput([1, 4.5, 0, 0, 0, 0, 0, 0], 0)).toThrow(/action/);
+    expect(() => actionToInput(null, 0)).toThrow(/action/);
+    expect(() => actionToInput("nope", 0)).toThrow(/action/);
+  });
+
+  it("maps valid full-range edges without throwing", () => {
+    expect(() => actionToInput([0, 0, 0, 0, 0, 0, 0, 0], 0)).not.toThrow();
+    expect(() => actionToInput([2, 8, 1, 1, 1, 1, 1, 1], 0)).not.toThrow();
+    expect(decodeAction([2, 4, 1, 0, 1, 0, 0, 0], 0).moveX).toBe(1);
   });
 });
 

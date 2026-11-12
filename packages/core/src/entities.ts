@@ -46,8 +46,6 @@ export interface Player {
   alive: boolean;
   /** Rounds in the magazine. */
   magAmmo: number;
-  /** Rounds in reserve. */
-  reserveAmmo: number;
   /** True while reloading. */
   reloading: boolean;
   /** Ticks until respawn (0 when alive). */

@@ -8,6 +8,9 @@ import {
   ordinal,
   playerName,
   standingsRows,
+  updateHud,
+  type HudHandles,
+  type HudSnapshot,
 } from "../src/hud/hud";
 
 describe("playerName", () => {
@@ -79,5 +82,38 @@ describe("killsFromDiff", () => {
       { killerId: 0, victimId: 1 },
       { killerId: 2, victimId: 3 },
     ]);
+  });
+});
+
+describe("updateHud ammo", () => {
+  it("renders weapon plus mag only from a reserve-free snapshot", () => {
+    const ammo = { textContent: "" };
+    const handles = {
+      hud: null,
+      health: null,
+      fuel: null,
+      ammo,
+      score: null,
+      timer: null,
+      killfeed: null,
+      respawn: null,
+      endScreen: null,
+      endStandings: null,
+    } as unknown as HudHandles;
+    const snapshot = {
+      hp: 100,
+      fuel: 100,
+      magAmmo: 7,
+      weaponName: "Pistol",
+      scores: [0],
+      ids: [0],
+      tick: 0,
+      timeLimitTicks: 18000,
+      localAlive: true,
+      respawnTicks: 0,
+    } as HudSnapshot;
+    expect("reserveAmmo" in snapshot).toBe(false);
+    updateHud(handles, snapshot);
+    expect(ammo.textContent).toBe("Pistol 7");
   });
 });

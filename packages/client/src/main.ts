@@ -292,7 +292,6 @@ function frame(now: number): void {
       hp: local.hp,
       fuel: local.fuel,
       magAmmo: local.magAmmo,
-      reserveAmmo: local.reserveAmmo,
       weaponName: local.weapon,
       scores: world.scores,
       ids: world.players.map((p) => p.id),

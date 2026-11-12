@@ -109,7 +109,6 @@ export interface HudSnapshot {
   hp: number;
   fuel: number;
   magAmmo: number;
-  reserveAmmo: number;
   weaponName: string;
   scores: readonly number[];
   ids: readonly number[];
@@ -164,7 +163,7 @@ export function updateHud(handles: HudHandles, snapshot: HudSnapshot): void {
     handles.fuel.style.width = `${pct}%`;
   }
   if (handles.ammo !== null) {
-    handles.ammo.textContent = `${snapshot.weaponName} ${snapshot.magAmmo}/${snapshot.reserveAmmo}`;
+    handles.ammo.textContent = `${snapshot.weaponName} ${snapshot.magAmmo}`;
   }
   if (handles.score !== null) {
     handles.score.textContent = standingsRows(snapshot.scores, snapshot.ids)

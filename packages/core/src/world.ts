@@ -617,7 +617,6 @@ export class World {
       crouching: false,
       alive: true,
       magAmmo: WEAPONS.pistol.mag,
-      reserveAmmo: WEAPONS.pistol.mag,
       reloading: false,
       respawnTicks: 0,
       protectionTicks: 0,

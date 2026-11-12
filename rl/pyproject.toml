@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
   "gymnasium>=1.0,<2",
   "numpy",
+  "stable-baselines3>=2.0,<3",
 ]
 
 [project.optional-dependencies]

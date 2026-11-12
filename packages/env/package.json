@@ -1,0 +1,16 @@
+{
+  "name": "@scrapline/env",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Scrapline headless RL gateway: stdio JSON-lines env-server (reset/step/close)",
+  "type": "commonjs",
+  "bin": {
+    "scrapline-env-server": "dist/env-server.js"
+  },
+  "scripts": {
+    "build": "esbuild src/env-server.ts --bundle --platform=node --format=cjs --outfile=dist/env-server.js && chmod +x dist/env-server.js",
+    "start": "node dist/env-server.js",
+    "dev": "tsx src/env-server.ts",
+    "test": "vitest run"
+  }
+}

@@ -10,9 +10,9 @@
     "build:client": "npm run build --workspace=@scrapline/client",
     "dev": "npm run build:client && node server.js",
     "start": "node server.js",
-    "build": "tsc -b",
+    "build": "tsc -b && npm run build --workspace=@scrapline/env",
     "lint": "eslint .",
-    "test": "npm run build:client && tsc -b && vitest run packages/core packages/client && node --test tests/skeleton.test.js"
+    "test": "npm run build:client && npm run build && vitest run packages/core packages/client packages/env && node --test tests/skeleton.test.js"
   },
   "engines": {
     "node": ">=20"
@@ -20,6 +20,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
     "eslint": "^10.14.0",
     "globals": "^17.14.0",
     "tsx": "^4.23.15",

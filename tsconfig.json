@@ -10,7 +10,8 @@
   },
   "references": [
     { "path": "./packages/core" },
-    { "path": "./packages/client" }
+    { "path": "./packages/client" },
+    { "path": "./packages/env" }
   ],
   "exclude": ["packages/*/test"]
 }

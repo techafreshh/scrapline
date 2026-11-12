@@ -233,6 +233,11 @@ export function updateHud(handles: HudHandles, snapshot: HudSnapshot): void {
   }
 }
 
+/** Kill-feed flash hold in ms: the new entry pops, then settles (under 1s). */
+export const KILLFEED_FLASH_MS = 700;
+/** Crosshair hitmarker hold in ms (inside the 100-400ms window). */
+export const CROSSHAIR_HIT_MS = 250;
+
 /** Append one killfeed line, capping the feed at the last 5 entries. */
 export function pushKillfeed(
   handles: HudHandles,
@@ -244,15 +249,71 @@ export function pushKillfeed(
     return;
   }
   const entry = feed.ownerDocument.createElement("div");
-  entry.setAttribute("class", "kill-entry");
+  entry.setAttribute("class", "kill-entry flash");
   entry.textContent =
     killer === null || killer === "" ? `${victim} died` : `${killer} killed ${victim}`;
   feed.appendChild(entry);
+  try {
+    const timer = feed.ownerDocument.defaultView?.setTimeout;
+    if (typeof timer === "function") {
+      timer.call(feed.ownerDocument.defaultView, () => {
+        // The entry may already be capped away; classList no-ops safely.
+        entry.classList.remove("flash");
+      }, KILLFEED_FLASH_MS);
+    }
+  } catch {
+    // Fake docs in unit tests may lack timers: the flash class simply stays.
+  }
   while (feed.children.length > 5) {
     const oldest = feed.children[0];
     if (oldest === undefined) {
       break;
     }
     feed.removeChild(oldest);
+  }
+}
+
+/**
+ * Flash the crosshair hitmarker for ms milliseconds (default the
+ * 250ms hit window). Null-safe: missing elements or timers are no-ops.
+ * Re-queries #crosshair on every call so tests can use fake docs.
+ */
+export function flashCrosshair(doc: Document, ms: number = CROSSHAIR_HIT_MS): void {
+  let target: { classList: { add(c: string): void; remove(c: string): void } } | null =
+    null;
+  try {
+    // Duck-typed (not instanceof): unit-test fake docs carry a classList
+    // without a real HTMLElement lineage.
+    const el = doc.getElementById("crosshair") as unknown as {
+      classList?: { add(c: string): void; remove(c: string): void };
+    } | null;
+    if (
+      el !== null &&
+      el !== undefined &&
+      el.classList !== undefined &&
+      typeof el.classList.add === "function" &&
+      typeof el.classList.remove === "function"
+    ) {
+      target = el as {
+        classList: { add(c: string): void; remove(c: string): void };
+      };
+    }
+  } catch {
+    return;
+  }
+  if (target === null) {
+    return;
+  }
+  target.classList.add("hit");
+  try {
+    const timer = doc.defaultView?.setTimeout;
+    if (typeof timer !== "function") {
+      return;
+    }
+    timer.call(doc.defaultView, () => {
+      target.classList.remove("hit");
+    }, ms);
+  } catch {
+    // Missing timers in fake docs: the hit class simply stays.
   }
 }

@@ -111,6 +111,49 @@
         border-radius: 4px;
         padding: 2px 8px;
       }
+      #killfeed .kill-entry.flash {
+        border-color: #7df9ff;
+        background: rgba(22, 33, 58, 0.95);
+        transform: scale(1.08);
+        transition: transform 0.15s ease-out, background 0.7s ease-out;
+      }
+      #crosshair {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 18px;
+        height: 18px;
+        margin: -9px 0 0 -9px;
+        pointer-events: none;
+      }
+      #crosshair::before,
+      #crosshair::after {
+        content: "";
+        position: absolute;
+        background: #f8fafc;
+        opacity: 0.9;
+      }
+      #crosshair::before {
+        left: 8px;
+        top: 2px;
+        width: 2px;
+        height: 14px;
+      }
+      #crosshair::after {
+        left: 2px;
+        top: 8px;
+        width: 14px;
+        height: 2px;
+      }
+      #crosshair.hit::before,
+      #crosshair.hit::after {
+        background: #ef4444;
+        opacity: 1;
+      }
+      #crosshair.hit {
+        transform: scale(1.4);
+        transition: transform 0.25s ease-out;
+      }
       #respawn {
         position: absolute;
         inset: 0;
@@ -342,6 +385,7 @@
         <div id="hud-score"></div>
         <div id="hud-timer"></div>
       </div>
+      <div id="crosshair"></div>
       <div id="killfeed"></div>
       <div id="respawn" style="display: none"></div>
       <div id="end-screen" style="display: none">

@@ -241,7 +241,7 @@ describe("updateHud resources", () => {
 });
 
 describe("pushKillfeed entry class", () => {
-  it("tags entries with kill-entry and keeps the 5-entry cap", () => {
+  it("tags entries with kill-entry flash and keeps the 5-entry cap", () => {
     const created: { textContent: string | null; attrs: Map<string, string> }[] = [];
     const children: object[] = [];
     const feed = {
@@ -292,7 +292,7 @@ describe("pushKillfeed entry class", () => {
     }
     expect(children.length).toBe(5);
     for (const entry of created) {
-      expect(entry.attrs.get("class")).toBe("kill-entry");
+      expect(entry.attrs.get("class")).toBe("kill-entry flash");
     }
     expect(created[6]?.textContent).toBe("Bot 7 killed You");
   });

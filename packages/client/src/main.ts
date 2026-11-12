@@ -9,7 +9,18 @@ import {
   PLAYER_WIDTH,
 } from "../../core/src/constants";
 import { TICK_HZ, World, type WorldInput } from "../../core/src/world";
-import { scriptedInput } from "../../core/src/replay";
+import { BotBrain } from "../../core/src/bots/brain";
+import { mapRowsFor } from "./maps";
+import {
+  DEFAULT_SETUP,
+  bindSetup,
+  loadSetup,
+  parseSetup,
+  saveSetup,
+  setupSearchParams,
+  type SetupConfig,
+  type SetupStorage,
+} from "./setup";
 import {
   applyKeyEvent,
   applyMouseButton,
@@ -45,8 +56,8 @@ const STEP = 1 / TICK_HZ;
 const MAX_FRAME_DT = 0.25;
 /** Max sim steps per animation frame; overflow resets the accumulator. */
 const MAX_STEPS_PER_FRAME = 5;
-/** Per-bot tick offset so scripted bots diverge from each other. */
-const BOT_TICK_OFFSET = 173;
+/** Bot-brain replan cadence in sim ticks (mirrors the 12 Hz REPLAN_HZ). */
+const REPLAN_TICKS = 5;
 /** Match seeds stay inside the signed 32-bit range. */
 const SEED_RANGE = 2147483647;
 
@@ -138,6 +149,7 @@ canvas.addEventListener("contextmenu", (e: MouseEvent) => {
 
 window.__scraplineTick = 0;
 window.__scraplineWorld = null;
+window.__matchConfig = null;
 refreshInput();
 
 /** Live overlay handles; rebuilt idempotently on every match start. */
@@ -231,11 +243,12 @@ function stepOnce(): string[] {
     buttons: stateButtons(keys),
   });
   window.__scraplineInput = local;
-  const botCount = Math.max(0, world.players.length - 1);
-  const inputs: WorldInput[] = [local];
-  for (let i = 0; i < botCount; i += 1) {
-    inputs.push(scriptedInput(world.tick + BOT_TICK_OFFSET * (i + 1)));
+  // Bots replan at 12 Hz (every REPLAN_TICKS sim ticks); between replans
+  // the cached inputs carry the match (ffa-full.test.ts pattern).
+  if (world.tick % REPLAN_TICKS === 0) {
+    botCached = brains.map((brain, k) => brain.tick(world, k + 1));
   }
+  const inputs: WorldInput[] = [local, ...botCached];
   const prevScores = world.scores.slice();
   const prevAlive = world.players.map((p) => p.alive);
   const events = world.step(inputs);
@@ -351,19 +364,73 @@ function showEndScreen(): void {
   }, 6000);
 }
 
-/** Hide the menu, build the offline World plus scripted bots, start. */
-function startMatch(): void {
+/** Null-safe localStorage surface; null when storage is unavailable. */
+function browserStorage(): SetupStorage | null {
+  try {
+    const ls = window.localStorage;
+    return {
+      getItem: (key: string): string | null => {
+        try {
+          return ls.getItem(key);
+        } catch {
+          return null;
+        }
+      },
+      setItem: (key: string, value: string): void => {
+        try {
+          ls.setItem(key, value);
+        } catch {
+          // Private-mode storage: the match still starts, just not persisted.
+        }
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Last chosen setup; restart replays it, first visit uses defaults. */
+let matchConfig: SetupConfig = { ...DEFAULT_SETUP };
+/** Per-bot brains for the running match (index k drives player k + 1). */
+let brains: BotBrain[] = [];
+/** Cached bot inputs between 12 Hz replans. */
+let botCached: WorldInput[] = [];
+
+/** Hide the menu, build the offline World plus tiered bots, start. */
+function startMatch(config: SetupConfig): void {
   cancelAnimationFrame(rafId);
   if (endTimer !== null) {
     window.clearTimeout(endTimer);
     endTimer = null;
   }
+  const parsed = parseSetup(config);
+  matchConfig = parsed;
+  window.__matchConfig = {
+    bots: parsed.bots,
+    tier: parsed.tier,
+    map: parsed.map,
+  };
+  try {
+    const query = setupSearchParams(parsed);
+    window.history.replaceState(null, "", `${window.location.pathname}?${query}`);
+  } catch {
+    // Non-http hosts (file://): the mirror still carries the config.
+  }
+  saveSetup(browserStorage(), parsed);
   const seed = Math.floor(Math.random() * SEED_RANGE);
-  const match = new World({ seed });
+  const rows = mapRowsFor(parsed.map);
+  const match = rows !== null ? new World({ seed, map: rows }) : new World({ seed });
   // Clustered spawns inside one camera view; index 0 stays the local player.
-  for (const x of matchSpawnXs(match.map.widthPixels)) {
+  for (const x of matchSpawnXs(match.map.widthPixels, parsed.bots + 1)) {
     match.addPlayer({ x });
   }
+  brains = [];
+  for (let i = 0; i < parsed.bots; i += 1) {
+    brains.push(
+      new BotBrain({ tier: parsed.tier, seed: seed + i + 1, id: i + 1 }),
+    );
+  }
+  botCached = brains.map((brain, k) => brain.tick(match, k + 1));
   world = match;
   window.__scraplineWorld = world;
   hud = buildHud(document);
@@ -407,8 +474,19 @@ function startMatch(): void {
   rafId = requestAnimationFrame(frame);
 }
 
+const storage = browserStorage();
+matchConfig = loadSetup(storage);
+const setupBinder = bindSetup(document, storage, (config: SetupConfig) => {
+  startMatch(config);
+});
+
 if (playButton instanceof HTMLButtonElement) {
-  playButton.addEventListener("click", startMatch);
+  playButton.addEventListener("click", () => {
+    if (menu instanceof HTMLElement) {
+      menu.style.display = "none";
+    }
+    setupBinder.show();
+  });
 }
 
 const restartButton = document.getElementById("restart");
@@ -418,7 +496,7 @@ if (restartButton instanceof HTMLButtonElement) {
       window.clearTimeout(endTimer);
       endTimer = null;
     }
-    startMatch();
+    startMatch(matchConfig);
   });
 }
 

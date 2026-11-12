@@ -18,18 +18,25 @@ export const MATCH_SPAWN_COUNT = 4;
 export const MATCH_SPAWN_GAP = 20;
 
 /**
- * Four clustered FFA spawn x-positions centered on the arena midpoint.
- * The whole cluster spans 3 * MATCH_SPAWN_GAP (60px), inside half the
- * camera view (CLAMP_CANVAS_W / (2 * CAMERA_ZOOM) = 160px) minus the
- * CAMERA_LOOKAHEAD margin, so every bot spawns inside the initial camera
- * viewport whatever the local player's aim direction. Entry 0 anchors
- * the local player (leftmost); positions clamp inside [0, arenaWidth].
+ * Clustered FFA spawn x-positions centered on the arena midpoint.
+ * The default count covers the local player plus three bots; larger
+ * matches keep entry 0 anchored on the local player (leftmost) and
+ * still spawn inside one camera half-view (bots + 1 <= 8 keeps the
+ * cluster within CLAMP_CANVAS_W / (2 * CAMERA_ZOOM) = 160px minus the
+ * CAMERA_LOOKAHEAD margin). Positions clamp inside [0, arenaWidth].
  */
-export function matchSpawnXs(arenaWidthPx: number): number[] {
-  const spread = (MATCH_SPAWN_COUNT - 1) * MATCH_SPAWN_GAP;
+export function matchSpawnXs(
+  arenaWidthPx: number,
+  count: number = MATCH_SPAWN_COUNT,
+): number[] {
+  const players = Math.min(
+    8,
+    Math.max(1, Math.floor(count)),
+  );
+  const spread = (players - 1) * MATCH_SPAWN_GAP;
   const start = arenaWidthPx / 2 - spread / 2;
   const xs: number[] = [];
-  for (let i = 0; i < MATCH_SPAWN_COUNT; i += 1) {
+  for (let i = 0; i < players; i += 1) {
     xs.push(Math.min(Math.max(start + i * MATCH_SPAWN_GAP, 0), arenaWidthPx));
   }
   return xs;

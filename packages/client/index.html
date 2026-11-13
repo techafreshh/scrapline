@@ -7,23 +7,25 @@
     <style>
       body {
         margin: 0;
+        padding: 0;
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
         background: #05070f;
         color: #cbd5e1;
         font-family: system-ui, sans-serif;
         display: flex;
-        flex-direction: column;
         align-items: center;
-        gap: 12px;
-        padding: 24px;
+        justify-content: center;
       }
       #stage {
         position: relative;
-        width: min(640px, 90vw);
+        flex: 0 0 auto;
       }
       #game {
         border: 1px solid #334155;
         width: 100%;
-        height: auto;
+        height: 100%;
         display: block;
         background: #0b1020;
         visibility: hidden;
@@ -410,7 +412,18 @@
         <button id="end-menu">Menu</button>
       </div>
     </div>
-    <p>If the canvas above stays black, JavaScript is disabled.</p>
+    <p
+      style="
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 4px;
+        text-align: center;
+        pointer-events: none;
+      "
+    >
+      If the canvas above stays black, JavaScript is disabled.
+    </p>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

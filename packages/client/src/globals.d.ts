@@ -52,6 +52,32 @@ declare global {
       enemyCosmetics?: { helmet: string; visor: string; palette: string }[];
       /** Local player's persisted cosmetic pick. */
       playerCosmetics?: { helmet: string; visor: string; palette: string };
+      /** Active tile theme (arena name: kilima | dune | frostbite). */
+      theme: string;
+      /** Visible tiles drawn this frame (all kinds; >0 when map loaded). */
+      tileDrawCalls: number;
+      /** Alias of tileDrawCalls (visible tiles drawn). */
+      tilesDrawn: number;
+      /** Total bounce pads in the map (>=1 when `^` present). */
+      bouncePadCount: number;
+      /** Total backwall tiles in the map (>=1 when `:` present). */
+      backwallCount: number;
+      /** Total one-way planks in the map. */
+      oneWayCount: number;
+      /** Backwall render order (always below solid). */
+      backwallZ: number;
+      /** Solid render order (always above backwall). */
+      solidZ: number;
+      /** Bounce render order (above solids). */
+      bounceZ: number;
+      /** One-way render order (above solids). */
+      oneWayZ: number;
+      /** Bounce pad height in world units (8, in [6,12]). */
+      bounceTileH: number;
+      /** One-way plank height in world units (8). */
+      oneWayTileH: number;
+      /** Solid tile height in world units (32). */
+      solidTileH: number;
     };
     __camera: {
       x: number;
@@ -77,6 +103,13 @@ declare global {
     __scraplineDebug: {
       entitiesDrawn: number;
       tilesDrawn: number;
+      tileDrawCalls?: number;
+      bouncePadCount?: number;
+      backwallCount?: number;
+      oneWayCount?: number;
+      backwallZ?: number;
+      solidZ?: number;
+      theme?: string;
       cameraX: number;
       cameraY: number;
       fps: number;

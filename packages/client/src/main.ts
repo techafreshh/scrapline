@@ -18,6 +18,7 @@ import {
 import type { DamageDetail, KillDetail, ShotDetail } from "../../core/src/events";
 import { BotBrain } from "../../core/src/bots/brain";
 import { mapRowsFor } from "./maps";
+import { setCurrentTheme } from "./view/theme";
 import {
   DEFAULT_SETUP,
   bindSetup,
@@ -240,6 +241,7 @@ window.__camera = null;
 function seedGame(
   state: "menu" | "playing",
   playerCount: number,
+  theme: string = "kilima",
 ): typeof window.__game {
   return {
     state,
@@ -269,6 +271,19 @@ function seedGame(
     isHurtFlash: false,
     enemyCosmetics: [],
     playerCosmetics: { ...DEFAULT_COSMETICS },
+    theme,
+    tileDrawCalls: 0,
+    tilesDrawn: 0,
+    bouncePadCount: 0,
+    backwallCount: 0,
+    oneWayCount: 0,
+    backwallZ: 0,
+    solidZ: 1,
+    bounceZ: 2,
+    oneWayZ: 2,
+    bounceTileH: 8,
+    oneWayTileH: 8,
+    solidTileH: 32,
   };
 }
 
@@ -795,7 +810,12 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
     tier: parsed.tier,
     map: parsed.map,
   };
-  window.__game = seedGame("playing", parsed.bots + 1);
+  try {
+    setCurrentTheme(parsed.map);
+  } catch {
+    // Headless/shorn theme store: the renderer falls back to __game.theme.
+  }
+  window.__game = seedGame("playing", parsed.bots + 1, parsed.map);
   try {
     const query = setupSearchParams(parsed);
     window.history.replaceState(null, "", `${window.location.pathname}?${query}`);

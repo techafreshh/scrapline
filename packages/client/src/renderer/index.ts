@@ -39,9 +39,20 @@ import {
   teamCss,
 } from "../view/character";
 import {
+  DEAD_LIFT_PX,
+  DEAD_SPLAY_PX,
+  TUCK_IN_PX,
+  TUCK_UP_PX,
+  updateAnimState,
+  type AnimInput,
+  type AnimPose,
+  type AnimState,
+} from "../view/anim";
+import {
   buildPlayerNode,
   publishGameProbes,
   syncPlayerNode,
+  type AnimProbes,
   type PixiFactory,
   type PlayerNode,
   type StageLike,
@@ -121,6 +132,14 @@ export interface FramePlayer {
   jetting: boolean;
   /** True while spawn protection is active. */
   protected: boolean;
+  /** Horizontal velocity in world px/s (drives the run-cycle phase). */
+  vx: number;
+  /** True while crouching (drives the height-scale probe). */
+  crouching: boolean;
+  /** Dynamic hurt timestamp (any clock basis), else null. */
+  hurtAt: number | null;
+  /** Health points (hp-drop edge latches the hurt flash). */
+  hp: number;
   /** Barrel tip in world coords (body center + aim dir * BARREL_LENGTH). */
   barrel: { x: number; y: number };
 }
@@ -229,6 +248,7 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
       const h = p.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
       const cx = p.x + w / 2;
       const cy = p.y + h / 2;
+      const hurtRaw = (p as { hurtAt?: unknown }).hurtAt;
       return {
         index,
         x: p.x,
@@ -240,6 +260,13 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
         onGround: p.onGround,
         jetting: p.jetting === true,
         protected: (p.protectionTicks ?? 0) > 0,
+        vx: p.vx ?? 0,
+        crouching: p.crouching === true,
+        hurtAt:
+          typeof hurtRaw === "number" && Number.isFinite(hurtRaw)
+            ? hurtRaw
+            : null,
+        hp: p.hp ?? 0,
         barrel: barrelEndpoint(cx, cy, p.aim),
       };
     }),
@@ -563,21 +590,40 @@ function drawCharacter2D(
   scale: number,
   p: FramePlayer,
   colorCss: string,
+  anim?: AnimPose,
 ): void {
   const crouch = p.h < CHARACTER_H;
   const squashY = crouch ? CROUCH_SQUASH : 1;
   const parts = characterParts(crouch);
   const sx = px(p.x);
   const sy = py(p.y);
+  const swing = anim?.swing ?? 0;
+  const tuck = anim?.tuck === true;
+  const dead = anim !== undefined ? anim.deadPose : !p.alive;
+  const paint = anim?.hurtFlash === true ? "#ffffff" : colorCss;
   for (const part of parts) {
     if (part.kind === "limb") {
       continue;
     }
-    ctx.fillStyle = part.name === "visor" ? VISOR_CSS : colorCss;
+    ctx.fillStyle = part.name === "visor" ? VISOR_CSS : paint;
     if (part.kind === "rect") {
+      let dx = 0;
+      let dy = 0;
+      if (part.name === "legL" || part.name === "legR") {
+        const side = part.name === "legL" ? -1 : 1;
+        if (dead) {
+          dx = side * DEAD_SPLAY_PX;
+          dy = -DEAD_LIFT_PX;
+        } else if (tuck) {
+          dx = side * -TUCK_IN_PX;
+          dy = -TUCK_UP_PX;
+        } else {
+          dy = side * swing;
+        }
+      }
       ctx.fillRect(
-        sx + part.x * scale,
-        sy + part.y * scale,
+        sx + (part.x + dx) * scale,
+        sy + (part.y + dy) * scale,
         Math.max(1, part.w * scale),
         Math.max(1, part.h * scale),
       );
@@ -666,6 +712,7 @@ function syncFramePlayers(
   canvasW: number,
   canvasH: number,
   victimFlash: ReadonlyMap<number, number>,
+  anims: readonly AnimPose[],
 ): void {
   for (let i = 0; i < frame.players.length; i += 1) {
     const p = frame.players[i];
@@ -674,15 +721,21 @@ function syncFramePlayers(
       continue;
     }
     const at = projectCamera(cam, canvasW, canvasH, p.x, p.y);
+    const anim = anims[i];
     syncPlayerNode(node, {
       x: at.x,
       y: at.y,
       scale: cam.scale,
       aim: p.aim,
       colorHex: playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
-      alpha: blinkAlpha(frame.tick, p.protected),
+      alpha:
+        blinkAlpha(frame.tick, p.protected) * (anim?.spawnAlpha ?? 1),
       squash: p.h / CHARACTER_H,
       visible: true,
+      legSwing: anim?.swing ?? 0,
+      tuck: anim?.tuck ?? false,
+      hurtFlash: anim?.hurtFlash ?? false,
+      deadPose: anim?.deadPose ?? !p.alive,
     });
   }
 }
@@ -700,6 +753,7 @@ function publishFrameProbes(
   canvasW: number,
   canvasH: number,
   muzzles: readonly Muzzle[],
+  anims: readonly AnimPose[],
 ): void {
   const first = frame.players[0];
   const lastMuzzle = muzzles.length > 0 ? muzzles[muzzles.length - 1] : undefined;
@@ -710,6 +764,14 @@ function publishFrameProbes(
         ? { x: lastMuzzle.x, y: lastMuzzle.y }
         : { x: 0, y: 0 };
   const screen = projectCamera(cam, canvasW, canvasH, tip.x, tip.y);
+  const head = anims[0];
+  const anim: AnimProbes = {
+    legPhase: head?.legPhase ?? 0,
+    isFlameVisible: first !== undefined && first.alive && first.jetting,
+    playerHeightScale:
+      first !== undefined ? first.h / CHARACTER_H : 1,
+    isHurtFlash: head?.hurtFlash ?? false,
+  };
   publishGameProbes(
     store.slice(0, frame.players.length),
     frame.players.map((p) => p.index),
@@ -719,6 +781,7 @@ function publishFrameProbes(
     })),
     screen,
     screen,
+    anim,
   );
 }
 
@@ -735,6 +798,7 @@ function paintFrame2D(
   victimFlash: ReadonlyMap<number, number>,
   canvasWidth: number,
   canvasHeight: number,
+  anims: readonly AnimPose[],
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
@@ -769,12 +833,15 @@ function paintFrame2D(
     ctx.arc(px(proj.x), py(proj.y), Math.max(2, 2 * cam.scale), 0, Math.PI * 2);
     ctx.fill();
   }
-  for (const p of frame.players) {
-    const blink = blinkAlpha(frame.tick, p.protected);
+  for (let pi = 0; pi < frame.players.length; pi += 1) {
+    const p = frame.players[pi] as FramePlayer;
+    const anim = anims[pi];
+    const blink =
+      blinkAlpha(frame.tick, p.protected) * (anim?.spawnAlpha ?? 1);
     const colorCss = playerPaintCss(p.index, p.alive, victimFlash.has(p.index));
     ctx.save();
     ctx.globalAlpha = blink;
-    drawCharacter2D(ctx, px, py, cam.scale, p, colorCss);
+    drawCharacter2D(ctx, px, py, cam.scale, p, colorCss, anim);
     // Jet flame flicker below the feet while thrusting.
     if (p.alive && p.jetting) {
       const cx = px(p.x + p.w / 2);
@@ -1126,6 +1193,12 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   // Live per-player composed-sprite nodes (real Pixi containers on the
   // Pixi backend, plain-object stubs on the canvas2d fallback).
   const playerNodes: PlayerNode[] = [];
+  // Per-player animation accumulators plus the session clock anchors
+  // mapping foreign hurt timestamps onto the perf-ms draw clock.
+  const animStates: AnimState[] = [];
+  let sessionStarted = false;
+  let sessionPerfStart = 0;
+  let sessionWallStart = 0;
 
   function trackDraw(
     state: StateLike,
@@ -1135,17 +1208,52 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     shots: ShotDetail[] | undefined,
     damages: DamageDetail[] | undefined,
     kills: KillDetail[] | undefined,
-  ): { frame: Frame; cam: Camera; layers: LayerCounts } {
+  ): { frame: Frame; cam: Camera; layers: LayerCounts; anims: AnimPose[] } {
     const frame = describeFrame(state, map ?? null);
     const cam = camera ?? createCamera(frame.arena.width, frame.arena.height);
     const now = performance.now();
+    const wallNow = Date.now();
+    if (!sessionStarted) {
+      sessionStarted = true;
+      sessionPerfStart = now;
+      sessionWallStart = wallNow;
+    }
+    let dtSec = 0;
     if (lastNow > 0) {
       const dt = (now - lastNow) / 1000;
       if (dt > 0) {
         fpsEma += (1 / dt - fpsEma) * FPS_ALPHA;
+        dtSec = Math.min(0.1, dt);
       }
     }
     lastNow = now;
+    const animInputs: AnimInput[] = frame.players.map((p) => ({
+      vx: p.vx,
+      onGround: p.onGround,
+      jetting: p.jetting,
+      crouching: p.crouching,
+      alive: p.alive,
+      hurtAt: p.hurtAt,
+      hp: p.hp,
+    }));
+    const damageVictims: number[] = [];
+    for (const detail of damages ?? []) {
+      if (detail.victim >= 0) {
+        damageVictims.push(detail.victim);
+      }
+    }
+    const anims = updateAnimState(
+      animStates,
+      animInputs,
+      {
+        perfStartMs: sessionPerfStart,
+        wallStartMs: sessionWallStart,
+        nowMs: now,
+        wallNowMs: wallNow,
+      },
+      dtSec,
+      damageVictims,
+    );
     pushFlashes(flashes, frame, events ?? []);
     spawnShots(tracers, muzzles, frame, shots ?? []);
     spawnSparks(sparks, damages ?? []);
@@ -1202,22 +1310,30 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         tints: frame.players.map((p) =>
           playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
         ),
-        players: frame.players.map((p) => ({
-          index: p.index,
-          x: p.x,
-          y: p.y,
-          w: p.w,
-          h: p.h,
-          jetting: p.jetting,
-          protected: p.protected,
-          alpha: blinkAlpha(frame.tick, p.protected),
-          color: playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
-          colorCss: playerPaintCss(p.index, p.alive, victimFlash.has(p.index)),
-          flame:
-            p.jetting && p.alive
-              ? { scale: flameScale(frame.tick, p.index), alpha: flameAlpha(frame.tick, p.index) }
-              : null,
-        })),
+        players: frame.players.map((p, pi) => {
+          const anim = anims[pi];
+          return {
+            index: p.index,
+            x: p.x,
+            y: p.y,
+            w: p.w,
+            h: p.h,
+            jetting: p.jetting,
+            protected: p.protected,
+            alpha:
+              blinkAlpha(frame.tick, p.protected) * (anim?.spawnAlpha ?? 1),
+            color: playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
+            colorCss: playerPaintCss(p.index, p.alive, victimFlash.has(p.index)),
+            flame:
+              p.jetting && p.alive
+                ? { scale: flameScale(frame.tick, p.index), alpha: flameAlpha(frame.tick, p.index) }
+                : null,
+            legPhase: anim?.legPhase ?? 0,
+            swing: anim?.swing ?? 0,
+            heightScale: anim?.heightScale ?? 1,
+            hurtFlash: anim?.hurtFlash ?? false,
+          };
+        }),
         zoom: cam.zoom ?? 1,
         scale: cam.scale,
         trauma: cam.trauma ?? 0,
@@ -1225,7 +1341,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         shakeY: cam.shakeY ?? 0,
       };
     }
-    return { frame, cam, layers };
+    return { frame, cam, layers, anims };
   }
 
   try {
@@ -1276,7 +1392,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         damages?: DamageDetail[],
         kills?: KillDetail[],
       ): void {
-        const { frame, cam, layers } = trackDraw(
+        const { frame, cam, layers, anims } = trackDraw(
           state,
           map,
           camera,
@@ -1296,8 +1412,8 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           app.stage as unknown as StageLike,
           frame.players.length,
         );
-        syncFramePlayers(playerNodes, frame, cam, logicalW, logicalH, victimFlash);
-        publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles);
+        syncFramePlayers(playerNodes, frame, cam, logicalW, logicalH, victimFlash, anims);
+        publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles, anims);
         paintFramePixi(
           graphics,
           frame,
@@ -1334,7 +1450,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         damages?: DamageDetail[],
         kills?: KillDetail[],
       ): void {
-        const { frame, cam, layers } = trackDraw(
+        const { frame, cam, layers, anims } = trackDraw(
           state,
           map,
           camera,
@@ -1346,8 +1462,8 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         // Canvas2d fallback: stub nodes carry the probe shape while the
         // composed geometry is drawn immediately in paintFrame2D.
         ensurePlayerNodes(playerNodes, null, null, frame.players.length);
-        publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles);
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH);
+        publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles, anims);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH, anims);
       },
     };
   }

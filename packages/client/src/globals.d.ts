@@ -38,6 +38,16 @@ declare global {
       muzzleY: number;
       weaponTipX: number;
       weaponTipY: number;
+      /** Wall-clock run-cycle phase in radians for the local player. */
+      legPhase: number;
+      /** True while the local player is alive and jetting. */
+      isFlameVisible: boolean;
+      /** Always false: the jet flame is two circles, never a rect. */
+      isFlickerRectVisible: boolean;
+      /** Local player height scale (crouch ratio, else 1). */
+      playerHeightScale: number;
+      /** True while inside the 150ms white hurt-flash window. */
+      isHurtFlash: boolean;
     };
     __camera: {
       x: number;
@@ -113,6 +123,14 @@ declare global {
         color: number;
         colorCss: string;
         flame: { scale: number; alpha: number } | null;
+        /** Wall-clock run-cycle phase in radians. */
+        legPhase: number;
+        /** Signed leg offset in local px. */
+        swing: number;
+        /** Vertical squash (crouch ratio, else 1). */
+        heightScale: number;
+        /** True while inside the 150ms white hurt-flash window. */
+        hurtFlash: boolean;
       }[];
       /** Active zoom multiplier (1 / 0.8 / 0.64). */
       zoom: number;

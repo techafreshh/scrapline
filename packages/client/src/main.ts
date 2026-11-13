@@ -28,6 +28,11 @@ import {
   type SetupConfig,
   type SetupStorage,
 } from "./setup";
+import {
+  DEFAULT_COSMETICS,
+  enemyCosmeticsFor,
+  loadCosmetics,
+} from "./cosmetics";
 import { bindSettings, parseVolume } from "./settings";
 import {
   ensureAudioOnGesture,
@@ -262,6 +267,8 @@ function seedGame(
     isFlickerRectVisible: false,
     playerHeightScale: 1,
     isHurtFlash: false,
+    enemyCosmetics: [],
+    playerCosmetics: { ...DEFAULT_COSMETICS },
   };
 }
 
@@ -799,6 +806,11 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
     saveSetup(browserStorage(), parsed);
   }
   const seed = Math.floor(Math.random() * SEED_RANGE);
+  // Seeded enemy identity plus the local persisted pick: merged, never
+  // replacing window.__game, so tick/state probes survive the publish.
+  const enemyCosmetics = enemyCosmeticsFor(seed, parsed.bots);
+  const playerCosmetics = loadCosmetics(browserStorage());
+  Object.assign(window.__game, { enemyCosmetics, playerCosmetics });
   const rows = mapRowsFor(parsed.map);
   const match = rows !== null ? new World({ seed, map: rows }) : new World({ seed });
   // Clustered spawns inside one camera view; index 0 stays the local player.

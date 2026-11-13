@@ -429,7 +429,7 @@ async function run() {
     );
     await page.click('[data-map="dune"]');
     await page.click('[data-tier="hard"]');
-    await page.click("#start");
+    await page.click("#btn-start");
     await page.waitForFunction(
       () => window.__matchConfig !== null && window.__matchConfig.map === "dune",
       { timeout: 15000, polling: 100 },

@@ -320,7 +320,8 @@
         font-size: 16px;
         color: #f8fafc;
       }
-      #start {
+      #start,
+      #btn-start {
         font-size: 14px;
         padding: 8px 18px;
         border: 1px solid #7df9ff;
@@ -329,7 +330,8 @@
         color: #7df9ff;
         cursor: pointer;
       }
-      #start:hover {
+      #start:hover,
+      #btn-start:hover {
         background: #16213a;
       }
     </style>
@@ -364,7 +366,30 @@
           <button data-map="dune" aria-pressed="false">dune</button>
           <button data-map="frostbite" aria-pressed="false">frostbite</button>
         </div>
-        <button id="start">Start</button>
+        <div id="cosmetics" class="setup-row">
+          <label for="cos-helmet">Helmet</label>
+          <select id="cos-helmet">
+            <option value="cap">cap</option>
+            <option value="beret">beret</option>
+            <option value="hood">hood</option>
+            <option value="bandana">bandana</option>
+          </select>
+          <label for="cos-visor">Visor</label>
+          <select id="cos-visor">
+            <option value="slit">slit</option>
+            <option value="round">round</option>
+            <option value="shade">shade</option>
+          </select>
+          <label for="cos-palette">Palette</label>
+          <select id="cos-palette">
+            <option value="#00E5FF">#00E5FF</option>
+            <option value="#FF6B35">#FF6B35</option>
+            <option value="#A3E635">#A3E635</option>
+            <option value="#C084FC">#C084FC</option>
+          </select>
+        </div>
+        <div id="cosmetics-preview" data-helmet="cap" data-visor="slit" data-palette="#00E5FF"></div>
+        <button id="btn-start" type="button">Start</button>
       </div>
       <div id="settings" style="display: none">
         <h2>Settings</h2>

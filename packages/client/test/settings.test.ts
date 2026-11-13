@@ -388,4 +388,47 @@ describe("fullscreen binder", () => {
     expect(binder.fullscreen).toBe(false);
     expect(button.textContent).toBe("Fullscreen: OFF");
   });
+
+  it("persists live fullscreen state so show() cannot resurrect stale ON", () => {
+    const storage = fakeStorage({ [FULLSCREEN_KEY]: "1" });
+    const button = fakeButton("Fullscreen: OFF");
+    const overlay = { style: { display: "none" } };
+    const holder: Record<string, unknown> = { fullscreenElement: null };
+    const doc = fakeDocFull(
+      { "btn-fullscreen": button, settings: overlay },
+      holder,
+    );
+    const binder = bindSettings(doc, storage);
+    // Simulate entering fullscreen via the browser chrome.
+    holder["fullscreenElement"] = {};
+    (doc as unknown as { fullscreenElement: unknown }).fullscreenElement =
+      holder["fullscreenElement"];
+    doc.fire("fullscreenchange");
+    expect(storage.getItem(FULLSCREEN_KEY)).toBe("1");
+    expect(binder.fullscreen).toBe(true);
+    expect(button.textContent).toBe("Fullscreen: ON");
+    // Simulate an Esc-driven exit: storage, binder, and label go OFF.
+    (doc as unknown as { fullscreenElement: unknown }).fullscreenElement =
+      null;
+    doc.fire("fullscreenchange");
+    expect(storage.getItem(FULLSCREEN_KEY)).toBe("0");
+    expect(binder.fullscreen).toBe(false);
+    expect(button.textContent).toBe("Fullscreen: OFF");
+    // Reopening Settings must not resurrect the stale ON.
+    binder.show();
+    expect(binder.fullscreen).toBe(false);
+    expect(button.textContent).toBe("Fullscreen: OFF");
+  });
+
+  it("ignores fullscreenchange on docs without fullscreenElement", () => {
+    const storage = fakeStorage({ [FULLSCREEN_KEY]: "1" });
+    const button = fakeButton("Fullscreen: OFF");
+    const doc = fakeDocFull({ "btn-fullscreen": button });
+    const binder = bindSettings(doc, storage);
+    expect(binder.fullscreen).toBe(true);
+    doc.fire("fullscreenchange");
+    expect(storage.getItem(FULLSCREEN_KEY)).toBe("1");
+    expect(binder.fullscreen).toBe(true);
+    expect(button.textContent).toBe("Fullscreen: ON");
+  });
 });

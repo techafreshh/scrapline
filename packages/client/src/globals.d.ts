@@ -82,6 +82,14 @@ declare global {
       decorationCount: number;
       /** Decoration rects intersecting solid collision (always 0). */
       occludedTiles: number;
+      /** Top-stop channels of the per-theme sky grade. */
+      skyTop: { r: number; g: number; b: number };
+      /** Vignette rim alpha (0.25, inside [0.15, 0.35]). */
+      vignetteAlpha: number;
+      /** Defensive lights/decoration handling (always true after paint). */
+      lightsRespected: boolean;
+      /** True when the sky band covers the full canvas. */
+      skyCoversViewport: boolean;
       /** Renderer fps exponential moving average (one decimal). */
       fps: number;
     };

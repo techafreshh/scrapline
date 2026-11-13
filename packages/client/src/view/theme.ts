@@ -119,6 +119,74 @@ export const THEMES: Record<ThemeName, TileTheme> = {
   frostbite: FROSTBITE,
 };
 
+/** Pure sky-grade stops for one theme (hex + CSS twins, top is light). */
+export interface SkyGrade {
+  /** Theme key (matches the arena file name). */
+  name: ThemeName;
+  /** Light zenith stop (sampled by the skyTop probe). */
+  top: string;
+  /** Light zenith stop as Pixi hex. */
+  topHex: number;
+  /** Dark horizon stop. */
+  bottom: string;
+  /** Dark horizon stop as Pixi hex. */
+  bottomHex: number;
+}
+
+/** kilima: neutral gray grade. */
+const KILIMA_SKY: SkyGrade = {
+  name: "kilima",
+  top: "#5A6B7A",
+  topHex: 0x5a6b7a,
+  bottom: "#1A2028",
+  bottomHex: 0x1a2028,
+};
+
+/** dune: warm amber grade. */
+const DUNE_SKY: SkyGrade = {
+  name: "dune",
+  top: "#D98A2B",
+  topHex: 0xd98a2b,
+  bottom: "#2A1A0A",
+  bottomHex: 0x2a1a0a,
+};
+
+/** frostbite: cold-blue grade. */
+const FROSTBITE_SKY: SkyGrade = {
+  name: "frostbite",
+  top: "#3A7DD5",
+  topHex: 0x3a7dd5,
+  bottom: "#0A2540",
+  bottomHex: 0x0a2540,
+};
+
+/** Pure sky-grade registry (never mutated by callers). */
+export const SKY_GRADES: Record<ThemeName, SkyGrade> = {
+  kilima: KILIMA_SKY,
+  dune: DUNE_SKY,
+  frostbite: FROSTBITE_SKY,
+};
+
+/**
+ * Resolve a sky grade tolerantly; unknown values fall back to kilima
+ * (the menu default), mirroring themeFor.
+ */
+export function skyGradeFor(name: unknown): SkyGrade {
+  if (typeof name === "string") {
+    const key = name.trim().toLowerCase();
+    if (key === "dune") {
+      return { ...SKY_GRADES.dune };
+    }
+    if (key === "frostbite") {
+      return { ...SKY_GRADES.frostbite };
+    }
+    if (key === "kilima") {
+      return { ...SKY_GRADES.kilima };
+    }
+  }
+  return { ...SKY_GRADES.kilima };
+}
+
 /** Case-insensitive theme guard (trims surrounding whitespace). */
 export function isThemeName(value: unknown): value is ThemeName {
   if (typeof value !== "string") {

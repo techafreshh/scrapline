@@ -50,6 +50,16 @@ import {
   type Decoration,
 } from "../view/decor";
 import {
+  isLightsRespected,
+  paintSky2D,
+  paintSkyPixi,
+  paintVignette2D,
+  paintVignettePixi,
+  skyCoversViewport,
+  skyTopRgb,
+  VIGNETTE_ALPHA,
+} from "../view/background";
+import {
   clampRendererResolution,
 } from "../view/resize";
 import {
@@ -673,8 +683,7 @@ function paintFramePixi(
   const tileSize = TILE_SIZE * cam.scale;
   const activeTheme = theme ?? resolveTileTheme();
   graphics.clear();
-  graphics.rect(0, 0, canvasWidth, canvasHeight);
-  graphics.fill(0x05070f);
+  paintSkyPixi(graphics, canvasWidth, canvasHeight, activeTheme.name);
   const arena = projectCamera(cam, canvasWidth, canvasHeight, 0, 0);
   graphics.rect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
   graphics.fill(0x0b1020);
@@ -746,6 +755,7 @@ function paintFramePixi(
     graphics.circle(px(pos.x), py(pos.y), 3);
     graphics.fill({ color: 0xf97316, alpha: tracerOpacity(burst) });
   }
+  paintVignettePixi(graphics, canvasWidth, canvasHeight);
 }
 
 /**
@@ -978,8 +988,7 @@ function paintFrame2D(
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
   const tileSize = TILE_SIZE * cam.scale;
   const activeTheme = theme ?? resolveTileTheme();
-  ctx.fillStyle = "#05070f";
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  paintSky2D(ctx, canvasWidth, canvasHeight, activeTheme.name);
   const arena = projectCamera(cam, canvasWidth, canvasHeight, 0, 0);
   ctx.fillStyle = "#0b1020";
   ctx.fillRect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
@@ -1080,6 +1089,7 @@ function paintFrame2D(
     ctx.fill();
     ctx.restore();
   }
+  paintVignette2D(ctx, canvasWidth, canvasHeight);
 }
 
 /** Feed step events into capped transient flashes anchored near the action. */
@@ -1495,6 +1505,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             solidTileH: SOLID_TILE_H,
             decorationCount: allDecors.length,
             occludedTiles: occluded,
+            skyTop: skyTopRgb(themeName),
+            vignetteAlpha: VIGNETTE_ALPHA,
+            lightsRespected: isLightsRespected(map ?? null),
+            skyCoversViewport: skyCoversViewport(logicalW, logicalH),
             fps: Math.round(fpsEma * 10) / 10,
           });
         }

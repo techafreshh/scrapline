@@ -1083,6 +1083,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   }
 
   try {
+    // Lazy Pixi chunk (vite code-splits the dynamic import below into
+    // assets/pixi-[hash].js): the ~1MB engine stays out of the initial
+    // main.js so first paint never blocks on the PixiJS parse.
     const mod = await import("pixi.js");
     const app = new mod.Application();
     await app.init({
@@ -1090,6 +1093,12 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       width: canvas.width,
       height: canvas.height,
       background: "#05070f",
+      // Performance guardrail: fixed 1x backing store (no DPR
+      // upscaling) plus no MSAA keeps fill rate flat at 1280x720 on
+      // integrated graphics; the canvas stays 640x360 and CSS scales.
+      antialias: false,
+      resolution: 1,
+      powerPreference: "high-performance",
     });
     const graphics = new mod.Graphics();
     app.stage.addChild(graphics);

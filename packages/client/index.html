@@ -27,6 +27,18 @@
         display: block;
         background: #0b1020;
       }
+      #loading {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        letter-spacing: 1px;
+        color: #7df9ff;
+        background: #0b1020;
+        z-index: 5;
+      }
       #menu {
         position: absolute;
         inset: 0;
@@ -319,7 +331,8 @@
   </head>
   <body>
     <div id="stage">
-      <canvas id="game" width="640" height="360"></canvas>
+      <canvas id="game" width="640" height="360" style="visibility: hidden"></canvas>
+      <div id="loading">Loading...</div>
       <div id="menu">
         <h1>Scrapline</h1>
         <button id="quick-play">Quick Play</button>

@@ -196,16 +196,48 @@ refreshInput();
 /** Live overlay handles; rebuilt idempotently on every match start. */
 let hud: HudHandles = buildHud(document);
 
+/** Cached canvas CSS rect: refreshAimOrigin runs every frame, so the
+ * layout read is cached and only refreshed on resize (plus once). */
+let cachedRect: { left: number; top: number; width: number; height: number } | null = null;
+window.addEventListener("resize", () => {
+  cachedRect = null;
+});
+
+/** Reveal the canvas and drop the loading screen once the renderer
+ * backend (lazy Pixi chunk or canvas2d fallback) is ready to paint. */
+function revealCanvas(): void {
+  canvas.style.visibility = "visible";
+  const loading = document.getElementById("loading");
+  if (loading instanceof HTMLElement) {
+    loading.style.display = "none";
+  }
+}
+
 let renderer: Renderer | null = null;
+// Progress text while the lazy Pixi chunk is in flight: the static
+// "Loading..." HTML paints before any JS runs (slow-network cold
+// load), this upgrade names the engine chunk while it fetches.
+try {
+  const loading = document.getElementById("loading");
+  if (loading instanceof HTMLElement) {
+    loading.textContent = "Loading PixiJS engine...";
+  }
+} catch {
+  // Non-DOM harnesses: the renderer bootstrap below still proceeds.
+}
 void createRenderer(canvas)
   .then((r: Renderer) => {
     renderer = r;
     if (world === null) {
       renderer.draw(new World({ seed: 0 }).state);
     }
+    revealCanvas();
   })
   .catch(() => {
     renderer = null;
+    // Canvas2d fallback unavailable (no 2d context): still drop the
+    // loading screen so the failure surfaces instead of hanging.
+    revealCanvas();
   });
 
 let world: World | null = null;
@@ -214,6 +246,10 @@ let running = false;
 let rafId = 0;
 let last = 0;
 let accumulator = 0;
+/** Rendered-frame counter: HUD DOM writes are throttled to every 3rd
+ * frame (~20 Hz) so per-frame style/layout work never drags the 60 Hz
+ * sim+paint loop below 55fps on integrated graphics. */
+let hudFrame = 0;
 
 const menu = document.getElementById("menu");
 const playButton = document.getElementById("play");
@@ -246,10 +282,15 @@ function updateCameraFromLocal(dtSeconds: number): void {
 /**
  * Point the aim origin at the local player's screen position (canvas CSS
  * pixels, matching the stored mouse coordinates). Canvas center before
- * any match starts.
+ * any match starts. The CSS rect is cached across frames (invalidated on
+ * resize) to avoid a forced layout on every 60 Hz frame.
  */
 function refreshAimOrigin(): void {
-  const rect = canvas.getBoundingClientRect();
+  if (cachedRect === null) {
+    const rect = canvas.getBoundingClientRect();
+    cachedRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+  }
+  const rect = cachedRect;
   const local = world?.players[0];
   if (world === null || world === undefined || local === undefined || camera === null) {
     aimOrigin.x = rect.width / 2;
@@ -513,7 +554,8 @@ function frame(now: number): void {
   damagesThisFrame.length = 0;
   killsThisFrame.length = 0;
   const local = world.players[0];
-  if (local !== undefined) {
+  hudFrame += 1;
+  if (local !== undefined && hudFrame % 3 === 1) {
     if (local.alive) {
       lastLocalKiller = null;
     }
@@ -727,6 +769,7 @@ function startMatch(config: SetupConfig): void {
   refreshAimOrigin();
   window.__scraplineTick = 0;
   accumulator = 0;
+  hudFrame = 0;
   last = performance.now();
   running = true;
   rafId = requestAnimationFrame(frame);

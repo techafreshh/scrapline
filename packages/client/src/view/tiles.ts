@@ -191,7 +191,11 @@ export function tileKindAt(map: TileQuery | null | undefined, tx: number, ty: nu
  * Resolve the active theme name: explicit override first (main.ts sets
  * it on startMatch), then the window mirrors (`__game.theme`,
  * `__matchConfig.map`) so a harness theme switch takes effect on the
- * next draw, then the module default (kilima). Never throws.
+ * next draw, then the module default (kilima). When both mirrors are
+ * valid but disagree (harness set one without reloading), the
+ * non-kilima entry wins so a kilima->dune/frostbite switch via either
+ * mirror takes effect; two non-kilima values defer to `__game.theme`.
+ * Never throws.
  */
 export function resolveThemeName(override?: unknown): ThemeName {
   if (typeof override === "string") {
@@ -206,19 +210,39 @@ export function resolveThemeName(override?: unknown): ThemeName {
       | undefined;
     const game = g?.["__game"] as Record<string, unknown> | undefined;
     const fromGame = game?.["theme"];
+    let gameTheme: ThemeName | null = null;
     if (typeof fromGame === "string") {
       const key = fromGame.trim().toLowerCase();
       if (key === "dune" || key === "frostbite" || key === "kilima") {
-        return key;
+        gameTheme = key;
       }
     }
     const matchConfig = g?.["__matchConfig"] as Record<string, unknown> | undefined;
     const fromMatch = matchConfig?.["map"];
+    let matchTheme: ThemeName | null = null;
     if (typeof fromMatch === "string") {
       const key = fromMatch.trim().toLowerCase();
       if (key === "dune" || key === "frostbite" || key === "kilima") {
-        return key;
+        matchTheme = key;
       }
+    }
+    if (gameTheme !== null && matchTheme !== null) {
+      if (gameTheme === matchTheme) {
+        return gameTheme;
+      }
+      if (gameTheme === "kilima") {
+        return matchTheme;
+      }
+      if (matchTheme === "kilima") {
+        return gameTheme;
+      }
+      return gameTheme;
+    }
+    if (gameTheme !== null) {
+      return gameTheme;
+    }
+    if (matchTheme !== null) {
+      return matchTheme;
     }
   } catch {
     // Non-DOM harnesses: fall through to kilima.

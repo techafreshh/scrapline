@@ -1024,8 +1024,45 @@ applyResponsiveSize();
 refreshAimOrigin();
 refreshInput();
 
+/**
+ * Auto-join setup: the walking-skeleton 1-bot kilima default, overridden
+ * by a valid `?map=` (`?bots=&tier=&map=`) query so harnesses can load an
+ * arena directly via URL. Invalid values fall back per field.
+ */
+function autoJoinSetup(): SetupConfig {
+  const fallback: SetupConfig = { bots: 1, tier: "normal", map: "kilima" };
+  try {
+    const search =
+      typeof window !== "undefined" ? window.location.search : "";
+    if (typeof search !== "string" || search.length < 2) {
+      return fallback;
+    }
+    const query = new URLSearchParams(search);
+    const rawMap = query.get("map");
+    const rawBots = query.get("bots");
+    const rawTier = query.get("tier");
+    if (rawMap === null && rawBots === null && rawTier === null) {
+      return fallback;
+    }
+    const parsed = parseSetup({
+      bots: rawBots === null ? 1 : Number(rawBots),
+      tier: rawTier,
+      map: rawMap,
+    });
+    if (rawBots === null) {
+      parsed.bots = 1;
+    }
+    if (rawTier === null) {
+      parsed.tier = "normal";
+    }
+    return parsed;
+  } catch {
+    return fallback;
+  }
+}
+
 // Walking skeleton: drop straight into a local 1-bot match on load so a
 // clean clone is playable (and probeable via `window.__game`) with no
 // clicks. The setup screen keeps its own persisted defaults; this
 // auto-join never writes them (`persist: false`).
-startMatch({ bots: 1, tier: "normal", map: "kilima" }, { persist: false });
+startMatch(autoJoinSetup(), { persist: false });

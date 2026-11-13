@@ -110,4 +110,23 @@ describe("theme resolution", () => {
     (w["__game"] as Record<string, unknown>)["theme"] = "bogus";
     expect(resolveThemeName()).toBe("dune");
   });
+
+  it("prefers the non-kilima mirror when they disagree", () => {
+    (globalThis as unknown as Record<string, unknown>)["window"] = {
+      __game: { theme: "kilima" },
+      __matchConfig: { map: "dune" },
+    };
+    expect(resolveThemeName()).toBe("dune");
+    expect(resolveTileTheme().name).toBe("dune");
+    (globalThis as unknown as Record<string, unknown>)["window"] = {
+      __game: { theme: "kilima" },
+      __matchConfig: { map: "frostbite" },
+    };
+    expect(resolveThemeName()).toBe("frostbite");
+    (globalThis as unknown as Record<string, unknown>)["window"] = {
+      __game: { theme: "frostbite" },
+      __matchConfig: { map: "kilima" },
+    };
+    expect(resolveThemeName()).toBe("frostbite");
+  });
 });

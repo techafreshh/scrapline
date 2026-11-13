@@ -10,7 +10,7 @@ declare global {
     __scraplineInput: InputMirror;
     __scraplineWorld: World | null;
     __matchConfig: { bots: number; tier: string; map: string } | null;
-    __game: { state: "menu" | "playing" | "over"; playerCount: number; tick: number };
+    __game: { state: "menu" | "playing" | "over"; playerCount: number; tick: number; rendererResolution: number };
     __camera: {
       x: number;
       y: number;

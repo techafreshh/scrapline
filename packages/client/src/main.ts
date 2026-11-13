@@ -59,6 +59,13 @@ import {
 } from "./input";
 import { createRenderer, type Renderer } from "./renderer/index";
 import {
+  applyLetterbox,
+  BASE_H,
+  BASE_W,
+  computeLetterboxFit,
+  currentRendererResolution,
+} from "./view/resize";
+import {
   addTrauma,
   cameraTarget,
   createCamera,
@@ -118,12 +125,16 @@ const canvas = el;
 // attrs, so set the store here before the lazy Pixi
 // `app.init({ canvas, width: canvas.width, ... })` path or the canvas2d
 // fallback reads it; CSS scales the element to the stage width.
-canvas.width = 640;
-canvas.height = 360;
+/** Logical sim/camera coordinate width in px (fixed backing store). */
+const LOGICAL_W = BASE_W;
+/** Logical sim/camera coordinate height in px (fixed backing store). */
+const LOGICAL_H = BASE_H;
+canvas.width = LOGICAL_W;
+canvas.height = LOGICAL_H;
 
 const keys = createKeyState();
 /** Aim origin in canvas CSS pixels (canvas center before match start). */
-const aimOrigin = { x: canvas.width / 2, y: canvas.height / 2 };
+const aimOrigin = { x: LOGICAL_W / 2, y: LOGICAL_H / 2 };
 
 /** Recompute the quantized input mirror from the live key/mouse state. */
 function refreshInput(): void {
@@ -198,7 +209,7 @@ window.__scraplineTick = 0;
 window.__scraplineWorld = null;
 window.__matchConfig = null;
 window.__camera = null;
-window.__game = { state: "menu", playerCount: 0, tick: 0 };
+window.__game = { state: "menu", playerCount: 0, tick: 0, rendererResolution: currentRendererResolution() };
 refreshInput();
 
 /** Live overlay handles; rebuilt idempotently on every match start. */
@@ -207,9 +218,18 @@ let hud: HudHandles = buildHud(document);
 /** Cached canvas CSS rect: refreshAimOrigin runs every frame, so the
  * layout read is cached and only refreshed on resize (plus once). */
 let cachedRect: { left: number; top: number; width: number; height: number } | null = null;
-window.addEventListener("resize", () => {
+/** Letterbox-fit the canvas/stage to the window, refresh the density. */
+function applyResponsiveSize(): void {
+  const size = computeLetterboxFit(window.innerWidth, window.innerHeight);
+  applyLetterbox(canvas, document.getElementById("stage"), size);
   cachedRect = null;
-});
+  if (renderer !== null) {
+    renderer.setResolution(currentRendererResolution());
+  }
+  window.__game.rendererResolution = currentRendererResolution();
+}
+window.addEventListener("resize", applyResponsiveSize);
+window.addEventListener("orientationchange", applyResponsiveSize);
 
 /** Reveal the canvas and drop the loading screen once the renderer
  * backend (lazy Pixi chunk or canvas2d fallback) is ready to paint. */
@@ -236,6 +256,7 @@ try {
 void createRenderer(canvas)
   .then((r: Renderer) => {
     renderer = r;
+    applyResponsiveSize();
     if (world === null) {
       renderer.draw(new World({ seed: 0 }).state);
     }
@@ -308,13 +329,13 @@ function refreshAimOrigin(): void {
   const height = local.crouching ? PLAYER_CROUCH_HEIGHT : PLAYER_HEIGHT;
   const center = projectCamera(
     camera,
-    canvas.width,
-    canvas.height,
+    LOGICAL_W,
+    LOGICAL_H,
     local.x + PLAYER_WIDTH / 2,
     local.y + height / 2,
   );
-  aimOrigin.x = (center.x * rect.width) / canvas.width;
-  aimOrigin.y = (center.y * rect.height) / canvas.height;
+  aimOrigin.x = (center.x * rect.width) / LOGICAL_W;
+  aimOrigin.y = (center.y * rect.height) / LOGICAL_H;
 }
 
 /** Per-frame hitscan shot details drained from the sim; cleared after each draw. */
@@ -556,7 +577,7 @@ function frame(now: number): void {
       trauma: camera.trauma,
       shakeX: camera.shakeX,
       shakeY: camera.shakeY,
-      view: viewSize(camera, canvas.width, canvas.height),
+      view: viewSize(camera, LOGICAL_W, LOGICAL_H),
     };
   }
   shotsThisFrame.length = 0;
@@ -709,7 +730,7 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
     tier: parsed.tier,
     map: parsed.map,
   };
-  window.__game = { state: "playing", playerCount: parsed.bots + 1, tick: 0 };
+  window.__game = { state: "playing", playerCount: parsed.bots + 1, tick: 0, rendererResolution: currentRendererResolution() };
   try {
     const query = setupSearchParams(parsed);
     window.history.replaceState(null, "", `${window.location.pathname}?${query}`);
@@ -757,7 +778,7 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
     trauma: camera.trauma,
     shakeX: camera.shakeX,
     shakeY: camera.shakeY,
-    view: viewSize(camera, canvas.width, canvas.height),
+    view: viewSize(camera, LOGICAL_W, LOGICAL_H),
   };
   // Snap the fresh camera onto the local player so the match opens
   // framed (updateCamera eases 10%/frame; ~120 steps converges fully).
@@ -901,6 +922,10 @@ if (endMenuButton instanceof HTMLButtonElement) {
   });
 }
 
+// Letterbox-fit before the first frame so probes read the CSS box
+// synchronously on load (the async renderer continuation re-applies
+// density once the backend exists).
+applyResponsiveSize();
 // Aim origin in CSS pixels (rect-based) before the first event or frame.
 refreshAimOrigin();
 refreshInput();

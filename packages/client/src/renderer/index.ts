@@ -265,6 +265,8 @@ export interface Renderer {
   ): void;
   /** Which backend survived init. */
   mode: "pixi" | "canvas2d";
+  /** Live-update the renderer density (DPR-driven, clamped). */
+  setResolution(dpr: number): void;
 }
 
 /** One capped transient fx flash in world coords. */
@@ -971,6 +973,11 @@ export function ageFx(tracers: Tracer[], muzzles: Muzzle[]): void {
  * browsers) falls back to the 2D canvas backend drawing the same ops.
  */
 export async function createRenderer(canvas: HTMLCanvasElement): Promise<Renderer> {
+  // Logical coordinate space (fixed 640x360): captured before init
+  // while the canvas still carries the logical size, so a DPR-scaled
+  // backing buffer never shifts camera/culling math.
+  const logicalW = canvas.width;
+  const logicalH = canvas.height;
   let lastNow = 0;
   let fpsEma = 60;
   let activeMode: "pixi" | "canvas2d" = "canvas2d";
@@ -1018,7 +1025,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     }
     ageFx(tracers, muzzles);
     ageHitFx(sparks, bursts, victimFlash);
-    const layers = collectLayers(frame, map ?? null, cam, canvas.width, canvas.height);
+    const layers = collectLayers(frame, map ?? null, cam, logicalW, logicalH);
     if (typeof window !== "undefined") {
       window.__scraplineDebug = {
         entitiesDrawn: layers.entitiesDrawn,
@@ -1088,16 +1095,26 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     // main.js so first paint never blocks on the PixiJS parse.
     const mod = await import("pixi.js");
     const app = new mod.Application();
+    const initDpr =
+      typeof window !== "undefined" &&
+      typeof window.devicePixelRatio === "number" &&
+      Number.isFinite(window.devicePixelRatio)
+        ? Math.min(Math.max(window.devicePixelRatio, 1), 2)
+        : 1;
     await app.init({
       canvas,
-      width: canvas.width,
-      height: canvas.height,
+      width: logicalW,
+      height: logicalH,
       background: "#05070f",
-      // Performance guardrail: fixed 1x backing store (no DPR
-      // upscaling) plus no MSAA keeps fill rate flat at 1280x720 on
-      // integrated graphics; the canvas stays 640x360 and CSS scales.
+      // Density-graded crispness (Pixi v8 recipe): resolution scales
+      // the backing buffer from devicePixelRatio (clamped to 2 by
+      // the perf guardrail) with autoDensity mapping it back to the
+      // logical 640x360 coordinate space, so camera/culling math is
+      // untouched while high-DPI screens stay sharp. No MSAA keeps
+      // fill rate flat on integrated graphics.
       antialias: false,
-      resolution: 1,
+      resolution: initDpr,
+      autoDensity: true,
       powerPreference: "high-performance",
     });
     const graphics = new mod.Graphics();
@@ -1105,6 +1122,17 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     activeMode = "pixi";
     return {
       mode: "pixi",
+      setResolution(dpr: number): void {
+        try {
+          const clamped =
+            typeof dpr === "number" && Number.isFinite(dpr)
+              ? Math.min(Math.max(dpr, 1), 2)
+              : 1;
+          app.renderer.resolution = clamped;
+        } catch {
+          // Headless/shorn renderers: density stays at init value.
+        }
+      },
       draw(
         state: StateLike,
         map?: MapLike | TileMapLike | null,
@@ -1134,8 +1162,8 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           sparks.slice(),
           bursts.slice(),
           victimFlash,
-          canvas.width,
-          canvas.height,
+          logicalW,
+          logicalH,
         );
       },
     };
@@ -1147,6 +1175,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     activeMode = "canvas2d";
     return {
       mode: "canvas2d",
+      // Canvas2d fallback: browser CSS upscale covers density, so the
+      // resolution setter stays an intentional no-op.
+      setResolution(): void {},
       draw(
         state: StateLike,
         map?: MapLike | TileMapLike | null,
@@ -1165,7 +1196,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           damages,
           kills,
         );
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, canvas.width, canvas.height);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH);
       },
     };
   }

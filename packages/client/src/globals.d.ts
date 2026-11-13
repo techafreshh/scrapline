@@ -25,6 +25,10 @@ declare global {
     __audio:
       | {
           lastPlayed: Array<{ name: string; baseFreq: number; at: number }>;
+          /** Post-master analyser tap (null-safe probe for RMS checks). */
+          analyser?: AnalyserNode | null;
+          /** Mirrored jet-loop target gain (follows setJetting). */
+          jetGain?: number;
         }
       | undefined;
     __scraplineDebug: {

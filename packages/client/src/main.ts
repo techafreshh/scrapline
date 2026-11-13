@@ -4,6 +4,7 @@
 // enhancement (Pixi v8 with a 2D canvas fallback) that never gates input.
 
 import {
+  JETPACK_FUEL_MAX,
   PLAYER_CROUCH_HEIGHT,
   PLAYER_HEIGHT,
   PLAYER_WIDTH,
@@ -34,8 +35,16 @@ import {
   playBounce,
   playDryFire,
   playExplosion,
+  playGrunt,
+  playHop,
+  playKill,
+  playLand,
+  playMatchEnd,
+  playMatchStart,
+  playPickup,
   playReload,
   playShot,
+  setJetting,
   setVolume,
 } from "./audio/engine";
 import {
@@ -333,9 +342,12 @@ function stepOnce(): string[] {
     if (damage.shooterId === 0) {
       flashCrosshair(document);
     }
-    // Camera kick: the local player (victim id 0) took damage.
-    if (damage.victimId === 0 && camera !== null) {
-      addTrauma(camera, 0.5);
+    // Damage grunt plus camera kick when the local player is hit.
+    if (damage.victimId === 0) {
+      playGrunt();
+      if (camera !== null) {
+        addTrauma(camera, 0.5);
+      }
     }
   }
   // Camera kick: the local player fired the rocket. Projectile
@@ -376,9 +388,36 @@ function stepOnce(): string[] {
   if (events.includes("explode")) {
     playExplosion();
   }
+  // Movement and pickup cues ride the same event idiom: hop up-chirps,
+  // land thuds, and the mid-band pickup chime (any distance, like grenades).
+  if (events.includes("hop")) {
+    playHop();
+  }
+  if (events.includes("land")) {
+    playLand();
+  }
+  if (events.includes("pickup")) {
+    playPickup();
+  }
   for (const kill of world.drainKillDetails()) {
     killsThisFrame.push(kill);
+    // Kill-confirm blip when the local player lands the kill.
+    if (kill.killerId === 0) {
+      playKill();
+    }
   }
+  // The jet loop follows the local player's jetting state plus fuel:
+  // a missing or dead player silences it (match end below re-silences).
+  const jetPlayer = world.players[0];
+  const jetting =
+    jetPlayer !== undefined &&
+    jetPlayer.alive &&
+    jetPlayer.jetting === true;
+  const fuelRatio =
+    jetPlayer === undefined
+      ? 0
+      : Math.min(1, Math.max(0, jetPlayer.fuel / JETPACK_FUEL_MAX));
+  setJetting(jetting, fuelRatio);
   const kills = killsFromDiff(
     prevScores,
     world.scores,
@@ -395,6 +434,12 @@ function stepOnce(): string[] {
       deaths.push(0);
     }
     deaths[kill.victimId] = (deaths[kill.victimId] ?? 0) + 1;
+  }
+  // Match-end stinger plays once on the matchEnd edge (not on the sticky
+  // matchOver flag); the jet loop is silenced with the final whistle.
+  if (events.includes("matchEnd")) {
+    playMatchEnd();
+    setJetting(false, 0);
   }
   if (events.includes("matchEnd") || world.matchOver) {
     running = false;
@@ -601,6 +646,7 @@ function startMatch(config: SetupConfig): void {
   // Gesture unlock: startMatch always runs inside a click-handler stack,
   // so the AudioContext is created/resumed here, never at import time.
   ensureAudioOnGesture();
+  playMatchStart();
   cancelAnimationFrame(rafId);
   const parsed = parseSetup(config);
   matchConfig = parsed;

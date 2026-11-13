@@ -8,7 +8,7 @@
 // frames stay silent and uncreated. No DOM is touched at module import
 // time; the context factory is injectable for node tests.
 
-import { describeShot } from "./sfx";
+import { SFX_PRESETS, describeShot } from "./sfx";
 
 /** Probe-mirror entry: one synthesized play event. */
 export interface LastPlayedEntry {
@@ -26,7 +26,10 @@ const FALLBACK_VOLUME = 0.8;
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
+let analyser: AnalyserNode | null = null;
 let noiseBuf: AudioBuffer | null = null;
+let jetGain: GainNode | null = null;
+let currentJetLevel = 0;
 let factoryOverride: (() => AudioContext | null) | null = null;
 let currentVolume = FALLBACK_VOLUME;
 let lastDryFireAt = -Infinity;
@@ -42,7 +45,10 @@ export function setAudioContextFactory(
 export function resetAudioForTests(): void {
   ctx = null;
   master = null;
+  analyser = null;
   noiseBuf = null;
+  jetGain = null;
+  currentJetLevel = 0;
   factoryOverride = null;
   currentVolume = FALLBACK_VOLUME;
   lastDryFireAt = -Infinity;
@@ -141,8 +147,28 @@ export function ensureAudioOnGesture(): AudioContext | null {
   ctx = created;
   master = ctx.createGain();
   master.gain.value = currentVolume;
-  master.connect(ctx.destination);
+  // Post-master analyser tap: sources (and the jet loop) feed master,
+  // master feeds the analyser, the analyser feeds the destination, so a
+  // master gain of 0 mutes the tap all the way to silence.
+  let chained = false;
+  try {
+    analyser = ctx.createAnalyser();
+    master.connect(analyser);
+    analyser.connect(ctx.destination);
+    chained = true;
+  } catch {
+    analyser = null;
+  }
+  if (!chained) {
+    try {
+      master.connect(ctx.destination);
+    } catch {
+      // Headless fakes may reject connects; the mirror still works.
+    }
+  }
   noiseBuf = buildNoiseBuffer(ctx);
+  startJetLoop();
+  syncAudioMirror();
   if (ctx.state === "suspended") {
     void ctx.resume();
   }
@@ -177,7 +203,124 @@ function defaultCreate(): AudioContext | null {
 export function setVolume(value: number): void {
   currentVolume = clampVolume(value);
   if (master !== null && ctx !== null) {
-    master.gain.setValueAtTime(currentVolume, ctx.currentTime);
+    // Direct assignment first so node-test fakes observe the mute;
+    // the scheduled event keeps real AudioParams exact.
+    try {
+      master.gain.value = currentVolume;
+    } catch {
+      // Read-only params (strict fakes): the event below still applies.
+    }
+    try {
+      master.gain.setValueAtTime(currentVolume, ctx.currentTime);
+    } catch {
+      // No-op params on minimal fakes: value above already applied.
+    }
+  }
+}
+
+/** Publish the analyser tap and jet level onto the probe mirror. */
+function syncAudioMirror(): void {
+  const w = probeWindow();
+  if (w === undefined) {
+    return;
+  }
+  if (w.__audio === undefined) {
+    w.__audio = { lastPlayed: [] };
+  }
+  w.__audio.analyser = analyser ?? undefined;
+  w.__audio.jetGain = currentJetLevel;
+}
+
+/** The post-master analyser tap, or null before the first gesture. */
+export function getAnalyser(): AnalyserNode | null {
+  return analyser;
+}
+
+/** Current jet-loop level (the mirrored target gain). */
+export function getJetGain(): number {
+  if (jetGain !== null) {
+    try {
+      return jetGain.gain.value;
+    } catch {
+      // Unreadable params on strict fakes: fall back to the target.
+    }
+  }
+  return currentJetLevel;
+}
+
+/** Start the persistent looping jet-noise voice through the master bus. */
+function startJetLoop(): void {
+  if (ctx === null || master === null || noiseBuf === null) {
+    return;
+  }
+  try {
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    gain.connect(master);
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    try {
+      src.loop = true;
+    } catch {
+      // Minimal fakes without loop support still drone via the buffer.
+    }
+    src.connect(gain);
+    jetGain = gain;
+    currentJetLevel = 0;
+    try {
+      src.start(0);
+    } catch {
+      try {
+        src.start();
+      } catch {
+        // Headless fakes may reject start; the gain path still mirrors.
+      }
+    }
+  } catch {
+    jetGain = null;
+  }
+}
+
+/** Jet-loop envelope target: audible while jetting, silent at rest. */
+const JET_ACTIVE_BASE = 0.12;
+/** Fuel-scaled headroom on top of the base jet level. */
+const JET_ACTIVE_FUEL = 0.12;
+/** Release decay time-constant (~60 ms: silent well within 300 ms). */
+const JET_TAU_SECONDS = 0.06;
+
+/**
+ * Follow the local player's jetting state: while active the loop gain
+ * rides at 0.12 + 0.12 * fuelRatio (> 0.1), at rest it decays toward 0
+ * with a 60 ms time-constant (< 0.02 within 300 ms). Pre-gesture safe:
+ * without a context the call is a silent no-op (stepOnce only runs
+ * post-gesture, and the fresh loop starts at 0 on ensure).
+ */
+export function setJetting(active: boolean, fuelRatio = 1): void {
+  if (ctx === null || jetGain === null) {
+    return;
+  }
+  let ratio = fuelRatio;
+  if (!Number.isFinite(ratio)) {
+    ratio = active ? 1 : 0;
+  }
+  ratio = Math.min(1, Math.max(0, ratio));
+  const target = active ? JET_ACTIVE_BASE + JET_ACTIVE_FUEL * ratio : 0;
+  currentJetLevel = target;
+  syncAudioMirror();
+  const param = jetGain.gain;
+  try {
+    const schedule = param.setTargetAtTime;
+    if (typeof schedule === "function") {
+      schedule.call(param, target, ctx.currentTime, JET_TAU_SECONDS);
+      return;
+    }
+  } catch {
+    // Unschedulable params fall through to the direct assignment.
+  }
+  try {
+    param.value = target;
+  } catch {
+    // Read-only params: the mirror target still carries the probe.
   }
 }
 
@@ -194,6 +337,7 @@ function mirrorPlay(name: string, baseFreq: number): void {
   while (w.__audio.lastPlayed.length > LAST_PLAYED_CAP) {
     w.__audio.lastPlayed.shift();
   }
+  syncAudioMirror();
 }
 
 /**
@@ -318,5 +462,117 @@ export function playExplosion(): void {
     preset.wave,
     preset.slideTo,
     preset.noise ?? 0.6,
+  );
+}
+
+/** Short up-chirp for a hop (rising edge while grounded). */
+export function playHop(): void {
+  if (ctx === null) {
+    return;
+  }
+  const preset = SFX_PRESETS.hop;
+  emit(
+    "hop",
+    preset.baseFreq,
+    preset.durationMs,
+    preset.wave,
+    preset.slideTo,
+    preset.noise ?? 0.1,
+  );
+}
+
+/** Low thud for landing. */
+export function playLand(): void {
+  if (ctx === null) {
+    return;
+  }
+  const preset = SFX_PRESETS.land;
+  emit(
+    "land",
+    preset.baseFreq,
+    preset.durationMs,
+    preset.wave,
+    preset.slideTo,
+    preset.noise ?? 0.1,
+  );
+}
+
+/** Low saw drop when the local player takes damage. */
+export function playGrunt(): void {
+  if (ctx === null) {
+    return;
+  }
+  const preset = SFX_PRESETS.grunt;
+  emit(
+    "grunt",
+    preset.baseFreq,
+    preset.durationMs,
+    preset.wave,
+    preset.slideTo,
+    preset.noise ?? 0.15,
+  );
+}
+
+/** Short high blip confirming a local-player kill. */
+export function playKill(): void {
+  if (ctx === null) {
+    return;
+  }
+  const preset = SFX_PRESETS.kill;
+  emit(
+    "kill",
+    preset.baseFreq,
+    preset.durationMs,
+    preset.wave,
+    preset.slideTo,
+    preset.noise ?? 0.08,
+  );
+}
+
+/** Mid-band chime for a collected pickup (990 Hz sits in 600-1200). */
+export function playPickup(): void {
+  if (ctx === null) {
+    return;
+  }
+  const preset = SFX_PRESETS.pickup;
+  emit(
+    "pickup",
+    preset.baseFreq,
+    preset.durationMs,
+    preset.wave,
+    preset.slideTo,
+    preset.noise ?? 0.05,
+  );
+}
+
+/** Ascending slide when the match starts (post-gesture). */
+export function playMatchStart(): void {
+  if (ctx === null) {
+    return;
+  }
+  const preset = SFX_PRESETS.matchStart;
+  emit(
+    "matchStart",
+    preset.baseFreq,
+    preset.durationMs,
+    preset.wave,
+    preset.slideTo,
+    preset.noise ?? 0.1,
+  );
+}
+
+/** Descending slide when the match ends. */
+export function playMatchEnd(): void {
+  if (ctx === null) {
+    return;
+  }
+  const preset = SFX_PRESETS.matchEnd;
+  emit(
+    "matchEnd",
+    preset.baseFreq,
+    preset.durationMs,
+    preset.wave,
+    preset.slideTo,
+    preset.noise ?? 0.1,
   );
 }

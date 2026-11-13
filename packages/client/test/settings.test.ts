@@ -100,6 +100,20 @@ describe("loadVolume/saveVolume", () => {
     expect(loadVolume(storage)).toBe(0.5);
   });
 
+  it("persists zero as \"0.0\" and reloads it as muted", () => {
+    const storage = fakeStorage();
+    saveVolume(storage, 0);
+    expect(storage.getItem(SETTINGS_VOLUME_KEY)).toBe("0.0");
+    expect(loadVolume(storage)).toBe(0);
+  });
+
+  it("persists one as \"1.0\"", () => {
+    const storage = fakeStorage();
+    saveVolume(storage, 1);
+    expect(storage.getItem(SETTINGS_VOLUME_KEY)).toBe("1.0");
+    expect(loadVolume(storage)).toBe(1);
+  });
+
   it("falls back to 0.8 on corrupt stored values", () => {
     expect(
       loadVolume(fakeStorage({ [SETTINGS_VOLUME_KEY]: "loud" })),

@@ -77,8 +77,15 @@ export function saveVolume(
   if (storage === null || storage === undefined) {
     return;
   }
+  // Integers serialize with one decimal ("0.0", "1.0") so a muted
+  // profile reads back from localStorage unambiguously; other values
+  // keep their plain form ("0.5"). Both parse back via loadVolume.
+  const normalized = parseVolume(volume);
+  const text = Number.isInteger(normalized)
+    ? normalized.toFixed(1)
+    : String(normalized);
   try {
-    storage.setItem(SETTINGS_VOLUME_KEY, String(parseVolume(volume)));
+    storage.setItem(SETTINGS_VOLUME_KEY, text);
   } catch {
     // Private-mode storage: the menu still works, just not persisted.
   }

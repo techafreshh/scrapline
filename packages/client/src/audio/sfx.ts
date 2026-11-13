@@ -15,7 +15,19 @@ export type SfxWeaponFamily =
   | "rocket";
 
 /** Every named voice the engine can play. */
-export type SfxName = SfxWeaponFamily | "reload" | "dryfire" | "bounce" | "explosion";
+export type SfxName =
+  | SfxWeaponFamily
+  | "reload"
+  | "dryfire"
+  | "bounce"
+  | "explosion"
+  | "hop"
+  | "land"
+  | "grunt"
+  | "kill"
+  | "pickup"
+  | "matchStart"
+  | "matchEnd";
 
 /** Tunable per-voice synth parameters. */
 export interface SfxPreset {
@@ -111,6 +123,56 @@ export const SFX_PRESETS: Record<SfxName, SfxPreset> = Object.freeze({
     wave: "sine",
     slideTo: 30,
     noise: 0.6,
+  }),
+  hop: Object.freeze({
+    baseFreq: 350,
+    durationMs: 90,
+    kind: "tone",
+    wave: "sine",
+    slideTo: 700,
+  }),
+  land: Object.freeze({
+    baseFreq: 140,
+    durationMs: 120,
+    kind: "tone",
+    wave: "sine",
+    slideTo: 70,
+  }),
+  grunt: Object.freeze({
+    baseFreq: 180,
+    durationMs: 150,
+    kind: "mix",
+    wave: "sawtooth",
+    slideTo: 110,
+    noise: 0.15,
+  }),
+  kill: Object.freeze({
+    baseFreq: 1320,
+    durationMs: 90,
+    kind: "tone",
+    wave: "square",
+    noise: 0.08,
+  }),
+  pickup: Object.freeze({
+    baseFreq: 990,
+    durationMs: 200,
+    kind: "tone",
+    wave: "sine",
+    noise: 0.05,
+  }),
+  matchStart: Object.freeze({
+    baseFreq: 440,
+    durationMs: 300,
+    kind: "tone",
+    wave: "square",
+    slideTo: 880,
+  }),
+  matchEnd: Object.freeze({
+    baseFreq: 590,
+    durationMs: 400,
+    kind: "tone",
+    wave: "square",
+    slideTo: 220,
   }),
 } as Record<SfxName, SfxPreset>);
 

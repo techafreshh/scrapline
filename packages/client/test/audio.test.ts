@@ -13,40 +13,88 @@ import {
 } from "../src/audio/sfx";
 import {
   ensureAudioOnGesture,
+  getAnalyser,
   getAudioContext,
+  getJetGain,
   getVolume,
   groupShotWeapons,
   playBounce,
   playDryFire,
   playExplosion,
+  playGrunt,
+  playHop,
+  playKill,
+  playLand,
+  playMatchEnd,
+  playMatchStart,
+  playPickup,
   playReload,
   playShot,
   resetAudioForTests,
   setAudioContextFactory,
+  setJetting,
   setVolume,
 } from "../src/audio/engine";
 
-/** Recording stand-in for a GainNode. */
-function fakeGain(): {
+/** Recording stand-in for a GainNode with a live value. */
+interface FakeGainNode {
   gain: {
     value: number;
     setValueAtTime(v: number, t: number): void;
+    setTargetAtTime(v: number, t: number, tau: number): void;
     exponentialRampToValueAtTime(v: number, t: number): void;
   };
+  connections: unknown[];
   connect(target: unknown): void;
-} {
-  return {
+}
+
+function fakeGain(created: string[], gains: FakeGainNode[]): FakeGainNode {
+  const node: FakeGainNode = {
     gain: {
       value: 1,
       setValueAtTime(v: number): void {
-        void v;
+        node.gain.value = v;
+      },
+      setTargetAtTime(v: number): void {
+        // Synchronous target: mirrors the settled exponential envelope
+        // (release tau 60 ms settles well within the 300 ms window).
+        node.gain.value = v;
       },
       exponentialRampToValueAtTime(v: number): void {
-        void v;
+        node.gain.value = v;
       },
     },
-    connect(): void {},
+    connections: [],
+    connect(target: unknown): void {
+      node.connections.push(target);
+    },
   };
+  created.push("gain");
+  gains.push(node);
+  return node;
+}
+
+/** Recording stand-in for an AnalyserNode. */
+interface FakeAnalyserNode {
+  connections: unknown[];
+  connect(target: unknown): void;
+  getFloatTimeDomainData(array: Float32Array): void;
+}
+
+function fakeAnalyser(
+  created: string[],
+  analysers: FakeAnalyserNode[],
+): FakeAnalyserNode {
+  const node: FakeAnalyserNode = {
+    connections: [],
+    connect(target: unknown): void {
+      node.connections.push(target);
+    },
+    getFloatTimeDomainData(): void {},
+  };
+  created.push("analyser");
+  analysers.push(node);
+  return node;
 }
 
 /** Recording stand-in for an OscillatorNode. */
@@ -93,8 +141,12 @@ function fakeSource(created: string[]): {
 function fakeContext(): {
   instance: AudioContext;
   created: string[];
+  gains: FakeGainNode[];
+  analysers: FakeAnalyserNode[];
 } {
   const created: string[] = [];
+  const gains: FakeGainNode[] = [];
+  const analysers: FakeAnalyserNode[] = [];
   const instance = {
     state: "running",
     sampleRate: 44100,
@@ -102,7 +154,8 @@ function fakeContext(): {
     destination: {},
     createOscillator: (): unknown => fakeOsc(created),
     createBufferSource: (): unknown => fakeSource(created),
-    createGain: (): unknown => fakeGain(),
+    createGain: (): unknown => fakeGain(created, gains),
+    createAnalyser: (): unknown => fakeAnalyser(created, analysers),
     createBuffer: (
       channels: number,
       length: number,
@@ -115,7 +168,7 @@ function fakeContext(): {
     }),
     resume: (): Promise<void> => Promise.resolve(),
   } as unknown as AudioContext;
-  return { instance, created };
+  return { instance, created, gains, analysers };
 }
 
 /** Trackable factory: counts creations, returns the same fake. */
@@ -123,6 +176,8 @@ function trackedFactory(): {
   factory: () => AudioContext | null;
   calls: { count: number };
   created: string[];
+  gains: FakeGainNode[];
+  analysers: FakeAnalyserNode[];
   instance: AudioContext;
 } {
   const fake = fakeContext();
@@ -134,6 +189,8 @@ function trackedFactory(): {
     },
     calls,
     created: fake.created,
+    gains: fake.gains,
+    analysers: fake.analysers,
     instance: fake.instance,
   };
 }
@@ -282,6 +339,128 @@ describe("groupShotWeapons", () => {
 
   it("returns no plays for an empty drain", () => {
     expect(groupShotWeapons([])).toEqual([]);
+  });
+});
+
+describe("ambient voices", () => {
+  const ambient = [
+    "hop",
+    "land",
+    "grunt",
+    "kill",
+    "pickup",
+    "matchStart",
+    "matchEnd",
+  ] as const;
+
+  it("adds seven distinct presets with the pickup chime in 600-1200 Hz", () => {
+    for (const name of ambient) {
+      expect(SFX_PRESETS[name]).toBeDefined();
+    }
+    const freqs = ambient.map((name) => SFX_PRESETS[name].baseFreq);
+    expect(new Set(freqs).size).toBe(ambient.length);
+    expect(SFX_PRESETS.pickup.baseFreq).toBeGreaterThanOrEqual(600);
+    expect(SFX_PRESETS.pickup.baseFreq).toBeLessThanOrEqual(1200);
+  });
+
+  it("mirrors each ambient voice with its preset frequency", () => {
+    const tracked = trackedFactory();
+    setAudioContextFactory(tracked.factory);
+    ensureAudioOnGesture();
+    playHop();
+    playLand();
+    playGrunt();
+    playKill();
+    playPickup();
+    playMatchStart();
+    playMatchEnd();
+    const w = (globalThis as unknown as { window: Window }).window;
+    const entries = w.__audio?.lastPlayed ?? [];
+    expect(entries.map((entry) => entry.name)).toEqual([...ambient]);
+    for (let i = 0; i < ambient.length; i += 1) {
+      expect(entries[i]?.baseFreq).toBe(SFX_PRESETS[ambient[i]].baseFreq);
+    }
+  });
+
+  it("keeps new voices and the jet loop silent no-ops before ensure", () => {
+    const tracked = trackedFactory();
+    setAudioContextFactory(tracked.factory);
+    playHop();
+    playLand();
+    playGrunt();
+    playKill();
+    playPickup();
+    playMatchStart();
+    playMatchEnd();
+    expect(() => setJetting(true, 1)).not.toThrow();
+    expect(tracked.calls.count).toBe(0);
+    expect(tracked.created).toHaveLength(0);
+    expect(getJetGain()).toBe(0);
+    const w = (globalThis as unknown as { window: { __audio?: unknown } })
+      .window;
+    expect(w.__audio).toBeUndefined();
+  });
+
+  it("holds the jet loop above 0.1 while jetting, near zero after release", () => {
+    const tracked = trackedFactory();
+    setAudioContextFactory(tracked.factory);
+    ensureAudioOnGesture();
+    setJetting(true, 1);
+    expect(getJetGain()).toBeGreaterThan(0.1);
+    const w = (globalThis as unknown as { window: Window }).window;
+    expect(w.__audio?.jetGain ?? 0).toBeGreaterThan(0.1);
+    // Release: the 60 ms decay settles the fake target synchronously,
+    // standing in for the < 0.02 within 300 ms envelope.
+    setJetting(false, 0);
+    expect(getJetGain()).toBeLessThan(0.02);
+    expect(w.__audio?.jetGain ?? 1).toBeLessThan(0.02);
+  });
+
+  it("scales the jet gain with fuel ratio", () => {
+    const tracked = trackedFactory();
+    setAudioContextFactory(tracked.factory);
+    ensureAudioOnGesture();
+    setJetting(true, 1);
+    const full = getJetGain();
+    setJetting(true, 0);
+    const empty = getJetGain();
+    expect(full).toBeGreaterThan(empty);
+    expect(empty).toBeGreaterThan(0.1);
+  });
+
+  it("exposes a post-master analyser downstream of master", () => {
+    const tracked = trackedFactory();
+    setAudioContextFactory(tracked.factory);
+    expect(getAnalyser()).toBeNull();
+    ensureAudioOnGesture();
+    expect(getAnalyser()).not.toBeNull();
+    const w = (globalThis as unknown as { window: Window }).window;
+    expect(w.__audio?.analyser).toBe(getAnalyser());
+    const master = tracked.gains[0];
+    const tap = tracked.analysers[0];
+    expect(master).toBeDefined();
+    expect(tap).toBeDefined();
+    expect(master?.connections).toContain(tap);
+    const destination = (
+      tracked.instance as unknown as { destination: unknown }
+    ).destination;
+    expect(tap?.connections).toContain(destination);
+  });
+
+  it("setVolume(0) zeroes master while the jet path still routes through it", () => {
+    const tracked = trackedFactory();
+    setAudioContextFactory(tracked.factory);
+    ensureAudioOnGesture();
+    setJetting(true, 1);
+    setVolume(0);
+    expect(getVolume()).toBe(0);
+    const master = tracked.gains[0];
+    expect(master?.gain.value).toBe(0);
+    // The persistent loop (second gain) still feeds master, so the
+    // post-master tap reads silence instead of a stale level.
+    const jet = tracked.gains[1];
+    expect(jet).toBeDefined();
+    expect(jet?.connections).toContain(master);
   });
 });
 

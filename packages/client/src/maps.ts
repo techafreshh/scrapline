@@ -5,6 +5,9 @@
 import duneRaw from "../../core/src/maps/dune.txt?raw";
 import frostbiteRaw from "../../core/src/maps/frostbite.txt?raw";
 import kilimaRaw from "../../core/src/maps/kilima.txt?raw";
+import { decorations as duneDecorations } from "../../core/src/maps/dune";
+import { decorations as frostbiteDecorations } from "../../core/src/maps/frostbite";
+import { decorations as kilimaDecorations } from "../../core/src/maps/kilima";
 
 /** Arena names in menu order. */
 export const MAP_NAMES = ["kilima", "dune", "frostbite"] as const;
@@ -32,6 +35,36 @@ export function isMapName(value: unknown): value is MapName {
     return false;
   }
   return (MAP_NAMES as readonly string[]).includes(value.trim().toLowerCase());
+}
+
+/** Static decoration rect in world px (structural twin of the core data). */
+export interface Decoration {
+  kind: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const DECORATIONS: Record<MapName, Decoration[]> = {
+  kilima: kilimaDecorations,
+  dune: duneDecorations,
+  frostbite: frostbiteDecorations,
+};
+
+/**
+ * Decorations for an arena name (case-insensitive, whitespace-tolerant);
+ * null when unknown. Returns a copy so callers cannot mutate the cache.
+ */
+export function decorationsFor(name: unknown): Decoration[] | null {
+  if (typeof name !== "string") {
+    return null;
+  }
+  const key = name.trim().toLowerCase();
+  if (!isMapName(key)) {
+    return null;
+  }
+  return DECORATIONS[key].slice();
 }
 
 /**

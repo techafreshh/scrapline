@@ -284,6 +284,9 @@ function seedGame(
     bounceTileH: 8,
     oneWayTileH: 8,
     solidTileH: 32,
+    decorationCount: 0,
+    occludedTiles: 0,
+    fps: 60,
   };
 }
 

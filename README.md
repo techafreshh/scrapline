@@ -15,8 +15,9 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>, click **Play vs bots**, and fight 3 bots in a
-free-for-all.
+Open <http://localhost:3000> and you drop straight into a match vs 1 bot —
+no clicks needed. Bot count, tier, and map remain changeable via the
+setup screen.
 
 ### Controls
 

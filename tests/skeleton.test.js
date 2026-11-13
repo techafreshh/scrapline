@@ -121,6 +121,55 @@ test("GET /main.js serves the client bundle with the input mirror", async () => 
   assert.match(loop.text, /__scraplineTick/);
 });
 
+test("GET /healthz returns 200 JSON containing ok true", async () => {
+  const health = await get("/healthz");
+  assert.equal(health.status, 200);
+  assert.match(health.contentType, /application\/json/);
+  assert.match(health.text, /"ok":true/);
+});
+
+test("GET / includes the literal canvas tag", async () => {
+  const root = await get("/");
+  assert.equal(root.status, 200);
+  assert.ok(root.text.includes('<canvas id="game">'), "page must contain <canvas id=\"game\">");
+});
+
+test("client auto-joins a 1-bot match and mirrors window.__game", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "packages", "client", "src", "main.ts"),
+    "utf8",
+  );
+  assert.match(source, /__game/);
+  assert.match(source, /window\.__game\s*=/);
+  assert.match(source, /state.*playing/);
+  assert.match(source, /playerCount/);
+  assert.match(source, /bots:\s*1/);
+  assert.match(source, /persist:\s*false/);
+});
+
+test("repo ships zero *.png/*.jpg images", () => {
+  const root = path.join(__dirname, "..");
+  const hits = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === "node_modules" || entry.name === ".git") {
+        continue;
+      }
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else if (entry.isFile()) {
+        const lower = entry.name.toLowerCase();
+        if (lower.endsWith(".png") || lower.endsWith(".jpg")) {
+          hits.push(path.relative(root, full));
+        }
+      }
+    }
+  };
+  walk(root);
+  assert.deepEqual(hits, [], `expected zero images, found: ${hits.join(", ")}`);
+});
+
 test("core World source exports class World with step() and hash()", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "packages", "core", "src", "world.ts"),

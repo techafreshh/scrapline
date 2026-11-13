@@ -113,6 +113,13 @@ if (!(el instanceof HTMLCanvasElement)) {
   throw new Error('scrapline: missing <canvas id="game">');
 }
 const canvas = el;
+// Fixed 640x360 backing store (matches the camera.ts `#game 640x360`
+// clamp contract): the bare `<canvas id="game">` tag carries no size
+// attrs, so set the store here before the lazy Pixi
+// `app.init({ canvas, width: canvas.width, ... })` path or the canvas2d
+// fallback reads it; CSS scales the element to the stage width.
+canvas.width = 640;
+canvas.height = 360;
 
 const keys = createKeyState();
 /** Aim origin in canvas CSS pixels (canvas center before match start). */
@@ -191,6 +198,7 @@ window.__scraplineTick = 0;
 window.__scraplineWorld = null;
 window.__matchConfig = null;
 window.__camera = null;
+window.__game = { state: "menu", playerCount: 0, tick: 0 };
 refreshInput();
 
 /** Live overlay handles; rebuilt idempotently on every match start. */
@@ -484,6 +492,7 @@ function stepOnce(): string[] {
   }
   if (events.includes("matchEnd") || world.matchOver) {
     running = false;
+    window.__game.state = "over";
     showEndScreen();
   }
   return events;
@@ -575,6 +584,7 @@ function frame(now: number): void {
     });
   }
   window.__scraplineTick = world.tick;
+  window.__game.tick = world.tick;
   if (running) {
     rafId = requestAnimationFrame(frame);
   }
@@ -684,9 +694,11 @@ let deaths: number[] = [];
 let lastLocalKiller: string | null = null;
 
 /** Hide the menu, build the offline World plus tiered bots, start. */
-function startMatch(config: SetupConfig): void {
-  // Gesture unlock: startMatch always runs inside a click-handler stack,
-  // so the AudioContext is created/resumed here, never at import time.
+function startMatch(config: SetupConfig, options?: { persist?: boolean }): void {
+  // Gesture unlock: the AudioContext is created/resumed here, never at
+  // import time. Click-driven starts unlock autoplay; the load-time
+  // auto-join safely yields a suspended context (or null headless) and
+  // the one-shot gesture listeners resume it on first input.
   ensureAudioOnGesture();
   playMatchStart();
   cancelAnimationFrame(rafId);
@@ -697,13 +709,16 @@ function startMatch(config: SetupConfig): void {
     tier: parsed.tier,
     map: parsed.map,
   };
+  window.__game = { state: "playing", playerCount: parsed.bots + 1, tick: 0 };
   try {
     const query = setupSearchParams(parsed);
     window.history.replaceState(null, "", `${window.location.pathname}?${query}`);
   } catch {
     // Non-http hosts (file://): the mirror still carries the config.
   }
-  saveSetup(browserStorage(), parsed);
+  if (options?.persist !== false) {
+    saveSetup(browserStorage(), parsed);
+  }
   const seed = Math.floor(Math.random() * SEED_RANGE);
   const rows = mapRowsFor(parsed.map);
   const match = rows !== null ? new World({ seed, map: rows }) : new World({ seed });
@@ -889,3 +904,9 @@ if (endMenuButton instanceof HTMLButtonElement) {
 // Aim origin in CSS pixels (rect-based) before the first event or frame.
 refreshAimOrigin();
 refreshInput();
+
+// Walking skeleton: drop straight into a local 1-bot match on load so a
+// clean clone is playable (and probeable via `window.__game`) with no
+// clicks. The setup screen keeps its own persisted defaults; this
+// auto-join never writes them (`persist: false`).
+startMatch({ bots: 1, tier: "normal", map: "kilima" }, { persist: false });

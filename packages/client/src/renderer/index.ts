@@ -1608,7 +1608,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       canvas,
       width: logicalW,
       height: logicalH,
-      background: "#05070f",
+      // No `background` clear color: paintFramePixi paints paintSkyPixi over the full canvas every frame.
       // Density-graded crispness (Pixi v8 recipe): resolution scales
       // the backing buffer from devicePixelRatio (clamped to 2 by
       // the perf guardrail) with autoDensity mapping it back to the

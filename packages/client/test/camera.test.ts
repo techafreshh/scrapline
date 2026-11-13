@@ -215,8 +215,9 @@ describe("matchSpawnXs", () => {
       expect(x).toBeLessThanOrEqual(ARENA_W);
     }
     const mid = ARENA_W / 2;
+    const halfView = 640 / (2 * CAMERA_ZOOM);
     for (const x of xs) {
-      expect(Math.abs(x - mid)).toBeLessThanOrEqual(ARENA_W / 2);
+      expect(Math.abs(x - mid)).toBeLessThanOrEqual(halfView);
     }
   });
 

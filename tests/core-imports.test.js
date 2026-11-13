@@ -1,8 +1,8 @@
 // Core purity regression test: packages/core/src import statements must stay
 // free of render/DOM APIs (pixi, dom, webaudio, window, document) and must
 // only reference relative modules (mirrors the eslint no-restricted-imports
-// block for packages/core). Scoped to import/require lines only — comments
-// may still mention those tokens descriptively.
+// block for packages/core). Scoped to import, export ... from re-export, and
+// require( lines only — comments may still mention those tokens descriptively.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -42,7 +42,10 @@ test("core imports reference no render/DOM APIs", () => {
   for (const file of files) {
     const lines = fs.readFileSync(file, "utf8").split("\n");
     for (const line of lines) {
-      const isImport = /^\s*import\b/.test(line) || line.includes("require(");
+      const isImport =
+        /^\s*import\b/.test(line) ||
+        /^\s*export\b.*\bfrom\b/.test(line) ||
+        line.includes("require(");
       if (!isImport) {
         continue;
       }

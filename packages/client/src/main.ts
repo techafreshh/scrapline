@@ -218,6 +218,7 @@ let hud: HudHandles = buildHud(document);
 /** Cached canvas CSS rect: refreshAimOrigin runs every frame, so the
  * layout read is cached and only refreshed on resize (plus once). */
 let cachedRect: { left: number; top: number; width: number; height: number } | null = null;
+let renderer: Renderer | null = null;
 /** Letterbox-fit the canvas/stage to the window, refresh the density. */
 function applyResponsiveSize(): void {
   const size = computeLetterboxFit(window.innerWidth, window.innerHeight);
@@ -241,7 +242,6 @@ function revealCanvas(): void {
   }
 }
 
-let renderer: Renderer | null = null;
 // Progress text while the lazy Pixi chunk is in flight: the static
 // "Loading..." HTML paints before any JS runs (slow-network cold
 // load), this upgrade names the engine chunk while it fetches.

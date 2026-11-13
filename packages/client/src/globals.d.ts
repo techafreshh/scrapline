@@ -78,6 +78,12 @@ declare global {
       oneWayTileH: number;
       /** Solid tile height in world units (32). */
       solidTileH: number;
+      /** Total decorations on the active map (>=3 per map). */
+      decorationCount: number;
+      /** Decoration rects intersecting solid collision (always 0). */
+      occludedTiles: number;
+      /** Renderer fps exponential moving average (one decimal). */
+      fps: number;
     };
     __camera: {
       x: number;

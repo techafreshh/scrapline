@@ -40,6 +40,15 @@ import {
 } from "../view/tiles";
 import { setCurrentTheme } from "../view/theme";
 import type { TileTheme } from "../view/theme";
+import { decorationsFor } from "../maps";
+import {
+  countOccludedTiles,
+  isDecorOccluded,
+  paintDecor2D,
+  paintDecorPixi,
+  visibleDecorations,
+  type Decoration,
+} from "../view/decor";
 import {
   clampRendererResolution,
 } from "../view/resize";
@@ -657,6 +666,7 @@ function paintFramePixi(
   canvasWidth: number,
   canvasHeight: number,
   theme?: TileTheme,
+  decors: readonly Decoration[] = [],
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
@@ -668,6 +678,7 @@ function paintFramePixi(
   const arena = projectCamera(cam, canvasWidth, canvasHeight, 0, 0);
   graphics.rect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
   graphics.fill(0x0b1020);
+  paintDecorPixi(graphics, px, py, cam.scale, decors);
   paintTilesPixi(graphics, px, py, tileSize, cam.scale, layers, activeTheme);
   for (const prop of frame.props) {
     if (!prop.alive) {
@@ -961,6 +972,7 @@ function paintFrame2D(
   canvasHeight: number,
   anims: readonly AnimPose[],
   theme?: TileTheme,
+  decors: readonly Decoration[] = [],
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
@@ -971,6 +983,7 @@ function paintFrame2D(
   const arena = projectCamera(cam, canvasWidth, canvasHeight, 0, 0);
   ctx.fillStyle = "#0b1020";
   ctx.fillRect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
+  paintDecor2D(ctx, px, py, cam.scale, decors);
   paintTiles2D(ctx, px, py, tileSize, cam.scale, layers, activeTheme);
   for (const prop of frame.props) {
     if (!prop.alive) {
@@ -1368,7 +1381,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     shots: ShotDetail[] | undefined,
     damages: DamageDetail[] | undefined,
     kills: KillDetail[] | undefined,
-  ): { frame: Frame; cam: Camera; layers: LayerCounts; anims: AnimPose[]; theme: TileTheme; themeName: string } {
+  ): { frame: Frame; cam: Camera; layers: LayerCounts; anims: AnimPose[]; theme: TileTheme; themeName: string; decors: Decoration[] } {
     const frame = describeFrame(state, map ?? null);
     const cam = camera ?? createCamera(frame.arena.width, frame.arena.height);
     const now = performance.now();
@@ -1435,6 +1448,26 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     const layers = collectLayers(frame, map ?? null, cam, logicalW, logicalH);
     const theme = resolveTileTheme();
     const themeName = theme.name;
+    const allDecors = decorationsFor(themeName) ?? [];
+    const tileMapForDecor =
+      map !== undefined &&
+      map !== null &&
+      typeof (map as TileMapLike).isSolidTile === "function"
+        ? (map as TileMapLike)
+        : null;
+    const occluded = countOccludedTiles(allDecors, tileMapForDecor);
+    const culled = visibleDecorations(
+      allDecors,
+      cam,
+      logicalW,
+      logicalH,
+      frame.arena.width,
+      frame.arena.height,
+    );
+    const decors =
+      tileMapForDecor !== null
+        ? culled.filter((decor) => !isDecorOccluded(decor, tileMapForDecor))
+        : culled;
     try {
       setCurrentTheme(themeName);
     } catch {
@@ -1460,6 +1493,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             bounceTileH: BOUNCE_PAD_H,
             oneWayTileH: ONEWAY_PLANK_H,
             solidTileH: SOLID_TILE_H,
+            decorationCount: allDecors.length,
+            occludedTiles: occluded,
+            fps: Math.round(fpsEma * 10) / 10,
           });
         }
       } catch {
@@ -1541,7 +1577,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         shakeY: cam.shakeY ?? 0,
       };
     }
-    return { frame, cam, layers, anims, theme, themeName };
+    return { frame, cam, layers, anims, theme, themeName, decors };
   }
 
   try {
@@ -1592,7 +1628,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         damages?: DamageDetail[],
         kills?: KillDetail[],
       ): void {
-        const { frame, cam, layers, anims, theme } = trackDraw(
+        const { frame, cam, layers, anims, theme, decors } = trackDraw(
           state,
           map,
           camera,
@@ -1628,6 +1664,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           logicalW,
           logicalH,
           theme,
+          decors,
         );
       },
     };
@@ -1651,7 +1688,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         damages?: DamageDetail[],
         kills?: KillDetail[],
       ): void {
-        const { frame, cam, layers, anims, theme } = trackDraw(
+        const { frame, cam, layers, anims, theme, decors } = trackDraw(
           state,
           map,
           camera,
@@ -1664,7 +1701,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         // composed geometry is drawn immediately in paintFrame2D.
         ensurePlayerNodes(playerNodes, null, null, frame.players.length);
         publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles, anims);
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH, anims, theme);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH, anims, theme, decors);
       },
     };
   }

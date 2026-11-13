@@ -10,7 +10,35 @@ declare global {
     __scraplineInput: InputMirror;
     __scraplineWorld: World | null;
     __matchConfig: { bots: number; tier: string; map: string } | null;
-    __game: { state: "menu" | "playing" | "over"; playerCount: number; tick: number; rendererResolution: number };
+    __game: {
+      state: "menu" | "playing" | "over";
+      playerCount: number;
+      tick: number;
+      rendererResolution: number;
+      /** Composed-sprite probe players (live Pixi containers or stubs). */
+      players: {
+        index: number;
+        node: { name: string; children: { name: string; label?: string }[] };
+        color: number;
+        colorCss: string;
+      }[];
+      /** Named sprite parts per player node (>= 6). */
+      spritePartCount: number;
+      /** Local player team color (cyan #00E5FF). */
+      localPlayerColor: string;
+      /** First enemy team color (warm #FF6B35 or #FFB347). */
+      firstEnemyColor: string;
+      /** Authored player bounds in world units (26x58, zoom-independent). */
+      playerBounds: { w: number; h: number; width: number; height: number };
+      /** Live barrel-tip muzzle in backing-store px. */
+      muzzle: { x: number; y: number };
+      /** Live weapon tip in backing-store px (coincides with muzzle). */
+      weaponTip: { x: number; y: number };
+      muzzleX: number;
+      muzzleY: number;
+      weaponTipX: number;
+      weaponTipY: number;
+    };
     __camera: {
       x: number;
       y: number;

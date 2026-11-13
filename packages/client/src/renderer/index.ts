@@ -24,7 +24,28 @@ import {
   visibleTileRange,
   type Camera,
 } from "./camera";
-import { clampRendererResolution } from "../view/resize";
+import {
+  clampRendererResolution,
+} from "../view/resize";
+import {
+  ARM_PIVOT,
+  CHARACTER_H,
+  CROUCH_SQUASH,
+  VISOR_CSS,
+  characterParts,
+  gunBarrel,
+  gunMuzzle,
+  teamColor,
+  teamCss,
+} from "../view/character";
+import {
+  buildPlayerNode,
+  publishGameProbes,
+  syncPlayerNode,
+  type PixiFactory,
+  type PlayerNode,
+  type StageLike,
+} from "../view/playerView";
 
 export { CAMERA_ZOOM } from "./camera";
 
@@ -372,7 +393,7 @@ function playerColor(index: number, alive: boolean): number {
   if (!alive) {
     return 0x475569;
   }
-  return index === 0 ? 0x00e5ff : 0xfb923c;
+  return teamColor(index);
 }
 
 /** Barrel stroke color: local pale, enemies warm red (threat cue). */
@@ -480,49 +501,24 @@ function paintFramePixi(
     graphics.circle(px(proj.x), py(proj.y), Math.max(2, 2 * cam.scale));
     graphics.fill(proj.kind === "grenade" ? 0xa3e635 : 0xf97316);
   }
+  // Player bodies live in per-index Pixi container nodes (synced in
+  // createRenderer); the immediate pass keeps only the jet-flame flicker
+  // below the feet while thrusting.
   for (const p of frame.players) {
-    const blink = blinkAlpha(frame.tick, p.protected);
-    const bodyColor = playerPaintColor(p.index, p.alive, victimFlash.has(p.index));
-    graphics.rect(px(p.x), py(p.y), p.w * cam.scale, p.h * cam.scale);
-    graphics.fill({ color: bodyColor, alpha: blink });
-    if (p.alive) {
-      const cx = px(p.x + p.w / 2);
-      const cy = py(p.y + p.h / 2);
-      const bodyW = p.w * cam.scale;
-      const bodyH = p.h * cam.scale;
-      // Visor stripe across the upper body.
-      graphics.rect(px(p.x) + bodyW * 0.15, py(p.y) + bodyH * 0.12, bodyW * 0.7, Math.max(2, bodyH * 0.14));
-      graphics.fill({ color: 0x0f172a, alpha: blink });
-      // Jetpack unit on the back (left edge of the body).
-      graphics.rect(px(p.x) - 5 * cam.scale, py(p.y) + bodyH * 0.25, 5 * cam.scale, bodyH * 0.4);
-      graphics.fill({ color: 0x334155, alpha: blink });
-      // Held-weapon silhouette under the barrel line: dark stock
-      // from the body center to the gun midpoint, then the bright
-      // barrel stroke from the midpoint to the unchanged tip.
-      const mid = gunMidpoint(p.x + p.w / 2, p.y + p.h / 2, p.aim);
-      const midScreen = { x: px(mid.x), y: py(mid.y) };
-      const tip = { x: px(p.barrel.x), y: py(p.barrel.y) };
-      graphics.moveTo(cx, cy);
-      graphics.lineTo(midScreen.x, midScreen.y);
-      graphics.stroke({ width: 6, color: 0x1e293b, alpha: blink, cap: "round" });
-      graphics.moveTo(midScreen.x, midScreen.y);
-      graphics.lineTo(tip.x, tip.y);
-      graphics.stroke({ width: 3, color: barrelColor(p.index), alpha: blink, cap: "round" });
-      graphics.circle(tip.x, tip.y, 2);
-      graphics.fill({ color: barrelColor(p.index), alpha: blink });
-      // Jet flame flicker below the feet while thrusting.
-      if (p.jetting) {
-        const scale = flameScale(frame.tick, p.index);
-        const flame = flameAlpha(frame.tick, p.index) * blink;
-        const feetY = py(p.y + p.h);
-        const outer = 5 * scale * cam.scale;
-        graphics.circle(cx, feetY + outer + 2, outer);
-        graphics.fill({ color: 0xfb923c, alpha: flame });
-        const inner = outer * 0.55;
-        graphics.circle(cx, feetY + outer + 2, inner);
-        graphics.fill({ color: 0xfde047, alpha: flame });
-      }
+    if (!p.alive || !p.jetting) {
+      continue;
     }
+    const blink = blinkAlpha(frame.tick, p.protected);
+    const cx = px(p.x + p.w / 2);
+    const scale = flameScale(frame.tick, p.index);
+    const flame = flameAlpha(frame.tick, p.index) * blink;
+    const feetY = py(p.y + p.h);
+    const outer = 5 * scale * cam.scale;
+    graphics.circle(cx, feetY + outer + 2, outer);
+    graphics.fill({ color: 0xf97316, alpha: flame });
+    const inner = outer * 0.55;
+    graphics.circle(cx, feetY + outer + 2, inner);
+    graphics.fill({ color: 0xfde047, alpha: flame });
   }
   for (const flash of flashes) {
     graphics.circle(px(flash.x), py(flash.y), flashRadius(flash.kind, flash.ttl));
@@ -551,6 +547,179 @@ function paintFramePixi(
     graphics.circle(px(pos.x), py(pos.y), 3);
     graphics.fill({ color: 0xf97316, alpha: tracerOpacity(burst) });
   }
+}
+
+/**
+ * Draw the composed vector figure for one player in screen space: the
+ * same characterParts geometry the Pixi containers bake, with the arms
+ * and the held weapon rotated by aim around the (crouch-squashed)
+ * pivot while the body stays upright. The weapon muzzle lands on the
+ * frame barrel tip by construction.
+ */
+function drawCharacter2D(
+  ctx: CanvasRenderingContext2D,
+  px: (x: number) => number,
+  py: (y: number) => number,
+  scale: number,
+  p: FramePlayer,
+  colorCss: string,
+): void {
+  const crouch = p.h < CHARACTER_H;
+  const squashY = crouch ? CROUCH_SQUASH : 1;
+  const parts = characterParts(crouch);
+  const sx = px(p.x);
+  const sy = py(p.y);
+  for (const part of parts) {
+    if (part.kind === "limb") {
+      continue;
+    }
+    ctx.fillStyle = part.name === "visor" ? VISOR_CSS : colorCss;
+    if (part.kind === "rect") {
+      ctx.fillRect(
+        sx + part.x * scale,
+        sy + part.y * scale,
+        Math.max(1, part.w * scale),
+        Math.max(1, part.h * scale),
+      );
+    } else {
+      ctx.beginPath();
+      ctx.arc(
+        sx + part.cx * scale,
+        sy + part.cy * scale,
+        Math.max(1, part.r * scale),
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+  }
+  // Arms plus the held weapon rotate with aim around the pivot.
+  ctx.save();
+  ctx.translate(sx + ARM_PIVOT.x * scale, sy + ARM_PIVOT.y * squashY * scale);
+  ctx.rotate(p.aim);
+  ctx.strokeStyle = colorCss;
+  ctx.fillStyle = colorCss;
+  ctx.lineCap = "round";
+  for (const part of parts) {
+    if (part.kind !== "limb") {
+      continue;
+    }
+    ctx.lineWidth = Math.max(1, part.width * scale);
+    ctx.beginPath();
+    ctx.moveTo(part.x1 * scale, part.y1 * scale);
+    ctx.lineTo(part.x2 * scale, part.y2 * scale);
+    ctx.stroke();
+    if (part.name === "armR") {
+      const barrel = gunBarrel();
+      const dot = gunMuzzle();
+      ctx.lineWidth = Math.max(1, barrel.width * scale);
+      ctx.beginPath();
+      ctx.moveTo(barrel.x1 * scale, barrel.y1 * scale);
+      ctx.lineTo(barrel.x2 * scale, barrel.y2 * scale);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(
+        dot.x * scale,
+        dot.y * scale,
+        Math.max(1, dot.r * scale),
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/**
+ * Grow the per-index node store to the live player count, attaching
+ * fresh Pixi containers to the stage exactly once (stubs need no
+ * attach). Nodes past the live count are hidden so a smaller rematch
+ * never leaves ghost figures on the stage.
+ */
+function ensurePlayerNodes(
+  store: PlayerNode[],
+  pixi: PixiFactory | null,
+  stage: StageLike | null,
+  count: number,
+): void {
+  while (store.length < count) {
+    const node = buildPlayerNode(pixi, store.length);
+    store.push(node);
+    if (stage !== null && "position" in node) {
+      stage.addChild(node);
+    }
+  }
+  for (let i = 0; i < store.length; i += 1) {
+    const node = store[i];
+    if (node !== undefined && "visible" in node) {
+      node.visible = i < count;
+    }
+  }
+}
+
+/** Pose every live node for the frame through the follow camera. */
+function syncFramePlayers(
+  store: PlayerNode[],
+  frame: Frame,
+  cam: Camera,
+  canvasW: number,
+  canvasH: number,
+  victimFlash: ReadonlyMap<number, number>,
+): void {
+  for (let i = 0; i < frame.players.length; i += 1) {
+    const p = frame.players[i];
+    const node = store[i];
+    if (p === undefined || node === undefined || !("position" in node)) {
+      continue;
+    }
+    const at = projectCamera(cam, canvasW, canvasH, p.x, p.y);
+    syncPlayerNode(node, {
+      x: at.x,
+      y: at.y,
+      scale: cam.scale,
+      aim: p.aim,
+      colorHex: playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
+      alpha: blinkAlpha(frame.tick, p.protected),
+      squash: p.h / CHARACTER_H,
+      visible: true,
+    });
+  }
+}
+
+/**
+ * Publish the composed-sprite probe surface for the frame. Muzzle and
+ * weaponTip are the same live-camera projection of player 0's barrel
+ * tip (falling back to the latest tracer muzzle entry, then the arena
+ * origin), so the coincidence probe reads 0 by construction.
+ */
+function publishFrameProbes(
+  store: PlayerNode[],
+  frame: Frame,
+  cam: Camera,
+  canvasW: number,
+  canvasH: number,
+  muzzles: readonly Muzzle[],
+): void {
+  const first = frame.players[0];
+  const lastMuzzle = muzzles.length > 0 ? muzzles[muzzles.length - 1] : undefined;
+  const tip =
+    first !== undefined
+      ? first.barrel
+      : lastMuzzle !== undefined
+        ? { x: lastMuzzle.x, y: lastMuzzle.y }
+        : { x: 0, y: 0 };
+  const screen = projectCamera(cam, canvasW, canvasH, tip.x, tip.y);
+  publishGameProbes(
+    store.slice(0, frame.players.length),
+    frame.players.map((p) => p.index),
+    frame.players.map((p) => ({
+      color: teamColor(p.index),
+      colorCss: teamCss(p.index),
+    })),
+    screen,
+    screen,
+  );
 }
 
 function paintFrame2D(
@@ -602,59 +771,25 @@ function paintFrame2D(
   }
   for (const p of frame.players) {
     const blink = blinkAlpha(frame.tick, p.protected);
+    const colorCss = playerPaintCss(p.index, p.alive, victimFlash.has(p.index));
     ctx.save();
     ctx.globalAlpha = blink;
-    ctx.fillStyle = playerPaintCss(p.index, p.alive, victimFlash.has(p.index));
-    ctx.fillRect(px(p.x), py(p.y), p.w * cam.scale, p.h * cam.scale);
-    if (p.alive) {
+    drawCharacter2D(ctx, px, py, cam.scale, p, colorCss);
+    // Jet flame flicker below the feet while thrusting.
+    if (p.alive && p.jetting) {
       const cx = px(p.x + p.w / 2);
-      const cy = py(p.y + p.h / 2);
-      const bodyW = p.w * cam.scale;
-      const bodyH = p.h * cam.scale;
-      // Visor stripe across the upper body.
-      ctx.fillStyle = "#0f172a";
-      ctx.fillRect(px(p.x) + bodyW * 0.15, py(p.y) + bodyH * 0.12, bodyW * 0.7, Math.max(2, bodyH * 0.14));
-      // Jetpack unit on the back (left edge of the body).
-      ctx.fillStyle = "#334155";
-      ctx.fillRect(px(p.x) - 5 * cam.scale, py(p.y) + bodyH * 0.25, 5 * cam.scale, bodyH * 0.4);
-      // Held-weapon silhouette under the barrel line.
-      const mid = gunMidpoint(p.x + p.w / 2, p.y + p.h / 2, p.aim);
-      const midX = px(mid.x);
-      const midY = py(mid.y);
-      const tipX = px(p.barrel.x);
-      const tipY = py(p.barrel.y);
-      ctx.strokeStyle = "#1e293b";
-      ctx.lineWidth = 6;
-      ctx.lineCap = "round";
+      const scale = flameScale(frame.tick, p.index);
+      ctx.globalAlpha = blink * flameAlpha(frame.tick, p.index);
+      const feetY = py(p.y + p.h);
+      const outer = 5 * scale * cam.scale;
+      ctx.fillStyle = "#f97316";
       ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(midX, midY);
-      ctx.stroke();
-      ctx.strokeStyle = barrelCss(p.index);
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(midX, midY);
-      ctx.lineTo(tipX, tipY);
-      ctx.stroke();
-      ctx.fillStyle = barrelCss(p.index);
-      ctx.beginPath();
-      ctx.arc(tipX, tipY, 2, 0, Math.PI * 2);
+      ctx.arc(cx, feetY + outer + 2, outer, 0, Math.PI * 2);
       ctx.fill();
-      // Jet flame flicker below the feet while thrusting.
-      if (p.jetting) {
-        const scale = flameScale(frame.tick, p.index);
-        ctx.globalAlpha = blink * flameAlpha(frame.tick, p.index);
-        const feetY = py(p.y + p.h);
-        const outer = 5 * scale * cam.scale;
-        ctx.fillStyle = "#fb923c";
-        ctx.beginPath();
-        ctx.arc(cx, feetY + outer + 2, outer, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#fde047";
-        ctx.beginPath();
-        ctx.arc(cx, feetY + outer + 2, outer * 0.55, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      ctx.fillStyle = "#fde047";
+      ctx.beginPath();
+      ctx.arc(cx, feetY + outer + 2, outer * 0.55, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -759,7 +894,7 @@ export function playerPaintCss(index: number, alive: boolean, flashed: boolean):
   if (flashed) {
     return VICTIM_TINT_CSS;
   }
-  return !alive ? "#475569" : index === 0 ? "#00e5ff" : "#fb923c";
+  return !alive ? "#475569" : teamCss(index);
 }
 
 /** Jet-flame flicker scale band (multiplies the base flame radius). */
@@ -988,6 +1123,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   const sparks: Spark[] = [];
   const bursts: Burst[] = [];
   const victimFlash = new Map<number, number>();
+  // Live per-player composed-sprite nodes (real Pixi containers on the
+  // Pixi backend, plain-object stubs on the canvas2d fallback).
+  const playerNodes: PlayerNode[] = [];
 
   function trackDraw(
     state: StateLike,
@@ -1147,6 +1285,19 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           damages,
           kills,
         );
+        // Composed sprite bodies: the factory/stage casts are structural
+        // claims (Container/Graphics constructors, addChild) that keep
+        // playerView free of a static pixi.js import, so the lazy chunk
+        // boundary and the headless node unit tests stay intact.
+        const pixiFactory = mod as unknown as PixiFactory;
+        ensurePlayerNodes(
+          playerNodes,
+          pixiFactory,
+          app.stage as unknown as StageLike,
+          frame.players.length,
+        );
+        syncFramePlayers(playerNodes, frame, cam, logicalW, logicalH, victimFlash);
+        publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles);
         paintFramePixi(
           graphics,
           frame,
@@ -1192,6 +1343,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           damages,
           kills,
         );
+        // Canvas2d fallback: stub nodes carry the probe shape while the
+        // composed geometry is drawn immediately in paintFrame2D.
+        ensurePlayerNodes(playerNodes, null, null, frame.players.length);
+        publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles);
         paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH);
       },
     };

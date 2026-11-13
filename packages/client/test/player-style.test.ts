@@ -127,19 +127,25 @@ describe("spawn blink", () => {
 describe("team colors", () => {
   it("paints the local player cyan in the #00E5FF family", () => {
     expect(playerPaintColor(0, true, false)).toBe(0x00e5ff);
-    expect(playerPaintCss(0, true, false)).toBe("#00e5ff");
+    expect(playerPaintCss(0, true, false)).toBe("#00E5FF");
     const rgb = hexToRgb(playerPaintCss(0, true, false));
     expect(rgb.g).toBeGreaterThanOrEqual(0xe0);
     expect(rgb.b).toBe(0xff);
     expect(rgb.r).toBeLessThanOrEqual(0x10);
   });
 
-  it("paints enemies in a warm orange/red family", () => {
-    const css = playerPaintCss(1, true, false);
-    const rgb = hexToRgb(css);
-    expect(rgb.r).toBeGreaterThanOrEqual(0xf0);
-    expect(rgb.b).toBeLessThanOrEqual(0x60);
-    expect(playerPaintColor(1, true, false)).toBe(0xfb923c);
+  it("paints odd enemies vivid orange-red and even enemies warm amber", () => {
+    expect(playerPaintCss(1, true, false)).toBe("#FF6B35");
+    expect(playerPaintColor(1, true, false)).toBe(0xff6b35);
+    expect(playerPaintCss(2, true, false)).toBe("#FFB347");
+    expect(playerPaintColor(2, true, false)).toBe(0xffb347);
+    expect(playerPaintCss(3, true, false)).toBe("#FF6B35");
+    for (const css of [playerPaintCss(1, true, false), playerPaintCss(2, true, false)]) {
+      expect(css).toMatch(/^#FF(6B35|B347)$/);
+      const rgb = hexToRgb(css);
+      expect(rgb.r).toBe(0xff);
+      expect(rgb.b).toBeLessThanOrEqual(0x60);
+    }
   });
 });
 

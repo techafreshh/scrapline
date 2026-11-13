@@ -203,16 +203,16 @@ export function themeFor(name: unknown): TileTheme {
   if (typeof name === "string") {
     const key = name.trim().toLowerCase();
     if (key === "dune") {
-      return THEMES.dune;
+      return { ...THEMES.dune };
     }
     if (key === "frostbite") {
-      return THEMES.frostbite;
+      return { ...THEMES.frostbite };
     }
     if (key === "kilima") {
-      return THEMES.kilima;
+      return { ...THEMES.kilima };
     }
   }
-  return THEMES.kilima;
+  return { ...THEMES.kilima };
 }
 
 /** Split a Pixi hex into 8-bit channels. */

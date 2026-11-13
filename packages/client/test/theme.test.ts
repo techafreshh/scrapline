@@ -55,6 +55,24 @@ describe("tile themes", () => {
     expect(isThemeName("nope")).toBe(false);
   });
 
+  it("returns fresh copies that callers can mutate safely", () => {
+    const first = themeFor("dune");
+    const second = themeFor("dune");
+    expect(first).not.toBe(second);
+    expect(first).toEqual(second);
+    expect(first).not.toBe(THEMES.dune);
+    const fallbackFirst = themeFor("unknown");
+    const fallbackSecond = themeFor("bogus");
+    expect(fallbackFirst).not.toBe(THEMES.kilima);
+    expect(fallbackFirst).not.toBe(fallbackSecond);
+    expect(fallbackFirst).toEqual(THEMES.kilima);
+    first.base = "#000000";
+    first.baseHex = 0xdeadbeef;
+    expect(THEMES.dune.base).not.toBe("#000000");
+    expect(THEMES.dune.baseHex).not.toBe(0xdeadbeef);
+    expect(themeFor("dune")).toEqual(THEMES.dune);
+  });
+
   it("tracks the renderer current theme with a kilima default", () => {
     setCurrentTheme("kilima");
     expect(getCurrentTheme()).toBe("kilima");

@@ -397,10 +397,13 @@ export interface TileMapOptions {
  *
  * `#` is the only solid char; short rows are padded empty and the width
  * is the longest row. Out-of-bounds tiles and pixel queries are solid so
- * the world stays contained.
+ * the world stays contained. Decorative kinds (`=`, `^`/`B`, `:`) are
+ * free for collision and exposed via tileChar/isOneWayTile/isBounceTile/
+ * isBackwallTile for the themed renderer.
  */
 export class TileMap {
   private readonly solids: boolean[][];
+  private readonly chars: string[][];
   /** Map width in tiles (longest row). */
   readonly widthTiles: number;
   /** Map height in tiles (row count). */
@@ -422,16 +425,21 @@ export class TileMap {
     this.widthTiles = width;
     this.heightTiles = cleaned.length;
     const solids: boolean[][] = [];
+    const chars: string[][] = [];
     for (let y = 0; y < cleaned.length; y += 1) {
       const row: boolean[] = [];
+      const crow: string[] = [];
       const src = cleaned[y] as string;
       for (let x = 0; x < width; x += 1) {
         const ch = x < src.length ? src[x] : ".";
         row.push(ch === "#");
+        crow.push(ch as string);
       }
       solids.push(row);
+      chars.push(crow);
     }
     this.solids = solids;
+    this.chars = chars;
   }
 
   /** Map width in tiles (alias of `widthTiles`). */
@@ -473,6 +481,35 @@ export class TileMap {
       return true;
     }
     return this.isSolidTile(Math.floor(px / TILE_SIZE), Math.floor(py / TILE_SIZE));
+  }
+
+  /** Raw ASCII char at a tile (`#` OOB, `.` for short-row padding). */
+  tileChar(tx: number, ty: number): string {
+    if (!Number.isFinite(tx) || !Number.isFinite(ty)) {
+      return "#";
+    }
+    const x = Math.floor(tx);
+    const y = Math.floor(ty);
+    if (x < 0 || y < 0 || x >= this.widthTiles || y >= this.heightTiles) {
+      return "#";
+    }
+    return ((this.chars[y] as string[])[x] as string) ?? ".";
+  }
+
+  /** True when the tile is a one-way plank (`=`; free for collision). */
+  isOneWayTile(tx: number, ty: number): boolean {
+    return this.tileChar(tx, ty) === ONEWAY_MARKER;
+  }
+
+  /** True when the tile is a bounce pad (`^` or legacy `B`; free). */
+  isBounceTile(tx: number, ty: number): boolean {
+    const ch = this.tileChar(tx, ty);
+    return ch === BOUNCE_MARKER || ch === BOUNCE_MARKER_LEGACY;
+  }
+
+  /** True when the tile is a backwall quad (`:`; free, behind playfield). */
+  isBackwallTile(tx: number, ty: number): boolean {
+    return this.tileChar(tx, ty) === BACKWALL_MARKER;
   }
 
   /**
@@ -797,6 +834,14 @@ export const PAD_MARKER = "P";
 export const HEALTH_MARKER = "H";
 /** ASCII marker for grenade crates (walkable). */
 export const GRENADE_MARKER = "G";
+/** ASCII marker for one-way platforms (thin 8px plank, walkable). */
+export const ONEWAY_MARKER = "=";
+/** ASCII marker for bounce pads (striped chevron, walkable). */
+export const BOUNCE_MARKER = "^";
+/** Legacy bounce-pad marker kept for shipped arenas (walkable). */
+export const BOUNCE_MARKER_LEGACY = "B";
+/** ASCII marker for backwall quads (darker, behind playfield). */
+export const BACKWALL_MARKER = ":";
 
 /** Alias of {@link SPAWN_MARKER} (harness-tolerant spelling). */
 export const MARKER_SPAWN = SPAWN_MARKER;
@@ -806,6 +851,12 @@ export const MARKER_PAD = PAD_MARKER;
 export const MARKER_HEALTH = HEALTH_MARKER;
 /** Alias of {@link GRENADE_MARKER} (harness-tolerant spelling). */
 export const MARKER_GRENADE = GRENADE_MARKER;
+/** Alias of {@link ONEWAY_MARKER} (harness-tolerant spelling). */
+export const MARKER_ONEWAY = ONEWAY_MARKER;
+/** Alias of {@link BOUNCE_MARKER} (harness-tolerant spelling). */
+export const MARKER_BOUNCE = BOUNCE_MARKER;
+/** Alias of {@link BACKWALL_MARKER} (harness-tolerant spelling). */
+export const MARKER_BACKWALL = BACKWALL_MARKER;
 
 /** Map legend: every marker char accepted in `src/maps/*.txt` files. */
 export const MAP_LEGEND = {
@@ -815,6 +866,9 @@ export const MAP_LEGEND = {
   pad: PAD_MARKER,
   health: HEALTH_MARKER,
   grenade: GRENADE_MARKER,
+  oneway: ONEWAY_MARKER,
+  bounce: BOUNCE_MARKER,
+  backwall: BACKWALL_MARKER,
 } as const;
 
 /** Tile-marker lists parsed from ASCII map rows plus the collision map. */
@@ -827,6 +881,12 @@ export interface MapSymbols {
   health: TilePos[];
   /** Grenade crate tiles (`G`, row-major scan order). */
   grenades: TilePos[];
+  /** One-way plank tiles (`=`, row-major scan order). */
+  oneWays: TilePos[];
+  /** Bounce pad tiles (`^` or legacy `B`, row-major scan order). */
+  bounces: TilePos[];
+  /** Backwall tiles (`:`, row-major scan order). */
+  backwalls: TilePos[];
   /** Collision map built from the same rows (markers are free, `#` solid). */
   map: TileMap;
 }
@@ -856,7 +916,8 @@ function toRowsList(rows: string[] | string): string[] {
  * Parse ASCII map rows into marker lists plus the collision map.
  *
  * Legend: `#` solid, everything else free; `S` spawn, `P` weapon pad,
- * `H` health crate, `G` grenade crate, `.` empty. When `spawnOverride`
+ * `H` health crate, `G` grenade crate, `.` empty, `=` one-way plank,
+ * `^`/`B` bounce pad, `:` backwall. When `spawnOverride`
  * is given it replaces the `S` scan (the "spawn array" side of the
  * "`S` or spawn array" contract).
  */
@@ -869,6 +930,9 @@ export function parseMapSymbols(
   const pads: TilePos[] = [];
   const health: TilePos[] = [];
   const grenades: TilePos[] = [];
+  const oneWays: TilePos[] = [];
+  const bounces: TilePos[] = [];
+  const backwalls: TilePos[] = [];
   for (let y = 0; y < list.length; y += 1) {
     const row = list[y] as string;
     for (let x = 0; x < row.length; x += 1) {
@@ -881,6 +945,12 @@ export function parseMapSymbols(
         health.push({ x, y });
       } else if (ch === GRENADE_MARKER) {
         grenades.push({ x, y });
+      } else if (ch === ONEWAY_MARKER) {
+        oneWays.push({ x, y });
+      } else if (ch === BOUNCE_MARKER || ch === BOUNCE_MARKER_LEGACY) {
+        bounces.push({ x, y });
+      } else if (ch === BACKWALL_MARKER) {
+        backwalls.push({ x, y });
       }
     }
   }
@@ -890,9 +960,9 @@ export function parseMapSymbols(
       const p = toVec(v);
       return { x: Math.floor(p.x), y: Math.floor(p.y) };
     });
-    return { spawns: over, pads, health, grenades, map };
+    return { spawns: over, pads, health, grenades, oneWays, bounces, backwalls, map };
   }
-  return { spawns, pads, health, grenades, map };
+  return { spawns, pads, health, grenades, oneWays, bounces, backwalls, map };
 }
 
 function resolveReachableArgs(

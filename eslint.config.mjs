@@ -25,6 +25,17 @@ export default [
     rules: { "no-unused-vars": ["error", { caughtErrors: "none" }] },
   },
   {
+    // scripts/verify-presentation.mjs is ESM (import syntax, node:* only)
+    // with plain Node globals, mirroring the CommonJS block above.
+    files: ["**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: { ...globals.node },
+    },
+    rules: { "no-unused-vars": ["error", { caughtErrors: "none" }] },
+  },
+  {
     files: ["packages/client/**/*.ts"],
     languageOptions: {
       ecmaVersion: 2022,

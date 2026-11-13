@@ -24,6 +24,7 @@ import {
   visibleTileRange,
   type Camera,
 } from "./camera";
+import { clampRendererResolution } from "../view/resize";
 
 export { CAMERA_ZOOM } from "./camera";
 
@@ -1096,10 +1097,8 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     const mod = await import("pixi.js");
     const app = new mod.Application();
     const initDpr =
-      typeof window !== "undefined" &&
-      typeof window.devicePixelRatio === "number" &&
-      Number.isFinite(window.devicePixelRatio)
-        ? Math.min(Math.max(window.devicePixelRatio, 1), 2)
+      typeof window !== "undefined"
+        ? clampRendererResolution(window.devicePixelRatio)
         : 1;
     await app.init({
       canvas,
@@ -1124,10 +1123,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       mode: "pixi",
       setResolution(dpr: number): void {
         try {
-          const clamped =
-            typeof dpr === "number" && Number.isFinite(dpr)
-              ? Math.min(Math.max(dpr, 1), 2)
-              : 1;
+          const clamped = clampRendererResolution(dpr);
           app.renderer.resolution = clamped;
         } catch {
           // Headless/shorn renderers: density stays at init value.

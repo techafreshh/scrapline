@@ -75,6 +75,9 @@ describe("clampRendererResolution", () => {
     { dpr: 0.5, expected: 1 },
     { dpr: NaN, expected: 1 },
     { dpr: 0, expected: 1 },
+    { dpr: Infinity, expected: 1 },
+    { dpr: undefined, expected: 1 },
+    { dpr: "2", expected: 1 },
   ])("maps $dpr to $expected", ({ dpr, expected }) => {
     expect(clampRendererResolution(dpr)).toBe(expected);
   });

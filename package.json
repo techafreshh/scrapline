@@ -15,6 +15,7 @@
     "lint": "eslint .",
     "test": "npm run build:client && npm run build && vitest run packages/core packages/client packages/env && node --test tests/skeleton.test.js tests/stage-dist.test.js tests/core-imports.test.js tests/perf-guardrail.test.js",
     "test:purity": "node --test tests/core-imports.test.js && npx vitest run packages/core/tests/decorations.test.ts",
+    "verify:presentation": "node scripts/verify-presentation.mjs",
     "bench:repro": "tsx tools/bench-repro.ts",
     "bench:throughput": "tsx tools/bench-throughput.ts",
     "feel-parity": "node tools/feel-parity.js"

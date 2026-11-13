@@ -29,7 +29,6 @@ let master: GainNode | null = null;
 let analyser: AnalyserNode | null = null;
 let noiseBuf: AudioBuffer | null = null;
 let jetGain: GainNode | null = null;
-let jetSource: AudioBufferSourceNode | null = null;
 let currentJetLevel = 0;
 let factoryOverride: (() => AudioContext | null) | null = null;
 let currentVolume = FALLBACK_VOLUME;
@@ -49,7 +48,6 @@ export function resetAudioForTests(): void {
   analyser = null;
   noiseBuf = null;
   jetGain = null;
-  jetSource = null;
   currentJetLevel = 0;
   factoryOverride = null;
   currentVolume = FALLBACK_VOLUME;
@@ -266,8 +264,8 @@ function startJetLoop(): void {
     } catch {
       // Minimal fakes without loop support still drone via the buffer.
     }
+    src.connect(gain);
     jetGain = gain;
-    jetSource = src;
     currentJetLevel = 0;
     try {
       src.start(0);
@@ -280,7 +278,6 @@ function startJetLoop(): void {
     }
   } catch {
     jetGain = null;
-    jetSource = null;
   }
 }
 

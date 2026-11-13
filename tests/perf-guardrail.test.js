@@ -84,10 +84,14 @@ test("loading screen ships in source and built HTML", () => {
     const html = fs.readFileSync(file, "utf8");
     assert.match(html, /id="loading"/, `${file} needs a #loading overlay`);
     assert.match(html, /Loading/, `${file} needs Loading progress text`);
+    assert.ok(
+      html.includes('<canvas id="game">'),
+      `${file} must ship the bare canvas tag`,
+    );
     assert.match(
       html,
-      /id="game"[^>]*visibility:\s*hidden/,
-      `${file} must hide the canvas until the chunk resolves`,
+      /#game\s*\{[^}]*visibility:\s*hidden/,
+      `${file} must hide the canvas via stylesheet until the chunk resolves`,
     );
   }
 });
@@ -180,7 +184,8 @@ test("GET / paints Loading before the canvas", async () => {
   assert.equal(root.status, 200);
   assert.match(root.text, /Loading/);
   assert.match(root.text, /id="loading"/);
-  assert.match(root.text, /id="game"[^>]*visibility:\s*hidden/);
+  assert.ok(root.text.includes('<canvas id="game">'), "page must ship the bare canvas tag");
+  assert.match(root.text, /#game\s*\{[^}]*visibility:\s*hidden/);
 });
 
 test("GET /assets/pixi-*.js serves the >200kB lazy chunk", async () => {

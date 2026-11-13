@@ -25,6 +25,22 @@ import {
   type Camera,
 } from "./camera";
 import {
+  BACKWALL_Z,
+  BOUNCE_PAD_H,
+  BOUNCE_Z,
+  HIGHLIGHT_PX,
+  ONEWAY_PLANK_H,
+  ONEWAY_Z,
+  SOLID_TILE_H,
+  SOLID_Z,
+  collectTileLayers,
+  resolveTileTheme,
+  type TileCell,
+  type TileLayers,
+} from "../view/tiles";
+import { setCurrentTheme } from "../view/theme";
+import type { TileTheme } from "../view/theme";
+import {
   clampRendererResolution,
 } from "../view/resize";
 import {
@@ -107,6 +123,10 @@ export interface TileMapLike extends MapLike {
   readonly widthTiles: number;
   readonly heightTiles: number;
   isSolidTile(tx: number, ty: number): boolean;
+  tileChar?(tx: number, ty: number): string;
+  isOneWayTile?(tx: number, ty: number): boolean;
+  isBounceTile?(tx: number, ty: number): boolean;
+  isBackwallTile?(tx: number, ty: number): boolean;
 }
 
 /** Minimal world-state shape (World.state compatible). */
@@ -363,21 +383,18 @@ export interface Burst {
   life: number;
 }
 
-/** Solid tile cell to paint. */
-interface TileCell {
-  tx: number;
-  ty: number;
-}
-
 /** Shared layer counts so Pixi and canvas2d report identically. */
-interface LayerCounts {
+interface LayerCounts extends TileLayers {
+  /** Alias of solids for legacy callers. */
   tiles: TileCell[];
-  tilesDrawn: number;
   entitiesDrawn: number;
 }
 
+/** Re-export tile z-order and size probes for harness convenience. */
+export { BACKWALL_Z, SOLID_Z, BOUNCE_Z, ONEWAY_Z, BOUNCE_PAD_H, ONEWAY_PLANK_H, SOLID_TILE_H, HIGHLIGHT_PX };
+
 /**
- * Cull solid tiles to the camera view and count drawable layers.
+ * Cull themed tiles to the camera view and count drawable layers.
  * Without a tile map (pre-match splash), the default arena's bottom
  * two rows read solid, mirroring World's defaultRows.
  */
@@ -394,26 +411,44 @@ function collectLayers(
     typeof (map as TileMapLike).isSolidTile === "function"
       ? (map as TileMapLike)
       : null;
-  const range = visibleTileRange(
+  if (tileMap === null) {
+    const fallbackSolidFrom = Math.ceil(frame.arena.height / TILE_SIZE) - 2;
+    const range = visibleTileRange(cam, canvasWidth, canvasHeight, frame.arena.width, frame.arena.height);
+    const tiles: TileCell[] = [];
+    for (let ty = range.y0; ty <= range.y1; ty += 1) {
+      for (let tx = range.x0; tx <= range.x1; tx += 1) {
+        if (ty >= fallbackSolidFrom) {
+          tiles.push({ tx, ty });
+        }
+      }
+    }
+    return {
+      tiles,
+      solids: tiles.slice(),
+      oneWays: [],
+      bounces: [],
+      backwalls: [],
+      tilesDrawn: tiles.length,
+      tileDrawCalls: tiles.length,
+      bouncePadCount: 0,
+      backwallCount: 0,
+      oneWayCount: 0,
+      entitiesDrawn: frame.players.length,
+    };
+  }
+  const collected = collectTileLayers(
+    tileMap,
     cam,
     canvasWidth,
     canvasHeight,
     frame.arena.width,
     frame.arena.height,
   );
-  const fallbackSolidFrom =
-    Math.ceil(frame.arena.height / TILE_SIZE) - 2;
-  const tiles: TileCell[] = [];
-  for (let ty = range.y0; ty <= range.y1; ty += 1) {
-    for (let tx = range.x0; tx <= range.x1; tx += 1) {
-      const solid =
-        tileMap !== null ? tileMap.isSolidTile(tx, ty) : ty >= fallbackSolidFrom;
-      if (solid) {
-        tiles.push({ tx, ty });
-      }
-    }
-  }
-  return { tiles, tilesDrawn: tiles.length, entitiesDrawn: frame.players.length };
+  return {
+    ...collected,
+    tiles: collected.solids,
+    entitiesDrawn: frame.players.length,
+  };
 }
 
 function playerColor(index: number, alive: boolean): number {
@@ -433,12 +468,139 @@ export function barrelCss(index: number): string {
   return index === 0 ? "#f8fafc" : "#ef4444";
 }
 
-function tileColor(tx: number, ty: number): number {
-  return (tx + ty) % 2 === 0 ? 0x16213b : 0x101a30;
+/** Paint one themed tile layer set in Pixi (backwalls first for z-order). */
+function paintTilesPixi(
+  graphics: {
+    rect(x: number, y: number, w: number, h: number): unknown;
+    fill(style: number | { color?: number; alpha?: number }): unknown;
+    moveTo(x: number, y: number): unknown;
+    lineTo(x: number, y: number): unknown;
+    stroke(style?: { width?: number; color?: number; alpha?: number; cap?: "butt" | "round" | "square" }): unknown;
+  },
+  px: (x: number) => number,
+  py: (y: number) => number,
+  tileSize: number,
+  scale: number,
+  layers: LayerCounts,
+  theme: TileTheme,
+): void {
+  // Backwall quads behind the playfield at 60% brightness (z 0).
+  for (const cell of layers.backwalls) {
+    graphics.rect(px(cell.tx * TILE_SIZE), py(cell.ty * TILE_SIZE), tileSize + 1, tileSize + 1);
+    graphics.fill(theme.backwallHex);
+  }
+  // Solid tiles: base + depth tint + edge shading + 2px top highlight.
+  const highlightH = HIGHLIGHT_PX * scale;
+  const edgeW = Math.max(1, 1 * scale);
+  const depthH = Math.max(1, 4 * scale);
+  for (const cell of layers.solids) {
+    const x = px(cell.tx * TILE_SIZE);
+    const y = py(cell.ty * TILE_SIZE);
+    graphics.rect(x, y, tileSize + 1, tileSize + 1);
+    graphics.fill(theme.baseHex);
+    graphics.rect(x, y + tileSize + 1 - depthH, tileSize + 1, depthH);
+    graphics.fill(theme.depthHex);
+    graphics.rect(x, y, edgeW, tileSize + 1);
+    graphics.fill(theme.edgeHex);
+    graphics.rect(x + tileSize + 1 - edgeW, y, edgeW, tileSize + 1);
+    graphics.fill(theme.edgeHex);
+    graphics.rect(x, y + tileSize + 1 - edgeW, tileSize + 1, edgeW);
+    graphics.fill(theme.edgeHex);
+    graphics.rect(x, y, tileSize + 1, highlightH);
+    graphics.fill(theme.highlightHex);
+  }
+  // One-way planks: thin 8px strips at the tile top.
+  const plankH = ONEWAY_PLANK_H * scale;
+  for (const cell of layers.oneWays) {
+    const x = px(cell.tx * TILE_SIZE);
+    const y = py(cell.ty * TILE_SIZE);
+    graphics.rect(x, y, tileSize + 1, plankH);
+    graphics.fill(theme.oneWayHex);
+    graphics.rect(x, y, tileSize + 1, highlightH);
+    graphics.fill(theme.highlightHex);
+    graphics.rect(x, y + plankH - edgeW, tileSize + 1, edgeW);
+    graphics.fill(theme.edgeHex);
+  }
+  // Bounce pads: striped 8px chevrons anchored at the tile bottom.
+  const padH = BOUNCE_PAD_H * scale;
+  const stripeW = Math.max(1, 1.5 * scale);
+  for (const cell of layers.bounces) {
+    const x = px(cell.tx * TILE_SIZE);
+    const y = py(cell.ty * TILE_SIZE);
+    const padY = y + tileSize + 1 - padH;
+    graphics.rect(x, padY, tileSize + 1, padH);
+    graphics.fill(theme.bounceHex);
+    for (let i = 0; i < 2; i += 1) {
+      const cy = padY + (padH * (i + 1)) / 3;
+      graphics.moveTo(x + 2, cy);
+      graphics.lineTo(x + tileSize / 2, cy - 2 * scale);
+      graphics.lineTo(x + tileSize - 1, cy);
+      graphics.stroke({ width: stripeW, color: theme.bounceStripeHex });
+    }
+  }
 }
 
-function tileCss(tx: number, ty: number): string {
-  return (tx + ty) % 2 === 0 ? "#16213b" : "#101a30";
+/** Paint one themed tile layer set on a 2D canvas (mirrors paintTilesPixi). */
+function paintTiles2D(
+  ctx: CanvasRenderingContext2D,
+  px: (x: number) => number,
+  py: (y: number) => number,
+  tileSize: number,
+  scale: number,
+  layers: LayerCounts,
+  theme: TileTheme,
+): void {
+  for (const cell of layers.backwalls) {
+    ctx.fillStyle = theme.backwall;
+    ctx.fillRect(px(cell.tx * TILE_SIZE), py(cell.ty * TILE_SIZE), tileSize + 1, tileSize + 1);
+  }
+  const highlightH = HIGHLIGHT_PX * scale;
+  const edgeW = Math.max(1, 1 * scale);
+  const depthH = Math.max(1, 4 * scale);
+  for (const cell of layers.solids) {
+    const x = px(cell.tx * TILE_SIZE);
+    const y = py(cell.ty * TILE_SIZE);
+    ctx.fillStyle = theme.base;
+    ctx.fillRect(x, y, tileSize + 1, tileSize + 1);
+    ctx.fillStyle = theme.depth;
+    ctx.fillRect(x, y + tileSize + 1 - depthH, tileSize + 1, depthH);
+    ctx.fillStyle = theme.edge;
+    ctx.fillRect(x, y, edgeW, tileSize + 1);
+    ctx.fillRect(x + tileSize + 1 - edgeW, y, edgeW, tileSize + 1);
+    ctx.fillRect(x, y + tileSize + 1 - edgeW, tileSize + 1, edgeW);
+    ctx.fillStyle = theme.highlight;
+    ctx.fillRect(x, y, tileSize + 1, highlightH);
+  }
+  const plankH = ONEWAY_PLANK_H * scale;
+  for (const cell of layers.oneWays) {
+    const x = px(cell.tx * TILE_SIZE);
+    const y = py(cell.ty * TILE_SIZE);
+    ctx.fillStyle = theme.oneWay;
+    ctx.fillRect(x, y, tileSize + 1, plankH);
+    ctx.fillStyle = theme.highlight;
+    ctx.fillRect(x, y, tileSize + 1, highlightH);
+    ctx.fillStyle = theme.edge;
+    ctx.fillRect(x, y + plankH - edgeW, tileSize + 1, edgeW);
+  }
+  const padH = BOUNCE_PAD_H * scale;
+  for (const cell of layers.bounces) {
+    const x = px(cell.tx * TILE_SIZE);
+    const y = py(cell.ty * TILE_SIZE);
+    const padY = y + tileSize + 1 - padH;
+    ctx.fillStyle = theme.bounce;
+    ctx.fillRect(x, padY, tileSize + 1, padH);
+    ctx.strokeStyle = theme.bounceStripe;
+    ctx.lineWidth = Math.max(1, 1.5 * scale);
+    ctx.lineCap = "round";
+    for (let i = 0; i < 2; i += 1) {
+      const cy = padY + (padH * (i + 1)) / 3;
+      ctx.beginPath();
+      ctx.moveTo(x + 2, cy);
+      ctx.lineTo(x + tileSize / 2, cy - 2 * scale);
+      ctx.lineTo(x + tileSize - 1, cy);
+      ctx.stroke();
+    }
+  }
 }
 
 function flashColor(kind: Flash["kind"]): number {
@@ -494,20 +656,19 @@ function paintFramePixi(
   victimFlash: ReadonlyMap<number, number>,
   canvasWidth: number,
   canvasHeight: number,
+  theme?: TileTheme,
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
   const tileSize = TILE_SIZE * cam.scale;
+  const activeTheme = theme ?? resolveTileTheme();
   graphics.clear();
   graphics.rect(0, 0, canvasWidth, canvasHeight);
   graphics.fill(0x05070f);
   const arena = projectCamera(cam, canvasWidth, canvasHeight, 0, 0);
   graphics.rect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
   graphics.fill(0x0b1020);
-  for (const cell of layers.tiles) {
-    graphics.rect(px(cell.tx * TILE_SIZE), py(cell.ty * TILE_SIZE), tileSize + 1, tileSize + 1);
-    graphics.fill(tileColor(cell.tx, cell.ty));
-  }
+  paintTilesPixi(graphics, px, py, tileSize, cam.scale, layers, activeTheme);
   for (const prop of frame.props) {
     if (!prop.alive) {
       continue;
@@ -799,19 +960,18 @@ function paintFrame2D(
   canvasWidth: number,
   canvasHeight: number,
   anims: readonly AnimPose[],
+  theme?: TileTheme,
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
   const tileSize = TILE_SIZE * cam.scale;
+  const activeTheme = theme ?? resolveTileTheme();
   ctx.fillStyle = "#05070f";
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
   const arena = projectCamera(cam, canvasWidth, canvasHeight, 0, 0);
   ctx.fillStyle = "#0b1020";
   ctx.fillRect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
-  for (const cell of layers.tiles) {
-    ctx.fillStyle = tileCss(cell.tx, cell.ty);
-    ctx.fillRect(px(cell.tx * TILE_SIZE), py(cell.ty * TILE_SIZE), tileSize + 1, tileSize + 1);
-  }
+  paintTiles2D(ctx, px, py, tileSize, cam.scale, layers, activeTheme);
   for (const prop of frame.props) {
     if (!prop.alive) {
       continue;
@@ -1208,7 +1368,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     shots: ShotDetail[] | undefined,
     damages: DamageDetail[] | undefined,
     kills: KillDetail[] | undefined,
-  ): { frame: Frame; cam: Camera; layers: LayerCounts; anims: AnimPose[] } {
+  ): { frame: Frame; cam: Camera; layers: LayerCounts; anims: AnimPose[]; theme: TileTheme; themeName: string } {
     const frame = describeFrame(state, map ?? null);
     const cam = camera ?? createCamera(frame.arena.width, frame.arena.height);
     const now = performance.now();
@@ -1273,10 +1433,50 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     ageFx(tracers, muzzles);
     ageHitFx(sparks, bursts, victimFlash);
     const layers = collectLayers(frame, map ?? null, cam, logicalW, logicalH);
+    const theme = resolveTileTheme();
+    const themeName = theme.name;
+    try {
+      setCurrentTheme(themeName);
+    } catch {
+      // Headless: module theme stays at the resolved value regardless.
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const game = (window as unknown as Record<string, unknown>)["__game"] as
+          | Record<string, unknown>
+          | undefined;
+        if (game !== undefined && game !== null && typeof game === "object") {
+          Object.assign(game, {
+            theme: themeName,
+            tileDrawCalls: layers.tileDrawCalls,
+            tilesDrawn: layers.tilesDrawn,
+            bouncePadCount: layers.bouncePadCount,
+            backwallCount: layers.backwallCount,
+            oneWayCount: layers.oneWayCount,
+            backwallZ: BACKWALL_Z,
+            solidZ: SOLID_Z,
+            bounceZ: BOUNCE_Z,
+            oneWayZ: ONEWAY_Z,
+            bounceTileH: BOUNCE_PAD_H,
+            oneWayTileH: ONEWAY_PLANK_H,
+            solidTileH: SOLID_TILE_H,
+          });
+        }
+      } catch {
+        // Probe mirror is best-effort under shorn harnesses.
+      }
+    }
     if (typeof window !== "undefined") {
       window.__scraplineDebug = {
         entitiesDrawn: layers.entitiesDrawn,
         tilesDrawn: layers.tilesDrawn,
+        tileDrawCalls: layers.tileDrawCalls,
+        bouncePadCount: layers.bouncePadCount,
+        backwallCount: layers.backwallCount,
+        oneWayCount: layers.oneWayCount,
+        backwallZ: BACKWALL_Z,
+        solidZ: SOLID_Z,
+        theme: themeName,
         cameraX: cam.x,
         cameraY: cam.y,
         fps: Math.round(fpsEma * 10) / 10,
@@ -1341,7 +1541,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         shakeY: cam.shakeY ?? 0,
       };
     }
-    return { frame, cam, layers, anims };
+    return { frame, cam, layers, anims, theme, themeName };
   }
 
   try {
@@ -1392,7 +1592,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         damages?: DamageDetail[],
         kills?: KillDetail[],
       ): void {
-        const { frame, cam, layers, anims } = trackDraw(
+        const { frame, cam, layers, anims, theme } = trackDraw(
           state,
           map,
           camera,
@@ -1427,6 +1627,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           victimFlash,
           logicalW,
           logicalH,
+          theme,
         );
       },
     };
@@ -1450,7 +1651,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         damages?: DamageDetail[],
         kills?: KillDetail[],
       ): void {
-        const { frame, cam, layers, anims } = trackDraw(
+        const { frame, cam, layers, anims, theme } = trackDraw(
           state,
           map,
           camera,
@@ -1463,7 +1664,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         // composed geometry is drawn immediately in paintFrame2D.
         ensurePlayerNodes(playerNodes, null, null, frame.players.length);
         publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles, anims);
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH, anims);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH, anims, theme);
       },
     };
   }

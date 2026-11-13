@@ -59,14 +59,14 @@ describe("map files", () => {
     expect(mapNames.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("every arena is a 40x20 grid using only .#SPHGB", () => {
+  it("every arena is a 40x20 grid using only .#SPHGB=^:", () => {
     expect(mapNames.length).toBeGreaterThan(0);
     for (const name of mapNames) {
       const rows = rowsOf(name);
       expect(rows.length).toBe(20);
       for (const row of rows) {
         expect(row.length).toBe(40);
-        expect(row).toMatch(/^[.#SPHGB]+$/);
+        expect(row).toMatch(/^[.#SPHGB=^:]+$/);
       }
     }
   });

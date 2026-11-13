@@ -18,6 +18,7 @@ import {
 import type { DamageDetail, KillDetail, ShotDetail } from "../../core/src/events";
 import { BotBrain } from "../../core/src/bots/brain";
 import { mapRowsFor } from "./maps";
+import { setCurrentTheme } from "./view/theme";
 import {
   DEFAULT_SETUP,
   bindSetup,
@@ -240,6 +241,7 @@ window.__camera = null;
 function seedGame(
   state: "menu" | "playing",
   playerCount: number,
+  theme: string = "kilima",
 ): typeof window.__game {
   return {
     state,
@@ -269,6 +271,19 @@ function seedGame(
     isHurtFlash: false,
     enemyCosmetics: [],
     playerCosmetics: { ...DEFAULT_COSMETICS },
+    theme,
+    tileDrawCalls: 0,
+    tilesDrawn: 0,
+    bouncePadCount: 0,
+    backwallCount: 0,
+    oneWayCount: 0,
+    backwallZ: 0,
+    solidZ: 1,
+    bounceZ: 2,
+    oneWayZ: 2,
+    bounceTileH: 8,
+    oneWayTileH: 8,
+    solidTileH: 32,
   };
 }
 
@@ -795,7 +810,12 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
     tier: parsed.tier,
     map: parsed.map,
   };
-  window.__game = seedGame("playing", parsed.bots + 1);
+  try {
+    setCurrentTheme(parsed.map);
+  } catch {
+    // Headless/shorn theme store: the renderer falls back to __game.theme.
+  }
+  window.__game = seedGame("playing", parsed.bots + 1, parsed.map);
   try {
     const query = setupSearchParams(parsed);
     window.history.replaceState(null, "", `${window.location.pathname}?${query}`);
@@ -1004,8 +1024,45 @@ applyResponsiveSize();
 refreshAimOrigin();
 refreshInput();
 
+/**
+ * Auto-join setup: the walking-skeleton 1-bot kilima default, overridden
+ * by a valid `?map=` (`?bots=&tier=&map=`) query so harnesses can load an
+ * arena directly via URL. Invalid values fall back per field.
+ */
+function autoJoinSetup(): SetupConfig {
+  const fallback: SetupConfig = { bots: 1, tier: "normal", map: "kilima" };
+  try {
+    const search =
+      typeof window !== "undefined" ? window.location.search : "";
+    if (typeof search !== "string" || search.length < 2) {
+      return fallback;
+    }
+    const query = new URLSearchParams(search);
+    const rawMap = query.get("map");
+    const rawBots = query.get("bots");
+    const rawTier = query.get("tier");
+    if (rawMap === null && rawBots === null && rawTier === null) {
+      return fallback;
+    }
+    const parsed = parseSetup({
+      bots: rawBots === null ? 1 : Number(rawBots),
+      tier: rawTier,
+      map: rawMap,
+    });
+    if (rawBots === null) {
+      parsed.bots = 1;
+    }
+    if (rawTier === null) {
+      parsed.tier = "normal";
+    }
+    return parsed;
+  } catch {
+    return fallback;
+  }
+}
+
 // Walking skeleton: drop straight into a local 1-bot match on load so a
 // clean clone is playable (and probeable via `window.__game`) with no
 // clicks. The setup screen keeps its own persisted defaults; this
 // auto-join never writes them (`persist: false`).
-startMatch({ bots: 1, tier: "normal", map: "kilima" }, { persist: false });
+startMatch(autoJoinSetup(), { persist: false });

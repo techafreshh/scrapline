@@ -4,6 +4,12 @@
 // stub branch while the live Pixi backend gets real Containers with one
 // Graphics child per named part.
 import {
+  DEAD_LIFT_PX,
+  DEAD_SPLAY_PX,
+  TUCK_IN_PX,
+  TUCK_UP_PX,
+} from "./anim";
+import {
   ARM_PIVOT,
   CHARACTER_H,
   CHARACTER_W,
@@ -179,12 +185,23 @@ export interface SyncPose {
   squash: number;
   /** Hidden while beyond the live player count. */
   visible: boolean;
+  /** Signed leg offset in local px (legL -swing, legR +swing). */
+  legSwing?: number;
+  /** Tucked legs while jetting (both up and toward center). */
+  tuck?: boolean;
+  /** White hurt flash (overrides the team/victim tint). */
+  hurtFlash?: boolean;
+  /** Burst pose while dead (legs splayed outward). */
+  deadPose?: boolean;
 }
 
 /**
  * Pose one node for the frame: position/scale the container, rotate only
  * the arm children toward aim (the body stays upright), tint the
- * white-baked parts, and apply spawn-blink alpha. Stubs record nothing
+ * white-baked parts, and apply spawn-blink alpha. Run-cycle leg swing
+ * offsets the leg children in opposition, jetting tucks both legs up and
+ * toward the center, hurt flashes every non-visor child white, and death
+ * splays the legs into the burst pose. Stubs record nothing
  * pose-specific (their shape is the probe contract).
  */
 export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
@@ -196,14 +213,28 @@ export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
   container.scale.set(pose.scale, pose.scale * pose.squash);
   container.alpha = pose.alpha;
   container.visible = pose.visible;
+  const swing = pose.legSwing ?? 0;
+  const tuck = pose.tuck === true;
+  const dead = pose.deadPose === true;
+  const tint = pose.hurtFlash === true ? 0xffffff : pose.colorHex;
   for (const child of container.children) {
-    if (child.label === "armL" || child.label === "armR") {
+    if (child.label === "legL" || child.label === "legR") {
+      const side = child.label === "legL" ? -1 : 1;
+      if (dead) {
+        child.position.set(side * DEAD_SPLAY_PX, -DEAD_LIFT_PX);
+      } else if (tuck) {
+        child.position.set(side * -TUCK_IN_PX, -TUCK_UP_PX);
+      } else {
+        child.position.set(0, side * swing);
+      }
+      child.tint = tint;
+    } else if (child.label === "armL" || child.label === "armR") {
       child.rotation = pose.aim;
-      child.tint = pose.colorHex;
+      child.tint = tint;
     } else if (child.label === "visor") {
       child.tint = 0xffffff;
     } else {
-      child.tint = pose.colorHex;
+      child.tint = tint;
     }
   }
 }
@@ -216,12 +247,21 @@ export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
  * muzzle and weaponTip are the same projected screen point, so the
  * tracer-origin coincidence probe reads 0 by construction.
  */
+/** Animation probe values for the local player (player 0 globals). */
+export interface AnimProbes {
+  legPhase: number;
+  isFlameVisible: boolean;
+  playerHeightScale: number;
+  isHurtFlash: boolean;
+}
+
 export function publishGameProbes(
   nodes: readonly PlayerNode[],
   indices: readonly number[],
   colors: readonly { color: number; colorCss: string }[],
   muzzle: { x: number; y: number },
   weaponTip: { x: number; y: number },
+  anim?: AnimProbes,
 ): void {
   if (typeof window === "undefined") {
     return;
@@ -259,6 +299,11 @@ export function publishGameProbes(
   });
   Object.assign(game, {
     players,
+    legPhase: anim?.legPhase ?? 0,
+    isFlameVisible: anim?.isFlameVisible ?? false,
+    isFlickerRectVisible: false,
+    playerHeightScale: anim?.playerHeightScale ?? 1,
+    isHurtFlash: anim?.isHurtFlash ?? false,
     spritePartCount: PART_NAMES.length,
     localPlayerColor: LOCAL_CSS,
     firstEnemyColor: teamCss(1),

@@ -257,6 +257,11 @@ function seedGame(
     muzzleY: 0,
     weaponTipX: 0,
     weaponTipY: 0,
+    legPhase: 0,
+    isFlameVisible: false,
+    isFlickerRectVisible: false,
+    playerHeightScale: 1,
+    isHurtFlash: false,
   };
 }
 

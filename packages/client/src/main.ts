@@ -79,6 +79,13 @@ import {
   type Camera,
 } from "./renderer/camera";
 import {
+  CHARACTER_H,
+  CHARACTER_W,
+  ENEMY_A_CSS,
+  LOCAL_CSS,
+  PART_NAMES,
+} from "./view/character";
+import {
   buildHud,
   endStandingsRows,
   flashCrosshair,
@@ -219,7 +226,41 @@ window.__scraplineTick = 0;
 window.__scraplineWorld = null;
 window.__matchConfig = null;
 window.__camera = null;
-window.__game = { state: "menu", playerCount: 0, tick: 0, rendererResolution: currentRendererResolution() };
+/**
+ * Fresh window.__game value with composed-sprite probe seeds. The
+ * renderer merges live players/colors/bounds/muzzle over these seeds
+ * every draw (Object.assign, never replaced), so the seeds only show
+ * before the first draw of a match.
+ */
+function seedGame(
+  state: "menu" | "playing",
+  playerCount: number,
+): typeof window.__game {
+  return {
+    state,
+    playerCount,
+    tick: 0,
+    rendererResolution: currentRendererResolution(),
+    players: [],
+    spritePartCount: PART_NAMES.length,
+    localPlayerColor: LOCAL_CSS,
+    firstEnemyColor: ENEMY_A_CSS,
+    playerBounds: {
+      w: CHARACTER_W,
+      h: CHARACTER_H,
+      width: CHARACTER_W,
+      height: CHARACTER_H,
+    },
+    muzzle: { x: 0, y: 0 },
+    weaponTip: { x: 0, y: 0 },
+    muzzleX: 0,
+    muzzleY: 0,
+    weaponTipX: 0,
+    weaponTipY: 0,
+  };
+}
+
+window.__game = seedGame("menu", 0);
 refreshInput();
 
 /** Live overlay handles; rebuilt idempotently on every match start. */
@@ -615,7 +656,9 @@ function frame(now: number): void {
     });
   }
   window.__scraplineTick = world.tick;
-  window.__game.tick = world.tick;
+  // Merge, never replace: the renderer-published probe fields
+  // (players, colors, bounds, muzzle) share this same object.
+  Object.assign(window.__game, { tick: world.tick });
   if (running) {
     rafId = requestAnimationFrame(frame);
   }
@@ -740,7 +783,7 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
     tier: parsed.tier,
     map: parsed.map,
   };
-  window.__game = { state: "playing", playerCount: parsed.bots + 1, tick: 0, rendererResolution: currentRendererResolution() };
+  window.__game = seedGame("playing", parsed.bots + 1);
   try {
     const query = setupSearchParams(parsed);
     window.history.replaceState(null, "", `${window.location.pathname}?${query}`);

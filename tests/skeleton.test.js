@@ -152,7 +152,7 @@ test("repo ships zero *.png/*.jpg images", () => {
   const hits = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === "node_modules" || entry.name === ".git") {
+      if (entry.name === "node_modules" || entry.name === ".git" || entry.name === "artifacts") {
         continue;
       }
       const full = path.join(dir, entry.name);

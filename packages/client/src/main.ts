@@ -156,6 +156,9 @@ function eventKey(e: KeyboardEvent): string {
   return e.key;
 }
 
+/** Fullscreen toggle shared by the F key; wired once bindSettings runs below. */
+let fullscreenToggle: (() => void) | null = null;
+
 window.addEventListener("keydown", (e: KeyboardEvent) => {
   const id = eventKey(e);
   if (GAME_KEYS.has(id) || id === " ") {
@@ -167,6 +170,13 @@ window.addEventListener("keydown", (e: KeyboardEvent) => {
     if (camera !== null) {
       cycleZoom(camera);
     }
+  }
+  // Fullscreen toggle: F shares the Settings button path (persisted
+  // intent first, best-effort Fullscreen API, headless-safe). Repeats
+  // ignored; the gesture also resumes the AudioContext.
+  if ((id === "KeyF" || id === "f" || id === "F") && !e.repeat) {
+    ensureAudioOnGesture();
+    fullscreenToggle?.();
   }
   applyKeyEvent(keys, id, true);
   refreshInput();
@@ -817,6 +827,10 @@ const setupBinder = bindSetup(document, storage, (config: SetupConfig) => {
   startMatch(config);
 });
 const settingsBinder = bindSettings(document, storage);
+// The F key and the Settings button share one persisted toggle path.
+fullscreenToggle = () => {
+  void settingsBinder.toggleFullscreen();
+};
 // The settings slider stays the single volume surface: seed the engine
 // gain from the persisted volume and track the slider live (0 mutes).
 setVolume(settingsBinder.volume);

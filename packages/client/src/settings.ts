@@ -9,6 +9,9 @@ import type { SetupStorage } from "./setup";
 /** localStorage key for the persisted master volume. */
 export const SETTINGS_VOLUME_KEY = "scrapline.settings.volume";
 
+/** localStorage key for the persisted fullscreen intent ("1" = ON). */
+export const FULLSCREEN_KEY = "scrapline.fullscreen";
+
 /** First-visit (and corrupt-storage) default master volume. */
 export const DEFAULT_VOLUME = 0.8;
 
@@ -38,6 +41,25 @@ export function parseVolume(value: unknown): number {
     return 1;
   }
   return n;
+}
+
+/**
+ * Tolerantly normalize an unknown value into a fullscreen intent:
+ * "1"/"true"/"on" (any case, trimmed) plus 1/true mean ON, everything
+ * else (missing, "0", corrupt) means OFF.
+ */
+export function parseFullscreen(value: unknown): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value === 1;
+  }
+  if (typeof value === "string") {
+    const text = value.trim().toLowerCase();
+    return text === "1" || text === "true" || text === "on";
+  }
+  return false;
 }
 
 /** Null-safe read: storage errors (or absence) yield null. */
@@ -91,19 +113,59 @@ export function saveVolume(
   }
 }
 
+/**
+ * Load the persisted fullscreen intent; missing, corrupt, or unreadable
+ * values fall back to OFF (false). Never auto-enters fullscreen: the
+ * intent only pre-renders the button label until a user gesture toggles.
+ */
+export function loadFullscreen(
+  storage: SetupStorage | null | undefined,
+): boolean {
+  const raw = safeGet(storage, FULLSCREEN_KEY);
+  if (raw === null) {
+    return false;
+  }
+  return parseFullscreen(raw);
+}
+
+/** Persist the fullscreen intent as "1"/"0"; storage errors are swallowed. */
+export function saveFullscreen(
+  storage: SetupStorage | null | undefined,
+  on: boolean,
+): void {
+  if (storage === null || storage === undefined) {
+    return;
+  }
+  try {
+    storage.setItem(FULLSCREEN_KEY, on ? "1" : "0");
+  } catch {
+    // Private-mode storage: the toggle still works, just not persisted.
+  }
+}
+
 /** Live binder state returned by bindSettings. */
 export interface SettingsBinder {
   /** Current master volume (updated by the slider). */
   volume: number;
-  /** Reveal the overlay, prefilling the slider from storage. */
+  /** Current fullscreen intent (updated by the toggle). */
+  fullscreen: boolean;
+  /** Reveal the overlay, prefilling the slider and toggle from storage. */
   show(): void;
   /** Hide the overlay. */
   hide(): void;
+  /** Flip the persisted fullscreen intent (shared button + F-key path). */
+  toggleFullscreen(): Promise<boolean>;
 }
 
 /** Minimal slider surface; the real HTMLInputElement satisfies it. */
 interface SliderLike {
   value: string;
+  addEventListener(type: string, listener: () => void): void;
+}
+
+/** Minimal button surface; the real HTMLButtonElement satisfies it. */
+interface ButtonLike {
+  textContent: string | null;
   addEventListener(type: string, listener: () => void): void;
 }
 
@@ -123,6 +185,27 @@ function asSlider(el: unknown): SliderLike | null {
     return null;
   }
   return candidate as SliderLike;
+}
+
+/** Narrow an unknown handle to the button surface; else null (no-op). */
+function asButton(el: unknown): ButtonLike | null {
+  if (typeof el !== "object" || el === null) {
+    return null;
+  }
+  const candidate = el as {
+    textContent?: unknown;
+    addEventListener?: unknown;
+  };
+  if (
+    typeof candidate.textContent !== "string" &&
+    candidate.textContent !== null
+  ) {
+    return null;
+  }
+  if (typeof candidate.addEventListener !== "function") {
+    return null;
+  }
+  return candidate as ButtonLike;
 }
 
 /** Assign display on an unknown handle when it carries a style bag. */
@@ -145,6 +228,77 @@ function render(doc: Document, volume: number): void {
   }
 }
 
+/** Render the fullscreen button label; missing button is a no-op. */
+function renderFullscreen(doc: Document, on: boolean): void {
+  const button = asButton(doc.getElementById("btn-fullscreen"));
+  if (button !== null) {
+    button.textContent = on ? "Fullscreen: ON" : "Fullscreen: OFF";
+  }
+}
+
+/** Swallow a Fullscreen API result that may be a promise (or thenable). */
+function swallowFullscreenResult(result: unknown): void {
+  if (result === null || result === undefined) {
+    return;
+  }
+  try {
+    if (result instanceof Promise) {
+      result.catch(() => {
+        // Headless denials: intent is already persisted + rendered.
+      });
+      return;
+    }
+    const thenable = result as { catch?: unknown };
+    if (typeof thenable.catch === "function") {
+      (thenable.catch as (onRejected: () => void) => void).call(
+        result,
+        () => {},
+      );
+    }
+  } catch {
+    // Non-promise shims: nothing to settle.
+  }
+}
+
+/**
+ * Shared fullscreen toggle: flip the persisted intent first (so headless
+ * denials still persist + render), re-render the button label from the
+ * intent immediately, then best-effort enter/exit fullscreen on
+ * documentElement with all rejections swallowed. Resolves the new intent.
+ */
+export function toggleFullscreen(
+  doc: Document,
+  storage: SetupStorage | null | undefined,
+): Promise<boolean> {
+  const next = !loadFullscreen(storage);
+  saveFullscreen(storage, next);
+  renderFullscreen(doc, next);
+  try {
+    const surface = doc as unknown as {
+      documentElement?: {
+        requestFullscreen?: () => unknown;
+      };
+      exitFullscreen?: () => unknown;
+    };
+    if (next) {
+      const request = surface.documentElement?.requestFullscreen;
+      if (typeof request === "function") {
+        swallowFullscreenResult(
+          request.call(surface.documentElement as Element),
+        );
+      }
+    } else {
+      const exit = surface.exitFullscreen;
+      if (typeof exit === "function") {
+        swallowFullscreenResult(exit.call(doc as object));
+      }
+    }
+  } catch {
+    // Fullscreen API absent or throwing synchronously: intent stands.
+  }
+  return Promise.resolve(next);
+}
+
 /**
  * Wire the settings overlay: prefill the volume slider from storage,
  * persist every slider input, expose show/hide for the overlay. Missing
@@ -156,13 +310,23 @@ export function bindSettings(
 ): SettingsBinder {
   const binder: SettingsBinder = {
     volume: loadVolume(storage),
+    fullscreen: loadFullscreen(storage),
     show(): void {
       binder.volume = loadVolume(storage);
       render(doc, binder.volume);
+      binder.fullscreen = loadFullscreen(storage);
+      renderFullscreen(doc, binder.fullscreen);
       setDisplay(doc.getElementById("settings"), "");
     },
     hide(): void {
       setDisplay(doc.getElementById("settings"), "none");
+    },
+    toggleFullscreen(): Promise<boolean> {
+      const result = toggleFullscreen(doc, storage);
+      return result.then((next) => {
+        binder.fullscreen = next;
+        return next;
+      });
     },
   };
 
@@ -175,6 +339,47 @@ export function bindSettings(
     });
   }
 
+  const fullscreenButton = asButton(doc.getElementById("btn-fullscreen"));
+  if (fullscreenButton !== null) {
+    fullscreenButton.addEventListener("click", () => {
+      void binder.toggleFullscreen();
+    });
+  }
+
+  // Live-state sync: when real fullscreen state changes, the label
+  // follows document.fullscreenElement. Fake docs without the property
+  // keep the persisted intent (headless denials already render it).
+  try {
+    const addListener = (
+      doc as unknown as { addEventListener?: unknown }
+    ).addEventListener;
+    if (typeof addListener === "function") {
+      (
+        doc as unknown as {
+          addEventListener(type: string, listener: () => void): void;
+        }
+      ).addEventListener("fullscreenchange", () => {
+        let current: unknown;
+        try {
+          current = (doc as unknown as Record<string, unknown>)[
+            "fullscreenElement"
+          ];
+        } catch {
+          return;
+        }
+        if (current === undefined) {
+          return;
+        }
+        const on = current !== null;
+        binder.fullscreen = on;
+        renderFullscreen(doc, on);
+      });
+    }
+  } catch {
+    // Docs without addEventListener: the intent render stands.
+  }
+
   render(doc, binder.volume);
+  renderFullscreen(doc, binder.fullscreen);
   return binder;
 }

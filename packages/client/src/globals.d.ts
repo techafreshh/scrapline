@@ -48,6 +48,10 @@ declare global {
       playerHeightScale: number;
       /** True while inside the 150ms white hurt-flash window. */
       isHurtFlash: boolean;
+      /** Seeded per-bot cosmetics (helmet/visor/palette, length = bot count). */
+      enemyCosmetics?: { helmet: string; visor: string; palette: string }[];
+      /** Local player's persisted cosmetic pick. */
+      playerCosmetics?: { helmet: string; visor: string; palette: string };
     };
     __camera: {
       x: number;

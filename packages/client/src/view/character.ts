@@ -147,6 +147,40 @@ export function characterParts(crouch: boolean): CharacterPart[] {
   });
 }
 
+/** Cosmetic pick shape for pre-match identity (helmet/visor/palette). */
+export interface CosmeticPick {
+  helmet: string;
+  visor: string;
+  palette: string;
+}
+
+/**
+ * Diversity key for a cosmetic pick: `helmet+visor`. Enemy slots
+ * compare on this key so bots stop looking identical.
+ */
+export function cosmeticKey(pick: { helmet: string; visor: string }): string {
+  return `${pick.helmet}+${pick.visor}`;
+}
+
+/**
+ * Convert a #RRGGBB CSS color to a Pixi hex int; corrupt input falls
+ * back to the local cyan so accents never poison a tint.
+ */
+export function accentHex(css: unknown): number {
+  if (typeof css === "string") {
+    const full = css.trim().match(/^#([0-9a-fA-F]{6})$/);
+    if (full?.[1] !== undefined) {
+      return Number.parseInt(full[1], 16);
+    }
+    const short = css.trim().match(/^#([0-9a-fA-F]{3})$/);
+    if (short?.[1] !== undefined) {
+      const expanded = short[1].split("").map((c) => c + c).join("");
+      return Number.parseInt(expanded, 16);
+    }
+  }
+  return LOCAL_HEX;
+}
+
 /** Team Pixi-hex for a player index: 0 local, odd enemy A, even enemy B. */
 export function teamColor(index: number): number {
   if (index === 0) {

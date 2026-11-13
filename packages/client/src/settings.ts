@@ -346,8 +346,9 @@ export function bindSettings(
     });
   }
 
-  // Live-state sync: when real fullscreen state changes, the label
-  // follows document.fullscreenElement. Fake docs without the property
+  // Live-state sync: when real fullscreen state changes (including an
+  // Esc-driven exit), persist it to storage so show()'s loadFullscreen
+  // prefill cannot resurrect a stale ON. Fake docs without the property
   // keep the persisted intent (headless denials already render it).
   try {
     const addListener = (
@@ -371,6 +372,7 @@ export function bindSettings(
           return;
         }
         const on = current !== null;
+        saveFullscreen(storage, on);
         binder.fullscreen = on;
         renderFullscreen(doc, on);
       });

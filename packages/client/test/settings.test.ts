@@ -5,11 +5,16 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_VOLUME,
+  FULLSCREEN_KEY,
   SETTINGS_VOLUME_KEY,
   bindSettings,
+  loadFullscreen,
   loadVolume,
+  parseFullscreen,
   parseVolume,
+  saveFullscreen,
   saveVolume,
+  toggleFullscreen,
 } from "../src/settings";
 import type { SetupStorage } from "../src/setup";
 
@@ -159,5 +164,228 @@ describe("bindSettings", () => {
     expect(overlay.style.display).toBe("");
     binder.hide();
     expect(overlay.style.display).toBe("none");
+  });
+});
+
+/** Minimal button stand-in carrying textContent and click listeners. */
+function fakeButton(initial: string): {
+  textContent: string | null;
+  listeners: Map<string, Array<() => void>>;
+  addEventListener(type: string, listener: () => void): void;
+  fire(type: string): void;
+} {
+  const listeners = new Map<string, Array<() => void>>();
+  return {
+    textContent: initial,
+    listeners,
+    addEventListener(type: string, listener: () => void): void {
+      const list = listeners.get(type) ?? [];
+      list.push(listener);
+      listeners.set(type, list);
+    },
+    fire(type: string): void {
+      for (const listener of listeners.get(type) ?? []) {
+        listener();
+      }
+    },
+  };
+}
+
+/** Document stand-in with button lookup plus doc-level listeners. */
+function fakeDocFull(
+  elements: Record<string, unknown>,
+  extras?: Record<string, unknown>,
+): Document & { fire(type: string): void } {
+  const listeners = new Map<string, Array<() => void>>();
+  const doc = {
+    getElementById: (id: string): unknown =>
+      id in elements ? elements[id] : null,
+    addEventListener(type: string, listener: () => void): void {
+      const list = listeners.get(type) ?? [];
+      list.push(listener);
+      listeners.set(type, list);
+    },
+    fire(type: string): void {
+      for (const listener of listeners.get(type) ?? []) {
+        listener();
+      }
+    },
+    ...(extras ?? {}),
+  };
+  return doc as unknown as Document & { fire(type: string): void };
+}
+
+describe("parseFullscreen", () => {
+  it("treats 1/true spellings as ON and everything else as OFF", () => {
+    expect(parseFullscreen("1")).toBe(true);
+    expect(parseFullscreen("true")).toBe(true);
+    expect(parseFullscreen("TRUE")).toBe(true);
+    expect(parseFullscreen("on")).toBe(true);
+    expect(parseFullscreen(" ON ")).toBe(true);
+    expect(parseFullscreen(1)).toBe(true);
+    expect(parseFullscreen(true)).toBe(true);
+    expect(parseFullscreen("0")).toBe(false);
+    expect(parseFullscreen("false")).toBe(false);
+    expect(parseFullscreen("off")).toBe(false);
+    expect(parseFullscreen("")).toBe(false);
+    expect(parseFullscreen("banana")).toBe(false);
+    expect(parseFullscreen(undefined)).toBe(false);
+    expect(parseFullscreen(null)).toBe(false);
+    expect(parseFullscreen(0)).toBe(false);
+    expect(parseFullscreen(false)).toBe(false);
+    expect(parseFullscreen({})).toBe(false);
+  });
+});
+
+describe("loadFullscreen/saveFullscreen", () => {
+  it("defaults to OFF when storage is empty or absent", () => {
+    expect(loadFullscreen(fakeStorage())).toBe(false);
+    expect(loadFullscreen(null)).toBe(false);
+    expect(loadFullscreen(undefined)).toBe(false);
+  });
+
+  it("round-trips ON as \"1\" and OFF as \"0\"", () => {
+    const storage = fakeStorage();
+    saveFullscreen(storage, true);
+    expect(storage.getItem(FULLSCREEN_KEY)).toBe("1");
+    expect(loadFullscreen(storage)).toBe(true);
+    saveFullscreen(storage, false);
+    expect(storage.getItem(FULLSCREEN_KEY)).toBe("0");
+    expect(loadFullscreen(storage)).toBe(false);
+  });
+
+  it("falls back to OFF on corrupt stored values", () => {
+    expect(loadFullscreen(fakeStorage({ [FULLSCREEN_KEY]: "loud" }))).toBe(
+      false,
+    );
+    expect(loadFullscreen(fakeStorage({ [FULLSCREEN_KEY]: "" }))).toBe(false);
+  });
+
+  it("is a no-op when storage is absent", () => {
+    expect(() => saveFullscreen(null, true)).not.toThrow();
+    expect(() => saveFullscreen(undefined, true)).not.toThrow();
+  });
+});
+
+describe("fullscreen binder", () => {
+  it("prefills the button ON when the stored intent is \"1\"", () => {
+    const storage = fakeStorage({ [FULLSCREEN_KEY]: "1" });
+    const button = fakeButton("Fullscreen: OFF");
+    const binder = bindSettings(
+      fakeDocFull({ "btn-fullscreen": button }),
+      storage,
+    );
+    expect(binder.fullscreen).toBe(true);
+    expect(button.textContent).toBe("Fullscreen: ON");
+  });
+
+  it("renders OFF by default and re-prefills on show()", () => {
+    const storage = fakeStorage();
+    const button = fakeButton("Fullscreen: OFF");
+    const overlay = { style: { display: "none" } };
+    const binder = bindSettings(
+      fakeDocFull({ "btn-fullscreen": button, settings: overlay }),
+      storage,
+    );
+    expect(button.textContent).toBe("Fullscreen: OFF");
+    storage.setItem(FULLSCREEN_KEY, "1");
+    binder.show();
+    expect(binder.fullscreen).toBe(true);
+    expect(button.textContent).toBe("Fullscreen: ON");
+    binder.hide();
+    expect(overlay.style.display).toBe("none");
+  });
+
+  it("click toggles the stored value and the label", async () => {
+    const storage = fakeStorage();
+    const button = fakeButton("Fullscreen: OFF");
+    const binder = bindSettings(
+      fakeDocFull({ "btn-fullscreen": button }),
+      storage,
+    );
+    button.fire("click");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(storage.getItem(FULLSCREEN_KEY)).toBe("1");
+    expect(binder.fullscreen).toBe(true);
+    expect(button.textContent).toBe("Fullscreen: ON");
+    button.fire("click");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(storage.getItem(FULLSCREEN_KEY)).toBe("0");
+    expect(binder.fullscreen).toBe(false);
+    expect(button.textContent).toBe("Fullscreen: OFF");
+  });
+
+  it("no-ops when the button is missing", async () => {
+    const storage = fakeStorage();
+    const binder = bindSettings(fakeDoc({}), storage);
+    await expect(binder.toggleFullscreen()).resolves.toBe(true);
+    expect(storage.getItem(FULLSCREEN_KEY)).toBe("1");
+  });
+
+  it("resolves without throwing when the Fullscreen API is absent", async () => {
+    await expect(
+      toggleFullscreen(fakeDoc({}), fakeStorage()),
+    ).resolves.toBe(true);
+  });
+
+  it("swallows headless rejections and keeps the persisted intent", async () => {
+    const storage = fakeStorage();
+    const doc = fakeDocFull(
+      {},
+      {
+        documentElement: {
+          requestFullscreen: () => Promise.reject(new Error("denied")),
+        },
+      },
+    );
+    await expect(toggleFullscreen(doc, storage)).resolves.toBe(true);
+    expect(storage.getItem(FULLSCREEN_KEY)).toBe("1");
+  });
+
+  it("requests fullscreen on ON and exits on OFF", async () => {
+    const storage = fakeStorage();
+    let requested = 0;
+    let exited = 0;
+    const doc = fakeDocFull(
+      {},
+      {
+        documentElement: {
+          requestFullscreen: () => {
+            requested += 1;
+            return Promise.resolve();
+          },
+        },
+        exitFullscreen: () => {
+          exited += 1;
+          return Promise.resolve();
+        },
+      },
+    );
+    await expect(toggleFullscreen(doc, storage)).resolves.toBe(true);
+    expect(requested).toBe(1);
+    expect(exited).toBe(0);
+    await expect(toggleFullscreen(doc, storage)).resolves.toBe(false);
+    expect(requested).toBe(1);
+    expect(exited).toBe(1);
+  });
+
+  it("syncs the label from fullscreenElement on fullscreenchange", () => {
+    const storage = fakeStorage();
+    const button = fakeButton("Fullscreen: OFF");
+    const holder: Record<string, unknown> = { fullscreenElement: null };
+    const doc = fakeDocFull({ "btn-fullscreen": button }, holder);
+    const binder = bindSettings(doc, storage);
+    expect(button.textContent).toBe("Fullscreen: OFF");
+    holder["fullscreenElement"] = {};
+    (doc as unknown as { fullscreenElement: unknown }).fullscreenElement =
+      holder["fullscreenElement"];
+    doc.fire("fullscreenchange");
+    expect(binder.fullscreen).toBe(true);
+    expect(button.textContent).toBe("Fullscreen: ON");
+    (doc as unknown as { fullscreenElement: unknown }).fullscreenElement =
+      null;
+    doc.fire("fullscreenchange");
+    expect(binder.fullscreen).toBe(false);
+    expect(button.textContent).toBe("Fullscreen: OFF");
   });
 });

@@ -39,7 +39,16 @@ export default defineConfig({
           }
           return "assets/[name]-[hash].js";
         },
-        assetFileNames: "assets/[name][extname]",
+        // Webfonts keep their fonts/ subdir (issue #151) so the built
+        // @font-face URL stays assets/fonts/*.woff2 for offline file://
+        // and subpath hosts; every other Vite asset stays flattened.
+        assetFileNames(assetInfo) {
+          const name = assetInfo.names?.[0] ?? assetInfo.name ?? "";
+          if (/\.(woff2?|ttf|otf)$/i.test(name)) {
+            return "assets/fonts/[name][extname]";
+          }
+          return "assets/[name][extname]";
+        },
       },
     },
   },

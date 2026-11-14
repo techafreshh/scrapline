@@ -8,6 +8,7 @@
     "build": "vite build && node ../../tools/build-atlas.js"
   },
   "dependencies": {
+    "pixi-v8-particles": "^0.1.3",
     "pixi.js": "^8.0.0"
   },
   "devDependencies": {

@@ -73,6 +73,42 @@ export interface KillDetail {
   y: number;
 }
 
+/**
+ * Per-explosion detail: sim-space blast center plus radius for one
+ * explode() call. Recorded for every rocket/grenade/barrel blast (no
+ * extra RNG draws, no damage/hash impact); the renderer spawns the
+ * explosion flash plus smoke plus debris at the position. Without this
+ * the renderer anchored "explode" flashes on the local player and
+ * wall hits with no victims left zero particles behind.
+ */
+export interface ExplodeDetail {
+  /** Blast-center x in world px. */
+  x: number;
+  /** Blast-center y in world px. */
+  y: number;
+  /** Splash radius in world px (drives debris spread). */
+  radius: number;
+}
+
+/**
+ * Per-pickup detail: pad position plus collecting player for one
+ * pickup. Recorded in collectPickups (no extra RNG draws, no
+ * damage/hash impact); the renderer spawns the pickup sparkle at the
+ * pad position.
+ */
+export interface PickupDetail {
+  /** Pad-center x in world px. */
+  x: number;
+  /** Pad-center y in world px. */
+  y: number;
+  /** Pickup kind (weapon | health | grenades). */
+  kind: string;
+  /** Collecting player index in the player array. */
+  player: number;
+  /** Collecting player id. */
+  playerId: number;
+}
+
 /** Frozen list of every event name (probe/iteration order). */
 export const WORLD_EVENTS: readonly WorldEvent[] = Object.freeze([
   "shot",

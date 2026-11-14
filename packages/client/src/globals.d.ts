@@ -3,11 +3,13 @@
 // under strict DOM lib settings.
 import type { World } from "../../core/src/world";
 import type { InputMirror } from "./input";
+import type { AtlasIndex } from "./atlas";
 
 declare global {
   interface Window {
     __scraplineTick: number;
     __scraplineInput: InputMirror;
+    __scraplineAtlas: AtlasIndex | null;
     __scraplineWorld: World | null;
     __matchConfig: { bots: number; tier: string; map: string } | null;
     __game: {

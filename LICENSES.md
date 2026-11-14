@@ -12,6 +12,14 @@ dedicated to the public domain. No external packs are vendored.
   - packages/client/assets/soldier-run-a.svg
   - packages/client/assets/soldier-run-b.svg
   - packages/client/assets/soldier-jet.svg
+  - packages/client/assets/soldier-crouch.svg
+  - packages/client/assets/soldier-dead.svg
+  - packages/client/assets/weapon-pistol.svg
+  - packages/client/assets/weapon-smg.svg
+  - packages/client/assets/weapon-rifle.svg
+  - packages/client/assets/weapon-shotgun.svg
+  - packages/client/assets/weapon-sniper.svg
+  - packages/client/assets/weapon-rocket.svg
 
 ## Pack: Scrapline CC0 arena sprites
 

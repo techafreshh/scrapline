@@ -987,6 +987,7 @@ export class World {
           victim: i,
           victimId: player.id,
           killerId: null,
+          weapon: null,
           x: player.x + PLAYER_WIDTH / 2,
           y: player.y + sleeperH / 2,
         });
@@ -1281,6 +1282,7 @@ export class World {
                   victim: bestIdx,
                   victimId: target.id,
                   killerId: player.id,
+                  weapon: player.weapon,
                   x: target.x + PLAYER_WIDTH / 2,
                   y: target.y + lethalH / 2,
                 });
@@ -1360,6 +1362,7 @@ export class World {
     ownerId: number,
     events: WorldEvent[],
     protectionAtStart: number[],
+    weapon: string | null = null,
   ): void {
     const ownerIdx =
       ownerId >= 0 ? this.players.findIndex((p) => p.id === ownerId) : -1;
@@ -1405,6 +1408,7 @@ export class World {
           victim: j,
           victimId: victim.id,
           killerId: credited ? ownerId : null,
+          weapon: credited ? weapon : null,
           x: cx,
           y: cy,
         });
@@ -1672,6 +1676,7 @@ export class World {
             p.ownerId,
             events,
             protectionAtStart,
+            "rocket",
           );
           continue;
         }
@@ -1688,6 +1693,7 @@ export class World {
             p.ownerId,
             events,
             protectionAtStart,
+            "rocket",
           );
           continue;
         }
@@ -1702,6 +1708,7 @@ export class World {
             p.ownerId,
             events,
             protectionAtStart,
+            "rocket",
           );
           continue;
         }
@@ -1719,6 +1726,7 @@ export class World {
             p.ownerId,
             events,
             protectionAtStart,
+            "rocket",
           );
         }
       } else if (p.kind === "grenade") {
@@ -1758,6 +1766,7 @@ export class World {
             p.ownerId,
             events,
             protectionAtStart,
+            "grenade",
           );
         }
       } else {

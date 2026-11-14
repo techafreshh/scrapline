@@ -205,12 +205,57 @@
         border: 1px solid #334155;
         border-radius: 4px;
         padding: 2px 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: opacity 0.5s ease-out;
+      }
+      #killfeed .kill-entry .killer,
+      #killfeed .kill-entry .victim {
+        font-weight: bold;
+      }
+      #killfeed .kill-weapon {
+        width: 22px;
+        height: 16px;
+        object-fit: contain;
+        flex: 0 0 auto;
+      }
+      #killfeed .kill-entry.fade {
+        opacity: 0;
       }
       #killfeed .kill-entry.flash {
         border-color: #7df9ff;
         background: rgba(22, 33, 58, 0.95);
         transform: scale(1.08);
         transition: transform 0.15s ease-out, background 0.7s ease-out;
+      }
+      #nametags {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      .nametag {
+        position: absolute;
+        transform: translate(-50%, -100%);
+        font-size: 11px;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+        padding: 1px 6px;
+        border-radius: 8px;
+        border: 1px solid rgba(226, 232, 240, 0.35);
+        background: rgba(5, 7, 15, 0.55);
+        color: #e2e8f0;
+        text-shadow: 0 1px 2px #000;
+        white-space: nowrap;
+      }
+      .nametag.own {
+        border-color: #ffffff;
+        color: #ffffff;
+        box-shadow: 0 0 8px rgba(0, 229, 255, 0.9);
+        text-shadow:
+          0 0 6px rgba(0, 229, 255, 0.9),
+          0 1px 2px #000;
       }
       #crosshair {
         position: absolute;
@@ -367,7 +412,8 @@
       #settings-close,
       #howto-close,
       #btn-fullscreen,
-      #btn-quality {
+      #btn-quality,
+      #btn-nametags {
         font-size: 14px;
         padding: 8px 18px;
         border: 1px solid #7df9ff;
@@ -379,7 +425,8 @@
       #settings-close:hover,
       #howto-close:hover,
       #btn-fullscreen:hover,
-      #btn-quality:hover {
+      #btn-quality:hover,
+      #btn-nametags:hover {
         background: #16213a;
       }
       .setup-row {
@@ -524,6 +571,7 @@
         </div>
         <button id="btn-fullscreen">Fullscreen: OFF</button>
         <button id="btn-quality">Quality: HIGH</button>
+        <button id="btn-nametags">Name Tags: ON</button>
         <p id="zoom-hint">Zoom hint: press Z to cycle camera zoom.</p>
         <button id="settings-close">Close</button>
       </div>
@@ -567,6 +615,7 @@
       </div>
       <div id="crosshair"></div>
       <div id="killfeed"></div>
+      <div id="nametags"></div>
       <div id="respawn" style="display: none"></div>
       <div id="end-screen" style="display: none">
         <h2>Match over</h2>

@@ -5,22 +5,28 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_QUALITY,
+  DEFAULT_SHOW_NAME_TAGS,
   DEFAULT_VOLUME,
   FULLSCREEN_KEY,
   SETTINGS_QUALITY_KEY,
   SETTINGS_VOLUME_KEY,
+  SHOW_NAMETAGS_KEY,
   bindSettings,
   loadFullscreen,
   loadQuality,
+  loadShowNameTags,
   loadVolume,
   parseFullscreen,
   parseQuality,
+  parseShowNameTags,
   parseVolume,
   saveFullscreen,
   saveQuality,
+  saveShowNameTags,
   saveVolume,
   toggleFullscreen,
   toggleQuality,
+  toggleShowNameTags,
 } from "../src/settings";
 import type { SetupStorage } from "../src/setup";
 
@@ -547,5 +553,114 @@ describe("quality binder", () => {
     expect(storage.getItem(SETTINGS_QUALITY_KEY)).toBe("low");
     await expect(toggleQuality(doc, storage)).resolves.toBe("high");
     expect(storage.getItem(SETTINGS_QUALITY_KEY)).toBe("high");
+  });
+});
+
+describe("parseShowNameTags", () => {
+  it("treats only 0/false variants as OFF, everything else as ON", () => {
+    expect(parseShowNameTags("1")).toBe(true);
+    expect(parseShowNameTags("true")).toBe(true);
+    expect(parseShowNameTags("on")).toBe(true);
+    expect(parseShowNameTags("")).toBe(true);
+    expect(parseShowNameTags("banana")).toBe(true);
+    expect(parseShowNameTags(undefined)).toBe(true);
+    expect(parseShowNameTags(null)).toBe(true);
+    expect(parseShowNameTags(1)).toBe(true);
+    expect(parseShowNameTags(true)).toBe(true);
+    expect(parseShowNameTags({})).toBe(true);
+    expect(parseShowNameTags("0")).toBe(false);
+    expect(parseShowNameTags("false")).toBe(false);
+    expect(parseShowNameTags("OFF")).toBe(false);
+    expect(parseShowNameTags("no")).toBe(false);
+    expect(parseShowNameTags(0)).toBe(false);
+    expect(parseShowNameTags(false)).toBe(false);
+  });
+});
+
+describe("loadShowNameTags/saveShowNameTags", () => {
+  it("defaults to ON when storage is empty or absent", () => {
+    expect(DEFAULT_SHOW_NAME_TAGS).toBe(true);
+    expect(loadShowNameTags(fakeStorage())).toBe(true);
+    expect(loadShowNameTags(null)).toBe(true);
+    expect(loadShowNameTags(undefined)).toBe(true);
+  });
+
+  it("round-trips ON as \"1\" and OFF as \"0\"", () => {
+    const storage = fakeStorage();
+    saveShowNameTags(storage, true);
+    expect(storage.getItem(SHOW_NAMETAGS_KEY)).toBe("1");
+    expect(loadShowNameTags(storage)).toBe(true);
+    saveShowNameTags(storage, false);
+    expect(storage.getItem(SHOW_NAMETAGS_KEY)).toBe("0");
+    expect(loadShowNameTags(storage)).toBe(false);
+  });
+
+  it("falls back to ON on corrupt stored values", () => {
+    expect(loadShowNameTags(fakeStorage({ [SHOW_NAMETAGS_KEY]: "loud" }))).toBe(
+      true,
+    );
+    expect(loadShowNameTags(fakeStorage({ [SHOW_NAMETAGS_KEY]: "" }))).toBe(
+      true,
+    );
+  });
+
+  it("is a no-op when storage is absent", () => {
+    expect(() => saveShowNameTags(null, true)).not.toThrow();
+    expect(() => saveShowNameTags(undefined, true)).not.toThrow();
+  });
+});
+
+describe("nametags binder", () => {
+  it("prefills the button ON by default and re-prefills on show()", () => {
+    const storage = fakeStorage();
+    const button = fakeButton("Name Tags: ON");
+    const overlay = { style: { display: "none" } };
+    const binder = bindSettings(
+      fakeDocFull({ "btn-nametags": button, settings: overlay }),
+      storage,
+    );
+    expect(binder.showNameTags).toBe(true);
+    expect(button.textContent).toBe("Name Tags: ON");
+    storage.setItem(SHOW_NAMETAGS_KEY, "0");
+    binder.show();
+    expect(binder.showNameTags).toBe(false);
+    expect(button.textContent).toBe("Name Tags: OFF");
+    binder.hide();
+    expect(overlay.style.display).toBe("none");
+  });
+
+  it("click toggles the stored value and the label", async () => {
+    const storage = fakeStorage();
+    const button = fakeButton("Name Tags: ON");
+    const binder = bindSettings(
+      fakeDocFull({ "btn-nametags": button }),
+      storage,
+    );
+    button.fire("click");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(storage.getItem(SHOW_NAMETAGS_KEY)).toBe("0");
+    expect(binder.showNameTags).toBe(false);
+    expect(button.textContent).toBe("Name Tags: OFF");
+    button.fire("click");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(storage.getItem(SHOW_NAMETAGS_KEY)).toBe("1");
+    expect(binder.showNameTags).toBe(true);
+    expect(button.textContent).toBe("Name Tags: ON");
+  });
+
+  it("no-ops when the button is missing", async () => {
+    const storage = fakeStorage();
+    const binder = bindSettings(fakeDoc({}), storage);
+    await expect(binder.toggleShowNameTags()).resolves.toBe(false);
+    expect(storage.getItem(SHOW_NAMETAGS_KEY)).toBe("0");
+  });
+
+  it("resolves the flipped value through the shared toggle", async () => {
+    const storage = fakeStorage();
+    const doc = fakeDoc({});
+    await expect(toggleShowNameTags(doc, storage)).resolves.toBe(false);
+    expect(storage.getItem(SHOW_NAMETAGS_KEY)).toBe("0");
+    await expect(toggleShowNameTags(doc, storage)).resolves.toBe(true);
+    expect(storage.getItem(SHOW_NAMETAGS_KEY)).toBe("1");
   });
 });

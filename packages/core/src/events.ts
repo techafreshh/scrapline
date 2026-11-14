@@ -59,6 +59,8 @@ export interface DamageDetail {
  * Per-kill detail: victim identity plus death position for one kill.
  * Recorded at every site that emits "kill" (no extra RNG draws, no
  * hash impact); the renderer spawns a death burst at the position.
+ * The weapon is the killing blow's weapon id (hitscan weapon, "rocket"
+ * or "grenade" splash), null for unattributed deaths (record-only).
  */
 export interface KillDetail {
   /** Victim index in the player array. */
@@ -67,6 +69,8 @@ export interface KillDetail {
   victimId: number;
   /** Killer player id (null for unattributed deaths). */
   killerId: number | null;
+  /** Killing weapon id ("rocket"/"grenade" for splash, null when unattributed). */
+  weapon: string | null;
   /** Death-position x in world px (victim body center). */
   x: number;
   /** Death-position y in world px (victim body center). */

@@ -41,7 +41,7 @@ import {
   enemyCosmeticsFor,
   loadCosmetics,
 } from "./cosmetics";
-import { bindSettings, loadQuality, parseVolume } from "./settings";
+import { bindSettings, loadQuality, loadShowNameTags, parseVolume } from "./settings";
 import {
   ensureAudioOnGesture,
   groupShotWeapons,
@@ -111,6 +111,11 @@ import {
   type HudHandles,
 } from "./hud/hud";
 import { updateAmmo } from "./ui/ammo";
+import {
+  buildNametags,
+  updateNametags,
+  type NametagsHandles,
+} from "./ui/nametags";
 
 /** Fixed-timestep sim step in seconds. */
 const STEP = 1 / TICK_HZ;
@@ -317,6 +322,8 @@ refreshInput();
 
 /** Live overlay handles; rebuilt idempotently on every match start. */
 let hud: HudHandles = buildHud(document);
+/** Live name-tag handles; rebuilt idempotently on every match start. */
+let nametags: NametagsHandles = buildNametags(document);
 
 /** Cached canvas CSS rect: refreshAimOrigin runs every frame, so the
  * layout read is cached and only refreshed on resize (plus once). */
@@ -602,6 +609,26 @@ function stepOnce(): string[] {
     if (kill.killerId === 0) {
       playKill();
     }
+    // Feed entries carry the sim-recorded killing weapon (fallback to
+    // the killer's live weapon when the detail predates the field),
+    // with per-player colors resolved from the array indices.
+    const killerIdx =
+      kill.killerId === null
+        ? null
+        : world.players.findIndex((p) => p.id === kill.killerId);
+    const knownKiller = killerIdx !== null && killerIdx >= 0;
+    const liveWeapon =
+      knownKiller && killerIdx !== null
+        ? (world.players[killerIdx]?.weapon ?? null)
+        : null;
+    pushKillfeed(
+      hud,
+      kill.killerId === null ? null : playerName(kill.killerId),
+      playerName(kill.victimId),
+      kill.weapon ?? liveWeapon,
+      knownKiller ? killerIdx : null,
+      kill.victim,
+    );
   }
   // Blast centers plus pickup pads drive the pooled explosion and
   // sparkle particles (positions the string event bus never carried).
@@ -631,7 +658,6 @@ function stepOnce(): string[] {
   );
   for (const kill of kills) {
     const killer = kill.killerId === null ? null : playerName(kill.killerId);
-    pushKillfeed(hud, killer, playerName(kill.victimId));
     if (kill.victimId === 0) {
       lastLocalKiller = killer;
     }
@@ -746,6 +772,8 @@ function frame(now: number): void {
   // Bottom-right weapon module (issue #152): mirrored every
   // animation frame (change-guarded in the binder) so mag and grenade
   // deltas land within a frame, well inside the 500ms probe budget.
+  // Floating name tags (issue #153): reconciled every animation frame
+  // from the live player rows, gated by the persisted setting.
   if (local !== undefined) {
     updateAmmo(
       {
@@ -761,6 +789,15 @@ function frame(now: number): void {
         grenades: local.grenades ?? GRENADE_MAX,
       },
     );
+  }
+  if (world !== null) {
+    updateNametags(nametags, {
+      players: world.players,
+      camera,
+      canvasW: LOGICAL_W,
+      canvasH: LOGICAL_H,
+      show: loadShowNameTags(storage),
+    });
   }
   window.__scraplineTick = world.tick;
   // Merge, never replace: the renderer-published probe fields
@@ -930,6 +967,7 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   world = match;
   window.__scraplineWorld = world;
   hud = buildHud(document);
+  nametags = buildNametags(document);
   if (hud.endScreen !== null) {
     hud.endScreen.style.display = "none";
   }

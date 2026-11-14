@@ -2,11 +2,14 @@
 // score/alive-diff kill attribution. Pure helpers only (no DOM/jsdom),
 // mirroring packages/core/test builder style.
 import { describe, expect, it } from "vitest";
+import { ENEMY_A_CSS, LOCAL_CSS } from "../src/view/character";
 import {
+  BOT_NAMES,
   endStandingsRows,
   formatTimer,
   killsFromDiff,
   ordinal,
+  playerColor,
   playerName,
   pushKillfeed,
   standingsRows,
@@ -16,10 +19,16 @@ import {
 } from "../src/hud/hud";
 
 describe("playerName", () => {
-  it("names the local id 0 You and others Bot <id>", () => {
+  it("names the local id 0 You and bots from the generated pool", () => {
+    expect(BOT_NAMES).toHaveLength(12);
     expect(playerName(0)).toBe("You");
-    expect(playerName(1)).toBe("Bot 1");
-    expect(playerName(3)).toBe("Bot 3");
+    expect(playerName(1)).toBe(BOT_NAMES[0]);
+    expect(playerName(3)).toBe(BOT_NAMES[2]);
+  });
+
+  it("wraps bot ids around the 12-name pool", () => {
+    expect(playerName(13)).toBe(BOT_NAMES[0]);
+    expect(playerName(12)).toBe(BOT_NAMES[11]);
   });
 });
 
@@ -57,7 +66,7 @@ describe("standingsRows", () => {
     const rows = standingsRows([3, 5, 5], [0, 1, 2]);
     expect(rows.map((row) => row.id)).toEqual([1, 2, 0]);
     expect(rows.map((row) => row.rank)).toEqual(["1st", "2nd", "3rd"]);
-    expect(rows[0]).toMatchObject({ name: "Bot 1", score: 5 });
+    expect(rows[0]).toMatchObject({ name: BOT_NAMES[0], score: 5 });
     expect(rows[2]).toMatchObject({ name: "You", score: 3 });
   });
 });
@@ -81,10 +90,15 @@ describe("endStandingsRows", () => {
     expect(partial.map((row) => row.deaths)).toEqual([2, 0]);
   });
 
-  it("names id 0 You", () => {
+  it("names id 0 You and bots from the pool", () => {
     const rows = endStandingsRows([3, 5], [1, 2], [0, 1]);
     expect(rows[1]).toMatchObject({ id: 0, name: "You", kills: 3, deaths: 1 });
-    expect(rows[0]).toMatchObject({ id: 1, name: "Bot 1", kills: 5, deaths: 2 });
+    expect(rows[0]).toMatchObject({
+      id: 1,
+      name: BOT_NAMES[0],
+      kills: 5,
+      deaths: 2,
+    });
   });
 });
 
@@ -295,5 +309,113 @@ describe("pushKillfeed entry class", () => {
       expect(entry.attrs.get("class")).toBe("kill-entry flash");
     }
     expect(created[6]?.textContent).toBe("Bot 7 killed You");
+  });
+});
+
+describe("pushKillfeed weapon entries", () => {
+  /** Fake element with attrs, a style bag, children, and a class list. */
+  function fakeNode(
+    doc: { createElement(tag: string): FakeNode },
+    tag: string,
+  ): FakeNode {
+    const attrs = new Map<string, string>();
+    const node: FakeNode = {
+      tag,
+      attrs,
+      style: {},
+      textContent: "",
+      children: [],
+      ownerDocument: doc,
+      setAttribute: (key: string, value: string): void => {
+        attrs.set(key, value);
+      },
+      getAttribute: (key: string): string | null => attrs.get(key) ?? null,
+      appendChild: (kid: FakeNode): void => {
+        node.children.push(kid);
+      },
+      removeChild: (kid: FakeNode): void => {
+        const index = node.children.indexOf(kid);
+        if (index >= 0) {
+          node.children.splice(index, 1);
+        }
+      },
+    };
+    return node;
+  }
+
+  interface FakeNode {
+    tag: string;
+    attrs: Map<string, string>;
+    style: Record<string, string>;
+    textContent: string;
+    children: FakeNode[];
+    ownerDocument: unknown;
+    setAttribute(key: string, value: string): void;
+    getAttribute(key: string): string | null;
+    appendChild(kid: FakeNode): void;
+    removeChild(kid: FakeNode): void;
+  }
+
+  function fakeFeed(): {
+    handles: HudHandles;
+    feed: FakeNode;
+    timers: Array<() => void>;
+  } {
+    const timers: Array<() => void> = [];
+    const doc = {
+      createElement: (tag: string): FakeNode => fakeNode(doc, tag),
+      defaultView: {
+        setTimeout: (fn: () => void): number => {
+          timers.push(fn);
+          return timers.length;
+        },
+      },
+    };
+    const feed = fakeNode(doc, "div");
+    const handles = { killfeed: feed } as unknown as HudHandles;
+    return { handles, feed, timers };
+  }
+
+  it("renders colored names with a weapon icon between them", () => {
+    const { handles, feed } = fakeFeed();
+    pushKillfeed(handles, "Raptor", "You", "smg", 1, 0);
+    expect(feed.children).toHaveLength(1);
+    const entry = feed.children[0];
+    expect(entry.children).toHaveLength(3);
+    const [killer, icon, victim] = entry.children;
+    expect(killer.textContent).toBe("Raptor");
+    expect(killer.getAttribute("class")).toBe("killer");
+    expect(killer.style["color"]).toBe(ENEMY_A_CSS);
+    expect(icon.tag).toBe("img");
+    expect(icon.getAttribute("class")).toBe("kill-weapon");
+    expect(icon.getAttribute("src")).toBe("./assets/weapon-hornet.svg");
+    expect(victim.textContent).toBe("You");
+    expect(victim.style["color"]).toBe(LOCAL_CSS);
+  });
+
+  it("renders suicides as `X died` with no icon", () => {
+    const { handles, feed } = fakeFeed();
+    pushKillfeed(handles, null, "You", null, null, 0);
+    expect(feed.children).toHaveLength(1);
+    const entry = feed.children[0];
+    expect(entry.children).toHaveLength(0);
+    expect(entry.textContent).toBe("You died");
+  });
+
+  it("keeps the legacy flat line for weapon-less killer blows", () => {
+    const { handles, feed } = fakeFeed();
+    pushKillfeed(handles, "Raptor", "You");
+    const entry = feed.children[0];
+    expect(entry.children).toHaveLength(0);
+    expect(entry.textContent).toBe("Raptor killed You");
+  });
+});
+
+describe("playerColor", () => {
+  it("reads the team source per index and null when unknown", () => {
+    expect(playerColor(0)).toBe(LOCAL_CSS);
+    expect(playerColor(1)).toBe(ENEMY_A_CSS);
+    expect(playerColor(null)).toBe(null);
+    expect(playerColor(Number.NaN)).toBe(null);
   });
 });

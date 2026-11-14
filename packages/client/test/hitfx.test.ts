@@ -35,7 +35,7 @@ function damageAt(x: number, y: number): DamageDetail {
 }
 
 function killAt(x: number, y: number): KillDetail {
-  return { victim: 1, victimId: 1, killerId: 0, x, y };
+  return { victim: 1, victimId: 1, killerId: 0, weapon: null, x, y };
 }
 
 describe("spawnSparks", () => {
@@ -208,12 +208,15 @@ describe("pushKillfeed flash", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0].classNames.has("flash")).toBe(true);
     expect(entries[0].classNames.has("kill-entry")).toBe(true);
-    expect(timers).toHaveLength(1);
-    for (const timer of timers) {
-      timer();
-    }
+    // Flash pop, 6s hold, then fade + removal: three timers per entry.
+    expect(timers).toHaveLength(3);
+    timers[0]();
     expect(entries[0].classNames.has("flash")).toBe(false);
     expect(entries[0].classNames.has("kill-entry")).toBe(true);
+    expect(entries).toHaveLength(1);
+    timers[1]();
+    timers[2]();
+    expect(entries).toHaveLength(0);
   });
 });
 

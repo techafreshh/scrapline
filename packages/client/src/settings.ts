@@ -65,6 +65,9 @@ export function parseFullscreen(value: unknown): boolean {
 /** localStorage key for the post-effect quality level. */
 export const SETTINGS_QUALITY_KEY = "scrapline.settings.quality";
 
+/** localStorage key for the floating name-tag overlay ("1" = ON). */
+export const SHOW_NAMETAGS_KEY = "scrapline.settings.nametags";
+
 /** Post-effect quality level (high = full glow/shockwave/chromatic). */
 export type Quality = "high" | "low";
 
@@ -96,6 +99,35 @@ export function parseQuality(value: unknown): Quality {
     }
   }
   return "high";
+}
+
+/** First-visit (and corrupt-storage) default name-tag visibility. */
+export const DEFAULT_SHOW_NAME_TAGS = true;
+
+/**
+ * Tolerantly normalize an unknown value into a name-tag intent: only
+ * "0" variants (0/false/off/no, any case, trimmed) mean OFF, everything
+ * else (missing, corrupt, "1") means ON (default true).
+ */
+export function parseShowNameTags(value: unknown): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  if (typeof value === "string") {
+    const text = value.trim().toLowerCase();
+    if (
+      text === "0" ||
+      text === "false" ||
+      text === "off" ||
+      text === "no"
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /** Null-safe read: storage errors (or absence) yield null. */
@@ -180,6 +212,35 @@ export function saveFullscreen(
 }
 
 /**
+ * Load the persisted name-tag intent; missing, corrupt, or unreadable
+ * values fall back to DEFAULT_SHOW_NAME_TAGS (true).
+ */
+export function loadShowNameTags(
+  storage: SetupStorage | null | undefined,
+): boolean {
+  const raw = safeGet(storage, SHOW_NAMETAGS_KEY);
+  if (raw === null) {
+    return DEFAULT_SHOW_NAME_TAGS;
+  }
+  return parseShowNameTags(raw);
+}
+
+/** Persist the name-tag intent as "1"/"0"; storage errors are swallowed. */
+export function saveShowNameTags(
+  storage: SetupStorage | null | undefined,
+  on: boolean,
+): void {
+  if (storage === null || storage === undefined) {
+    return;
+  }
+  try {
+    storage.setItem(SHOW_NAMETAGS_KEY, on ? "1" : "0");
+  } catch {
+    // Private-mode storage: the toggle still works, just not persisted.
+  }
+}
+
+/**
  * Load the persisted post-effect quality; missing, corrupt, or
  * unreadable values fall back to DEFAULT_QUALITY (high).
  */
@@ -219,6 +280,8 @@ export interface SettingsBinder {
   fullscreen: boolean;
   /** Current post-effect quality (updated by the toggle). */
   quality: Quality;
+  /** Current name-tag visibility (updated by the toggle). */
+  showNameTags: boolean;
   /** Reveal the overlay, prefilling the slider and toggles from storage. */
   show(): void;
   /** Hide the overlay. */
@@ -227,6 +290,8 @@ export interface SettingsBinder {
   toggleFullscreen(): Promise<boolean>;
   /** Flip the persisted post-effect quality (shared button path). */
   toggleQuality(): Promise<Quality>;
+  /** Flip the persisted name-tag visibility (shared button path). */
+  toggleShowNameTags(): Promise<boolean>;
 }
 
 /** Minimal slider surface; the real HTMLInputElement satisfies it. */
@@ -317,6 +382,14 @@ function renderQuality(doc: Document, quality: Quality): void {
   }
 }
 
+/** Render the name-tags button label; missing button is a no-op. */
+function renderNametags(doc: Document, on: boolean): void {
+  const button = asButton(doc.getElementById("btn-nametags"));
+  if (button !== null) {
+    button.textContent = on ? "Name Tags: ON" : "Name Tags: OFF";
+  }
+}
+
 /** Swallow a Fullscreen API result that may be a promise (or thenable). */
 function swallowFullscreenResult(result: unknown): void {
   if (result === null || result === undefined) {
@@ -396,6 +469,21 @@ export function toggleQuality(
 }
 
 /**
+ * Shared name-tags toggle: flip the persisted visibility (on <-> off),
+ * re-render the button label from the new value immediately, and
+ * resolve it. Storage errors keep the in-memory flip (headless-safe).
+ */
+export function toggleShowNameTags(
+  doc: Document,
+  storage: SetupStorage | null | undefined,
+): Promise<boolean> {
+  const next = !loadShowNameTags(storage);
+  saveShowNameTags(storage, next);
+  renderNametags(doc, next);
+  return Promise.resolve(next);
+}
+
+/**
  * Wire the settings overlay: prefill the volume slider from storage,
  * persist every slider input, expose show/hide for the overlay. Missing
  * elements are no-ops; listeners attach once.
@@ -408,6 +496,7 @@ export function bindSettings(
     volume: loadVolume(storage),
     fullscreen: loadFullscreen(storage),
     quality: loadQuality(storage),
+    showNameTags: loadShowNameTags(storage),
     show(): void {
       binder.volume = loadVolume(storage);
       render(doc, binder.volume);
@@ -415,6 +504,8 @@ export function bindSettings(
       renderFullscreen(doc, binder.fullscreen);
       binder.quality = loadQuality(storage);
       renderQuality(doc, binder.quality);
+      binder.showNameTags = loadShowNameTags(storage);
+      renderNametags(doc, binder.showNameTags);
       setDisplay(doc.getElementById("settings"), "");
     },
     hide(): void {
@@ -431,6 +522,13 @@ export function bindSettings(
       const result = toggleQuality(doc, storage);
       return result.then((next) => {
         binder.quality = next;
+        return next;
+      });
+    },
+    toggleShowNameTags(): Promise<boolean> {
+      const result = toggleShowNameTags(doc, storage);
+      return result.then((next) => {
+        binder.showNameTags = next;
         return next;
       });
     },
@@ -456,6 +554,13 @@ export function bindSettings(
   if (qualityButton !== null) {
     qualityButton.addEventListener("click", () => {
       void binder.toggleQuality();
+    });
+  }
+
+  const nametagsButton = asButton(doc.getElementById("btn-nametags"));
+  if (nametagsButton !== null) {
+    nametagsButton.addEventListener("click", () => {
+      void binder.toggleShowNameTags();
     });
   }
 
@@ -497,5 +602,6 @@ export function bindSettings(
   render(doc, binder.volume);
   renderFullscreen(doc, binder.fullscreen);
   renderQuality(doc, binder.quality);
+  renderNametags(doc, binder.showNameTags);
   return binder;
 }

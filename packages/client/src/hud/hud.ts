@@ -7,11 +7,45 @@
 import { JETPACK_FUEL_MAX, TICK_HZ } from "../../../core/src/constants";
 import { standingsFor } from "../../../core/src/match";
 import { updateAmmo } from "../ui/ammo";
+import { buildFeedEntry, pushFeed } from "../ui/feed";
+import { teamCss } from "../view/character";
 import { setBitmapText } from "../ui/fonts";
 
-/** Display name for a player id: the local id 0 is always "You". */
+/** Generated bot-name pool: every bot id maps here (local id 0 is You). */
+export const BOT_NAMES: readonly string[] = [
+  "Viper",
+  "Ghost",
+  "Raptor",
+  "Blitz",
+  "Nova",
+  "Onyx",
+  "Pixel",
+  "Rogue",
+  "Sable",
+  "Talon",
+  "Umbra",
+  "Volt",
+];
+
+/** Display name for a player id: local id 0 is You, bots read the pool. */
 export function playerName(id: number): string {
-  return id === 0 ? "You" : `Bot ${id}`;
+  if (id === 0) {
+    return "You";
+  }
+  const pool = BOT_NAMES.length;
+  const slot = ((id - 1) % pool + pool) % pool;
+  return BOT_NAMES[slot] as string;
+}
+
+/**
+ * Display color for a player-array index: the single teamCss source
+ * (local cyan, odd orange-red, even amber), null when unknown.
+ */
+export function playerColor(index: number | null): string | null {
+  if (typeof index !== "number" || !Number.isFinite(index)) {
+    return null;
+  }
+  return teamCss(index);
 }
 
 /** Ordinal rank label: 1st, 2nd, 3rd, 4th (11th/12th/13th stay "th"). */
@@ -272,39 +306,36 @@ export const KILLFEED_FLASH_MS = 700;
 /** Crosshair hitmarker hold in ms (inside the 100-400ms window). */
 export const CROSSHAIR_HIT_MS = 250;
 
-/** Append one killfeed line, capping the feed at the last 5 entries. */
+/**
+ * Append one killfeed line, capping the feed at the last 5 entries.
+ * Killer blows with a known weapon render colored names plus a weapon
+ * icon (delegated to the feed module); unattributed deaths and
+ * weapon-less blows keep the legacy flat text line so the old
+ * `(handles, killer, victim)` call shape keeps compiling and reading.
+ */
 export function pushKillfeed(
   handles: HudHandles,
   killer: string | null,
   victim: string,
+  weapon?: string | null,
+  killerIndex?: number | null,
+  victimIndex?: number | null,
 ): void {
   const feed = handles.killfeed;
   if (feed === null) {
     return;
   }
-  const entry = feed.ownerDocument.createElement("div");
-  entry.setAttribute("class", "kill-entry flash");
-  entry.textContent =
-    killer === null || killer === "" ? `${victim} died` : `${killer} killed ${victim}`;
-  feed.appendChild(entry);
-  try {
-    const timer = feed.ownerDocument.defaultView?.setTimeout;
-    if (typeof timer === "function") {
-      timer.call(feed.ownerDocument.defaultView, () => {
-        // The entry may already be capped away; classList no-ops safely.
-        entry.classList.remove("flash");
-      }, KILLFEED_FLASH_MS);
-    }
-  } catch {
-    // Fake docs in unit tests may lack timers: the flash class simply stays.
-  }
-  while (feed.children.length > 5) {
-    const oldest = feed.children[0];
-    if (oldest === undefined) {
-      break;
-    }
-    feed.removeChild(oldest);
-  }
+  pushFeed(
+    { feed },
+    buildFeedEntry(
+      killer,
+      victim,
+      weapon ?? null,
+      killerIndex ?? null,
+      victimIndex ?? null,
+    ),
+    KILLFEED_FLASH_MS,
+  );
 }
 
 /**

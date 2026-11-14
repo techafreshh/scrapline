@@ -68,16 +68,19 @@ import {
   CROUCH_SQUASH,
   VISOR_CSS,
   characterParts,
-  gunBarrel,
-  gunMuzzle,
-  teamColor,
   teamCss,
 } from "../view/character";
+import type { WeaponId } from "../../../core/src/weapons";
 import {
-  DEAD_LIFT_PX,
-  DEAD_SPLAY_PX,
-  TUCK_IN_PX,
-  TUCK_UP_PX,
+  selectSoldierFrame,
+  soldierAccentFor,
+  soldierAccentHex,
+  soldierLegOffset,
+  soldierMuzzleTip,
+  weaponDef,
+  type SoldierFrameId,
+} from "../view/soldier";
+import {
   updateAnimState,
   type AnimInput,
   type AnimPose,
@@ -110,6 +113,8 @@ export const MUZZLE_TTL = 2;
 export const MAX_TRACERS = 32;
 /** Cap on live muzzle flashes (oldest dropped first). */
 export const MAX_MUZZLES = 8;
+/** Muzzle-dot radius in local px (matches the composed gunMuzzle dot). */
+const MUZZLE_DOT_R = 2;
 /** Impact-spark lifetime in draws (~150ms at 60 fps). */
 export const SPARK_TTL = 9;
 /** Death-burst lifetime in draws (~300ms at 60 fps). */
@@ -179,7 +184,9 @@ export interface FramePlayer {
   hurtAt: number | null;
   /** Health points (hp-drop edge latches the hurt flash). */
   hp: number;
-  /** Barrel tip in world coords (body center + aim dir * BARREL_LENGTH). */
+  /** Equipped weapon id (drives the in-hand gun and muzzle tip). */
+  weapon: WeaponId;
+  /** Barrel tip in world coords (body center + aim dir * weapon length). */
   barrel: { x: number; y: number };
 }
 
@@ -288,6 +295,10 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
       const cx = p.x + w / 2;
       const cy = p.y + h / 2;
       const hurtRaw = (p as { hurtAt?: unknown }).hurtAt;
+      const weapon: WeaponId =
+        (p as { weapon?: unknown }).weapon === undefined
+          ? "pistol"
+          : (p.weapon as WeaponId);
       return {
         index,
         x: p.x,
@@ -306,7 +317,8 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
             ? hurtRaw
             : null,
         hp: p.hp ?? 0,
-        barrel: barrelEndpoint(cx, cy, p.aim),
+        weapon,
+        barrel: soldierMuzzleTip(cx, cy, p.aim, weapon),
       };
     }),
     projectiles: state.projectiles.map((p) => ({
@@ -474,7 +486,7 @@ function playerColor(index: number, alive: boolean): number {
   if (!alive) {
     return 0x475569;
   }
-  return teamColor(index);
+  return soldierAccentHex(index);
 }
 
 /** Barrel stroke color: local pale, enemies warm red (threat cue). */
@@ -759,11 +771,12 @@ function paintFramePixi(
 }
 
 /**
- * Draw the composed vector figure for one player in screen space: the
- * same characterParts geometry the Pixi containers bake, with the arms
- * and the held weapon rotated by aim around the (crouch-squashed)
- * pivot while the body stays upright. The weapon muzzle lands on the
- * frame barrel tip by construction.
+ * Draw the animated soldier figure for one player in screen space: the
+ * frame selected by selectSoldierFrame (frame-specific leg offsets via
+ * soldierLegOffset, tuck/dead poses preserved), accents palette-swapped
+ * through soldierAccentFor, and the WEAPON_DEFS gun segment for
+ * p.weapon rotated by aim around the (crouch-squashed) pivot. The
+ * weapon muzzle lands on the frame barrel tip by construction.
  */
 function drawCharacter2D(
   ctx: CanvasRenderingContext2D,
@@ -771,8 +784,8 @@ function drawCharacter2D(
   py: (y: number) => number,
   scale: number,
   p: FramePlayer,
-  colorCss: string,
-  anim?: AnimPose,
+  anim: AnimPose | undefined,
+  flashed: boolean,
 ): void {
   const crouch = p.h < CHARACTER_H;
   const squashY = crouch ? CROUCH_SQUASH : 1;
@@ -780,9 +793,28 @@ function drawCharacter2D(
   const sx = px(p.x);
   const sy = py(p.y);
   const swing = anim?.swing ?? 0;
-  const tuck = anim?.tuck === true;
-  const dead = anim !== undefined ? anim.deadPose : !p.alive;
-  const paint = anim?.hurtFlash === true ? "#ffffff" : colorCss;
+  const frame: SoldierFrameId =
+    anim !== undefined
+      ? selectSoldierFrame({
+          deadPose: anim.deadPose,
+          tuck: anim.tuck,
+          crouching: p.crouching,
+          heightScale: anim.heightScale,
+          legPhase: anim.legPhase,
+          swing: anim.swing,
+        })
+      : !p.alive
+        ? "dead"
+        : crouch
+          ? "crouch"
+          : "idle";
+  const base = !p.alive ? "#475569" : soldierAccentFor(p.index);
+  const paint =
+    anim?.hurtFlash === true
+      ? "#ffffff"
+      : flashed
+        ? VICTIM_TINT_CSS
+        : base;
   for (const part of parts) {
     if (part.kind === "limb") {
       continue;
@@ -793,15 +825,7 @@ function drawCharacter2D(
       let dy = 0;
       if (part.name === "legL" || part.name === "legR") {
         const side = part.name === "legL" ? -1 : 1;
-        if (dead) {
-          dx = side * DEAD_SPLAY_PX;
-          dy = -DEAD_LIFT_PX;
-        } else if (tuck) {
-          dx = side * -TUCK_IN_PX;
-          dy = -TUCK_UP_PX;
-        } else {
-          dy = side * swing;
-        }
+        ({ dx, dy } = soldierLegOffset(frame, swing, side));
       }
       ctx.fillRect(
         sx + (part.x + dx) * scale,
@@ -825,9 +849,10 @@ function drawCharacter2D(
   ctx.save();
   ctx.translate(sx + ARM_PIVOT.x * scale, sy + ARM_PIVOT.y * squashY * scale);
   ctx.rotate(p.aim);
-  ctx.strokeStyle = colorCss;
-  ctx.fillStyle = colorCss;
+  ctx.strokeStyle = paint;
+  ctx.fillStyle = paint;
   ctx.lineCap = "round";
+  const gun = weaponDef(p.weapon);
   for (const part of parts) {
     if (part.kind !== "limb") {
       continue;
@@ -838,22 +863,24 @@ function drawCharacter2D(
     ctx.lineTo(part.x2 * scale, part.y2 * scale);
     ctx.stroke();
     if (part.name === "armR") {
-      const barrel = gunBarrel();
-      const dot = gunMuzzle();
-      ctx.lineWidth = Math.max(1, barrel.width * scale);
+      ctx.strokeStyle = gun.colorCss;
+      ctx.fillStyle = gun.colorCss;
+      ctx.lineWidth = Math.max(1, gun.width * scale);
       ctx.beginPath();
-      ctx.moveTo(barrel.x1 * scale, barrel.y1 * scale);
-      ctx.lineTo(barrel.x2 * scale, barrel.y2 * scale);
+      ctx.moveTo(5 * scale, 0);
+      ctx.lineTo(gun.length * scale, 0);
       ctx.stroke();
       ctx.beginPath();
       ctx.arc(
-        dot.x * scale,
-        dot.y * scale,
-        Math.max(1, dot.r * scale),
+        gun.muzzleX * scale,
+        0,
+        Math.max(1, MUZZLE_DOT_R * scale),
         0,
         Math.PI * 2,
       );
       ctx.fill();
+      ctx.strokeStyle = paint;
+      ctx.fillStyle = paint;
     }
   }
   ctx.restore();
@@ -904,6 +931,21 @@ function syncFramePlayers(
     }
     const at = projectCamera(cam, canvasW, canvasH, p.x, p.y);
     const anim = anims[i];
+    const soldierFrame: SoldierFrameId =
+      anim !== undefined
+        ? selectSoldierFrame({
+            deadPose: anim.deadPose,
+            tuck: anim.tuck,
+            crouching: p.crouching,
+            heightScale: anim.heightScale,
+            legPhase: anim.legPhase,
+            swing: anim.swing,
+          })
+        : !p.alive
+          ? "dead"
+          : p.crouching
+            ? "crouch"
+            : "idle";
     syncPlayerNode(node, {
       x: at.x,
       y: at.y,
@@ -918,6 +960,8 @@ function syncFramePlayers(
       tuck: anim?.tuck ?? false,
       hurtFlash: anim?.hurtFlash ?? false,
       deadPose: anim?.deadPose ?? !p.alive,
+      weapon: p.weapon,
+      frame: soldierFrame,
     });
   }
 }
@@ -954,16 +998,38 @@ function publishFrameProbes(
       first !== undefined ? first.h / CHARACTER_H : 1,
     isHurtFlash: head?.hurtFlash ?? false,
   };
+  const extras = frame.players.map((p, i) => {
+    const pose = anims[i];
+    return {
+      frame:
+        pose !== undefined
+          ? selectSoldierFrame({
+              deadPose: pose.deadPose,
+              tuck: pose.tuck,
+              crouching: p.crouching,
+              heightScale: pose.heightScale,
+              legPhase: pose.legPhase,
+              swing: pose.swing,
+            })
+          : !p.alive
+            ? ("dead" as const)
+            : p.crouching
+              ? ("crouch" as const)
+              : ("idle" as const),
+      weapon: p.weapon,
+    };
+  });
   publishGameProbes(
     store.slice(0, frame.players.length),
     frame.players.map((p) => p.index),
     frame.players.map((p) => ({
-      color: teamColor(p.index),
-      colorCss: teamCss(p.index),
+      color: soldierAccentHex(p.index),
+      colorCss: soldierAccentFor(p.index),
     })),
     screen,
     screen,
     anim,
+    extras,
   );
 }
 
@@ -1020,10 +1086,10 @@ function paintFrame2D(
     const anim = anims[pi];
     const blink =
       blinkAlpha(frame.tick, p.protected) * (anim?.spawnAlpha ?? 1);
-    const colorCss = playerPaintCss(p.index, p.alive, victimFlash.has(p.index));
+    const flashed = victimFlash.has(p.index);
     ctx.save();
     ctx.globalAlpha = blink;
-    drawCharacter2D(ctx, px, py, cam.scale, p, colorCss, anim);
+    drawCharacter2D(ctx, px, py, cam.scale, p, anim, flashed);
     // Jet flame flicker below the feet while thrusting.
     if (p.alive && p.jetting) {
       const cx = px(p.x + p.w / 2);
@@ -1218,8 +1284,11 @@ export function tracerOpacity(fx: { ttl: number; life: number }): number {
 
 /**
  * Convert sim shot details into tracer segments (one per pellet) plus
- * one muzzle entry per firing shooter at the barrel tip. Pure: no DOM,
- * no clock, so it stays unit-testable under node.
+ * one muzzle entry per firing shooter at the weapon-aware barrel tip.
+ * Each tracer origin is overridden to the shooter's frame barrel tip
+ * (falling back to shot.ox/oy only when the shooter row is absent), so
+ * the tracer origin, the muzzle flash, and the drawn gun tip coincide
+ * by construction. Pure: no DOM, no clock, so unit-testable under node.
  */
 export function spawnShots(
   tracers: Tracer[],
@@ -1229,9 +1298,12 @@ export function spawnShots(
 ): void {
   const muzzled = new Set<number>();
   for (const shot of shots) {
+    const shooter = frame.players[shot.shooter];
+    const origin =
+      shooter !== undefined ? shooter.barrel : { x: shot.ox, y: shot.oy };
     tracers.push({
-      x1: shot.ox,
-      y1: shot.oy,
+      x1: origin.x,
+      y1: origin.y,
       x2: shot.x,
       y2: shot.y,
       width: TRACER_WIDTH,
@@ -1582,6 +1654,22 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             swing: anim?.swing ?? 0,
             heightScale: anim?.heightScale ?? 1,
             hurtFlash: anim?.hurtFlash ?? false,
+            frame:
+              anim !== undefined
+                ? selectSoldierFrame({
+                    deadPose: anim.deadPose,
+                    tuck: anim.tuck,
+                    crouching: p.crouching,
+                    heightScale: anim.heightScale,
+                    legPhase: anim.legPhase,
+                    swing: anim.swing,
+                  })
+                : !p.alive
+                  ? "dead"
+                  : p.crouching
+                    ? "crouch"
+                    : "idle",
+            weapon: p.weapon,
           };
         }),
         zoom: cam.zoom ?? 1,

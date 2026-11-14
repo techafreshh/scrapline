@@ -3,12 +3,13 @@
 // interface (never imported), so node unit tests drive the plain-object
 // stub branch while the live Pixi backend gets real Containers with one
 // Graphics child per named part.
+import type { WeaponId } from "../../../core/src/weapons";
 import {
-  DEAD_LIFT_PX,
-  DEAD_SPLAY_PX,
-  TUCK_IN_PX,
-  TUCK_UP_PX,
-} from "./anim";
+  selectSoldierFrame,
+  soldierLegOffset,
+  weaponDef,
+  type SoldierFrameId,
+} from "./soldier";
 import {
   ARM_PIVOT,
   CHARACTER_H,
@@ -17,8 +18,6 @@ import {
   PART_NAMES,
   VISOR_HEX,
   characterParts,
-  gunBarrel,
-  gunMuzzle,
   teamCss,
   type PartName,
 } from "./character";
@@ -34,6 +33,7 @@ export interface GraphicsLike {
   position: PointLike;
   rotation: number;
   tint: number | string;
+  clear?(): unknown;
   rect(x: number, y: number, w: number, h: number): unknown;
   circle(x: number, y: number, r: number): unknown;
   moveTo(x: number, y: number): unknown;
@@ -84,6 +84,10 @@ export interface ProbePlayer {
   };
   color: number;
   colorCss: string;
+  /** Selected soldier frame id for this player (additive probe field). */
+  frame?: SoldierFrameId;
+  /** Equipped weapon id for this player (additive probe field). */
+  weapon?: WeaponId;
 }
 
 /** Write an expando field without fighting the Pixi v8 typings. */
@@ -100,7 +104,11 @@ function nodeName(node: PlayerNode): string {
 }
 
 /** Draw one part descriptor into a Graphics child (Pixi local coords). */
-function drawPartInto(graphics: GraphicsLike, partName: PartName): void {
+function drawPartInto(
+  graphics: GraphicsLike,
+  partName: PartName,
+  weapon: WeaponId = "pistol",
+): void {
   const parts = characterParts(false);
   for (const part of parts) {
     if (part.name !== partName) {
@@ -115,18 +123,17 @@ function drawPartInto(graphics: GraphicsLike, partName: PartName): void {
     } else {
       // Limb drawn pivot-relative; the child is positioned at ARM_PIVOT
       // and rotated by aim in syncPlayerNode. armR carries the held
-      // weapon: a stock segment plus the barrel ending in the muzzle dot
-      // at exactly BARREL_LENGTH from the pivot.
+      // weapon: a stock segment plus the WEAPON_DEFS gun ending in the
+      // muzzle dot at the per-weapon length from the pivot.
       graphics.moveTo(part.x1, part.y1);
       graphics.lineTo(part.x2, part.y2);
       graphics.stroke({ width: part.width, color: 0xffffff });
       if (partName === "armR") {
-        const barrel = gunBarrel();
-        const dot = gunMuzzle();
-        graphics.moveTo(barrel.x1, barrel.y1);
-        graphics.lineTo(barrel.x2, barrel.y2);
-        graphics.stroke({ width: barrel.width, color: 0xffffff });
-        graphics.circle(dot.x, dot.y, dot.r);
+        const gun = weaponDef(weapon);
+        graphics.moveTo(5, 0);
+        graphics.lineTo(gun.length, 0);
+        graphics.stroke({ width: gun.width, color: 0xffffff });
+        graphics.circle(gun.muzzleX, 0, 2);
         graphics.fill(0xffffff);
       }
     }
@@ -193,16 +200,21 @@ export interface SyncPose {
   hurtFlash?: boolean;
   /** Burst pose while dead (legs splayed outward). */
   deadPose?: boolean;
+  /** Equipped weapon id (re-draws the armR gun at its length). */
+  weapon?: WeaponId;
+  /** Selected soldier frame (drives the frame-specific leg offsets). */
+  frame?: SoldierFrameId;
 }
 
 /**
  * Pose one node for the frame: position/scale the container, rotate only
  * the arm children toward aim (the body stays upright), tint the
- * white-baked parts, and apply spawn-blink alpha. Run-cycle leg swing
- * offsets the leg children in opposition, jetting tucks both legs up and
- * toward the center, hurt flashes every non-visor child white, and death
- * splays the legs into the burst pose. Stubs record nothing
- * pose-specific (their shape is the probe contract).
+ * white-baked parts, and apply spawn-blink alpha. Legs take the
+ * frame-specific soldierLegOffset for the selected frame (run-a/run-b
+ * stride in opposition, jet tucks both legs, death splays them), hurt
+ * flashes every non-visor child white, and the armR gun is re-drawn at
+ * the pose weapon's length when the backend supports clear. Stubs record
+ * nothing pose-specific (their shape is the probe contract).
  */
 export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
   if (!("children" in node) || !("position" in node)) {
@@ -214,23 +226,32 @@ export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
   container.alpha = pose.alpha;
   container.visible = pose.visible;
   const swing = pose.legSwing ?? 0;
-  const tuck = pose.tuck === true;
-  const dead = pose.deadPose === true;
+  const frame: SoldierFrameId =
+    pose.frame ??
+    selectSoldierFrame({
+      deadPose: pose.deadPose,
+      tuck: pose.tuck,
+      legPhase: 0,
+      swing,
+    });
   const tint = pose.hurtFlash === true ? 0xffffff : pose.colorHex;
   for (const child of container.children) {
     if (child.label === "legL" || child.label === "legR") {
       const side = child.label === "legL" ? -1 : 1;
-      if (dead) {
-        child.position.set(side * DEAD_SPLAY_PX, -DEAD_LIFT_PX);
-      } else if (tuck) {
-        child.position.set(side * -TUCK_IN_PX, -TUCK_UP_PX);
-      } else {
-        child.position.set(0, side * swing);
-      }
+      const { dx, dy } = soldierLegOffset(frame, swing, side);
+      child.position.set(dx, dy);
       child.tint = tint;
     } else if (child.label === "armL" || child.label === "armR") {
       child.rotation = pose.aim;
       child.tint = tint;
+      if (
+        child.label === "armR" &&
+        pose.weapon !== undefined &&
+        typeof child.clear === "function"
+      ) {
+        child.clear();
+        drawPartInto(child, "armR", pose.weapon);
+      }
     } else if (child.label === "visor") {
       child.tint = 0xffffff;
     } else {
@@ -262,6 +283,7 @@ export function publishGameProbes(
   muzzle: { x: number; y: number },
   weaponTip: { x: number; y: number },
   anim?: AnimProbes,
+  extras?: readonly { frame?: SoldierFrameId; weapon?: WeaponId }[],
 ): void {
   if (typeof window === "undefined") {
     return;
@@ -295,6 +317,12 @@ export function publishGameProbes(
       },
       color: entry.color,
       colorCss: entry.colorCss,
+      ...(extras?.[k]?.frame !== undefined
+        ? { frame: extras[k]?.frame as SoldierFrameId }
+        : {}),
+      ...(extras?.[k]?.weapon !== undefined
+        ? { weapon: extras[k]?.weapon as WeaponId }
+        : {}),
     };
   });
   Object.assign(game, {

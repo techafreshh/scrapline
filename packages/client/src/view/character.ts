@@ -12,6 +12,8 @@ import {
   PLAYER_WIDTH,
 } from "../../../core/src/constants";
 import { BARREL_LENGTH, barrelEndpoint } from "../renderer/index";
+import type { WeaponId } from "../../../core/src/weapons";
+import { soldierMuzzleTip } from "./soldier";
 
 /** Authored character frame width in local px (matches PLAYER_WIDTH). */
 export const CHARACTER_W = PLAYER_WIDTH;
@@ -208,4 +210,18 @@ export function characterMuzzle(
   aim: number,
 ): { x: number; y: number } {
   return barrelEndpoint(centerX, centerY, aim);
+}
+
+/**
+ * Weapon-aware muzzle tip in world coords (aliases the soldier table so
+ * tracers and flashes anchor to the drawn gun tip for every weapon id).
+ * The default pistol row matches characterMuzzle exactly.
+ */
+export function characterMuzzleFor(
+  centerX: number,
+  centerY: number,
+  aim: number,
+  weapon: WeaponId = "pistol",
+): { x: number; y: number } {
+  return soldierMuzzleTip(centerX, centerY, aim, weapon);
 }

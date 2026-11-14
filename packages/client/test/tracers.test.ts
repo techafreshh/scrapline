@@ -46,7 +46,7 @@ function shotgunShots(): { frame: Frame; details: ShotDetail[] } {
 }
 
 describe("spawnShots", () => {
-  it("spawns one tracer per pellet with verbatim endpoints", () => {
+  it("spawns one tracer per pellet with muzzle-coincident origins and verbatim hit endpoints", () => {
     const { frame, details } = shotgunShots();
     const tracers: Tracer[] = [];
     const muzzles: Muzzle[] = [];
@@ -55,8 +55,11 @@ describe("spawnShots", () => {
     for (let i = 0; i < details.length; i += 1) {
       const tracer = tracers[i];
       const detail = details[i];
-      expect(tracer.x1).toBe(detail.ox);
-      expect(tracer.y1).toBe(detail.oy);
+      // Origins ride the shooter's weapon-aware barrel tip (issue #144),
+      // while hit endpoints stay verbatim from the sim detail.
+      const tip = frame.players[detail.shooter].barrel;
+      expect(tracer.x1).toBe(tip.x);
+      expect(tracer.y1).toBe(tip.y);
       expect(tracer.x2).toBe(detail.x);
       expect(tracer.y2).toBe(detail.y);
       expect(tracer.ttl).toBe(TRACER_TTL);

@@ -15,7 +15,13 @@ import {
   World,
   type WorldInput,
 } from "../../core/src/world";
-import type { DamageDetail, KillDetail, ShotDetail } from "../../core/src/events";
+import type {
+  DamageDetail,
+  ExplodeDetail,
+  KillDetail,
+  PickupDetail,
+  ShotDetail,
+} from "../../core/src/events";
 import { BotBrain } from "../../core/src/bots/brain";
 import { mapRowsFor } from "./maps";
 import { setCurrentTheme } from "./view/theme";
@@ -443,6 +449,10 @@ const shotsThisFrame: ShotDetail[] = [];
 const damagesThisFrame: DamageDetail[] = [];
 /** Per-frame kill details drained from the sim; cleared after each draw. */
 const killsThisFrame: KillDetail[] = [];
+/** Per-frame explosion blast centers drained from the sim; cleared after each draw. */
+const explodesThisFrame: ExplodeDetail[] = [];
+/** Per-frame pickup pad positions drained from the sim; cleared after each draw. */
+const pickupsThisFrame: PickupDetail[] = [];
 
 /**
  * Advance one fixed 60 Hz step; attribute kills to the killfeed and
@@ -575,6 +585,14 @@ function stepOnce(): string[] {
       playKill();
     }
   }
+  // Blast centers plus pickup pads drive the pooled explosion and
+  // sparkle particles (positions the string event bus never carried).
+  for (const blast of world.drainExplodeDetails()) {
+    explodesThisFrame.push(blast);
+  }
+  for (const pickup of world.drainPickupDetails()) {
+    pickupsThisFrame.push(pickup);
+  }
   // The jet loop follows the local player's jetting state plus fuel:
   // a missing or dead player silences it (match end below re-silences).
   const jetPlayer = world.players[0];
@@ -662,6 +680,8 @@ function frame(now: number): void {
       shotsThisFrame,
       damagesThisFrame,
       killsThisFrame,
+      explodesThisFrame,
+      pickupsThisFrame,
     );
   }
   // Authoritative camera probe mirror (zoom multiplier, scale, trauma,
@@ -682,6 +702,8 @@ function frame(now: number): void {
   shotsThisFrame.length = 0;
   damagesThisFrame.length = 0;
   killsThisFrame.length = 0;
+  explodesThisFrame.length = 0;
+  pickupsThisFrame.length = 0;
   const local = world.players[0];
   hudFrame += 1;
   if (local !== undefined && hudFrame % 3 === 1) {

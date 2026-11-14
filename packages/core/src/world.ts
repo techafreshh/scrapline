@@ -64,7 +64,14 @@ import {
   WEAPON_RESPAWN_TICKS,
 } from "./constants";
 import type { Pickup, PickupKind, Player, Projectile, Prop, PropKind } from "./entities";
-import type { DamageDetail, KillDetail, ShotDetail, WorldEvent } from "./events";
+import type {
+  DamageDetail,
+  ExplodeDetail,
+  KillDetail,
+  PickupDetail,
+  ShotDetail,
+  WorldEvent,
+} from "./events";
 import { isMatchOver, standingsFor, type MatchMode } from "./match";
 import { TILE_SIZE, TileMap, parseMapSymbols } from "./map";
 import { createRng, type Rng } from "./rng";
@@ -300,6 +307,10 @@ export class World {
   private pendingDamage: DamageDetail[] = [];
   /** Per-kill details recorded by the last step(); drained by the renderer. */
   private pendingKill: KillDetail[] = [];
+  /** Per-explosion blast centers recorded by the last step(); drained by the renderer. */
+  private pendingExplodes: ExplodeDetail[] = [];
+  /** Per-pickup pad positions recorded by the last step(); drained by the renderer. */
+  private pendingPickups: PickupDetail[] = [];
 
   constructor(options: WorldOptions = {}) {
     this.seed = options.seed ?? 0;
@@ -753,6 +764,38 @@ export class World {
     return out;
   }
 
+  /**
+   * Drain per-explosion blast centers recorded by the last step().
+   * Returns and clears the queue; the next step() starts empty so
+   * details never cross ticks or grow unboundedly.
+   */
+  drainExplodeDetails(): ExplodeDetail[] {
+    const pending = (this as unknown as { pendingExplodes?: ExplodeDetail[] })
+      .pendingExplodes;
+    if (pending === undefined || pending.length === 0) {
+      return [];
+    }
+    const out = pending.slice();
+    pending.length = 0;
+    return out;
+  }
+
+  /**
+   * Drain per-pickup pad positions recorded by the last step().
+   * Returns and clears the queue; the next step() starts empty so
+   * details never cross ticks or grow unboundedly.
+   */
+  drainPickupDetails(): PickupDetail[] {
+    const pending = (this as unknown as { pendingPickups?: PickupDetail[] })
+      .pendingPickups;
+    if (pending === undefined || pending.length === 0) {
+      return [];
+    }
+    const out = pending.slice();
+    pending.length = 0;
+    return out;
+  }
+
   /** Alias of addPlayer (both spellings are probed). */
   spawnPlayer(x?: number, y?: number): Player;
   spawnPlayer(opts?: SpawnOptions): Player;
@@ -811,10 +854,24 @@ export class World {
     if ((this as unknown as { pendingKill?: KillDetail[] }).pendingKill === undefined) {
       (this as unknown as { pendingKill: KillDetail[] }).pendingKill = [];
     }
-    // Shot/damage/kill details never cross ticks: undrained leftovers die here.
+    if (
+      (this as unknown as { pendingExplodes?: ExplodeDetail[] }).pendingExplodes ===
+      undefined
+    ) {
+      (this as unknown as { pendingExplodes: ExplodeDetail[] }).pendingExplodes = [];
+    }
+    if (
+      (this as unknown as { pendingPickups?: PickupDetail[] }).pendingPickups ===
+      undefined
+    ) {
+      (this as unknown as { pendingPickups: PickupDetail[] }).pendingPickups = [];
+    }
+    // Shot/damage/kill/explode/pickup details never cross ticks: undrained leftovers die here.
     (this.pendingShots as ShotDetail[]).length = 0;
     (this.pendingDamage as DamageDetail[]).length = 0;
     (this.pendingKill as KillDetail[]).length = 0;
+    (this.pendingExplodes as ExplodeDetail[]).length = 0;
+    (this.pendingPickups as PickupDetail[]).length = 0;
     if ((this as { projectiles?: Projectile[] }).projectiles === undefined) {
       (this as { projectiles: Projectile[] }).projectiles = [];
     }
@@ -1307,6 +1364,7 @@ export class World {
     const ownerIdx =
       ownerId >= 0 ? this.players.findIndex((p) => p.id === ownerId) : -1;
     events.push("explode");
+    this.pendingExplodes.push({ x, y, radius });
     for (let j = 0; j < this.players.length; j += 1) {
       const victim = this.players[j] as Player;
       if (!victim.alive || victim.hp <= 0) {
@@ -1437,7 +1495,8 @@ export class World {
    * grant only below max; first player in order wins contested pads.
    */
   private collectPickups(events: WorldEvent[]): void {
-    for (const player of this.players) {
+    for (let pi = 0; pi < this.players.length; pi += 1) {
+      const player = this.players[pi] as Player;
       if (!player.alive || player.hp <= 0) {
         continue;
       }
@@ -1460,6 +1519,13 @@ export class World {
           pickup.active = false;
           pickup.respawnTicks = WEAPON_RESPAWN_TICKS;
           events.push("pickup");
+          this.pendingPickups.push({
+            x: pickup.x,
+            y: pickup.y,
+            kind: pickup.kind,
+            player: pi,
+            playerId: player.id,
+          });
         } else if (pickup.kind === "health") {
           if (player.hp >= HEALTH_MAX) {
             continue;
@@ -1468,6 +1534,13 @@ export class World {
           pickup.active = false;
           pickup.respawnTicks = HEALTH_RESPAWN_TICKS;
           events.push("pickup");
+          this.pendingPickups.push({
+            x: pickup.x,
+            y: pickup.y,
+            kind: pickup.kind,
+            player: pi,
+            playerId: player.id,
+          });
         } else {
           const stocked = player.grenades ?? GRENADE_MAX;
           if (stocked >= GRENADE_MAX) {
@@ -1477,6 +1550,13 @@ export class World {
           pickup.active = false;
           pickup.respawnTicks = GRENADE_PICKUP_RESPAWN_TICKS;
           events.push("pickup");
+          this.pendingPickups.push({
+            x: pickup.x,
+            y: pickup.y,
+            kind: pickup.kind,
+            player: pi,
+            playerId: player.id,
+          });
         }
       }
     }

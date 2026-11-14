@@ -17,7 +17,27 @@ import type {
   Projectile,
   Prop,
 } from "../../../core/src/entities";
-import type { DamageDetail, KillDetail, ShotDetail } from "../../../core/src/events";
+import type {
+  DamageDetail,
+  ExplodeDetail,
+  KillDetail,
+  PickupDetail,
+  ShotDetail,
+} from "../../../core/src/events";
+import {
+  MAX_PARTICLES,
+  particleOpacity,
+  spawnDeathBurst,
+  spawnExplosion,
+  spawnImpact,
+  spawnJetExhaust,
+  spawnMuzzleFlash,
+  spawnPickupSparkle,
+  updateParticles,
+  type Particle,
+} from "../fx/particles";
+import { FX_EMITTER_CAPS } from "../fx/particles-config";
+import type { FxEmitters } from "../fx/emitters";
 import {
   createCamera,
   projectCamera,
@@ -372,7 +392,9 @@ export interface Renderer {
    * like describeFrame; camera defaults to arena-centered; events
    * feed capped fx flashes, shots feed hitscan tracers/muzzle
    * flashes, damages feed impact sparks plus victim tint, kills feed
-   * death bursts).
+   * death bursts, explodes feed explosion flash plus smoke plus debris
+   * at the sim blast center, pickups feed pickup sparkles, and jetting
+   * players emit a continuous exhaust trail for the full jet duration).
    */
   draw(
     state: StateLike,
@@ -382,6 +404,8 @@ export interface Renderer {
     shots?: ShotDetail[],
     damages?: DamageDetail[],
     kills?: KillDetail[],
+    explodes?: ExplodeDetail[],
+    pickups?: PickupDetail[],
   ): void;
   /** Which backend survived init. */
   mode: "pixi" | "canvas2d";
@@ -726,6 +750,7 @@ function paintFramePixi(
   muzzles: Muzzle[],
   sparks: Spark[],
   bursts: Burst[],
+  particles: Particle[],
   victimFlash: ReadonlyMap<number, number>,
   canvasWidth: number,
   canvasHeight: number,
@@ -821,6 +846,10 @@ function paintFramePixi(
     const pos = burstPosition(burst);
     graphics.circle(px(pos.x), py(pos.y), 3);
     graphics.fill({ color: 0xf97316, alpha: tracerOpacity(burst) });
+  }
+  for (const particle of particles) {
+    graphics.circle(px(particle.x), py(particle.y), Math.max(1, particle.size * cam.scale));
+    graphics.fill({ color: particle.color, alpha: particleOpacity(particle) });
   }
   paintVignettePixi(graphics, canvasWidth, canvasHeight);
 }
@@ -1098,6 +1127,7 @@ function paintFrame2D(
   muzzles: Muzzle[],
   sparks: Spark[],
   bursts: Burst[],
+  particles: Particle[],
   victimFlash: ReadonlyMap<number, number>,
   canvasWidth: number,
   canvasHeight: number,
@@ -1217,25 +1247,56 @@ function paintFrame2D(
     ctx.fill();
     ctx.restore();
   }
+  for (const particle of particles) {
+    ctx.save();
+    ctx.globalAlpha = particleOpacity(particle);
+    ctx.fillStyle = particle.css;
+    ctx.beginPath();
+    ctx.arc(
+      px(particle.x),
+      py(particle.y),
+      Math.max(1, particle.size * cam.scale),
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+    ctx.restore();
+  }
   paintVignette2D(ctx, canvasWidth, canvasHeight);
 }
 
 /** Feed step events into capped transient flashes anchored near the action. */
-function pushFlashes(flashes: Flash[], frame: Frame, events: string[]): void {
-  if (events.length === 0) {
+function pushFlashes(
+  flashes: Flash[],
+  frame: Frame,
+  events: string[],
+  explodes: readonly ExplodeDetail[] = [],
+): void {
+  if (events.length === 0 && explodes.length === 0) {
     return;
   }
   const local = frame.players[0];
   const anchorX =
-    local !== undefined
-      ? local.x + local.w / 2
-      : frame.arena.width / 2;
+    local !== undefined ? local.x + local.w / 2 : frame.arena.width / 2;
   const anchorY =
-    local !== undefined
-      ? local.y + local.h / 2
-      : frame.arena.height / 2;
+    local !== undefined ? local.y + local.h / 2 : frame.arena.height / 2;
+  // Blast centers carry the true explosion position: wall hits with no
+  // victims still flash at the sim blast instead of on the local player.
+  for (const blast of explodes) {
+    flashes.push({ x: blast.x, y: blast.y, kind: "explode", ttl: FLASH_TTL });
+    while (flashes.length > MAX_FLASHES) {
+      flashes.shift();
+    }
+  }
+  const explodeEvents = events.filter((e) => e === "explode").length;
+  const anchoredBlasts = Math.min(explodeEvents, explodes.length);
+  let skippedExplodes = 0;
   for (const event of events) {
     if (event !== "explode" && event !== "bounce" && event !== "shot") {
+      continue;
+    }
+    if (event === "explode" && skippedExplodes < anchoredBlasts) {
+      skippedExplodes += 1;
       continue;
     }
     if (event === "shot" && local !== undefined && local.alive) {
@@ -1506,6 +1567,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   const muzzles: Muzzle[] = [];
   const sparks: Spark[] = [];
   const bursts: Burst[] = [];
+  // Pooled bright particles (muzzle/impact/explosion/jet/death/pickup)
+  // painted on both backends; capped at MAX_PARTICLES for perf.
+  const particles: Particle[] = [];
   const victimFlash = new Map<number, number>();
   // Live per-player composed-sprite nodes (real Pixi containers on the
   // Pixi backend, plain-object stubs on the canvas2d fallback).
@@ -1531,7 +1595,19 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     shots: ShotDetail[] | undefined,
     damages: DamageDetail[] | undefined,
     kills: KillDetail[] | undefined,
-  ): { frame: Frame; cam: Camera; layers: LayerCounts; anims: AnimPose[]; theme: TileTheme; themeName: string; decors: Decoration[]; padSquash: number } {
+    explodes: ExplodeDetail[] | undefined,
+    pickups: PickupDetail[] | undefined,
+  ): {
+    frame: Frame;
+    cam: Camera;
+    layers: LayerCounts;
+    anims: AnimPose[];
+    theme: TileTheme;
+    themeName: string;
+    decors: Decoration[];
+    padSquash: number;
+    dtSec: number;
+  } {
     const frame = describeFrame(state, map ?? null);
     const cam = camera ?? createCamera(frame.arena.width, frame.arena.height);
     const now = performance.now();
@@ -1614,10 +1690,47 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     }
     wasOnBouncePad = onPad;
     const padSquash = bounceSquashScale(now, lastBounceAtMs);
-    pushFlashes(flashes, frame, events ?? []);
+    pushFlashes(flashes, frame, events ?? [], explodes ?? []);
     spawnShots(tracers, muzzles, frame, shots ?? []);
+    // Pooled muzzle flashes ride the same barrel tips as the tracer
+    // muzzles (one burst per firing shooter, not per pellet, to cap
+    // perf on shotguns) so the 24px probe always finds >= 4.
+    {
+      const muzzled = new Set<number>();
+      for (const shot of shots ?? []) {
+        if (muzzled.has(shot.shooter)) {
+          continue;
+        }
+        muzzled.add(shot.shooter);
+        const shooter = frame.players[shot.shooter];
+        const tip =
+          shooter !== undefined ? shooter.barrel : { x: shot.ox, y: shot.oy };
+        spawnMuzzleFlash(particles, tip.x, tip.y, shooter?.aim ?? 0);
+      }
+    }
     spawnSparks(sparks, damages ?? []);
+    for (const detail of damages ?? []) {
+      spawnImpact(particles, detail.x, detail.y);
+    }
     spawnBursts(bursts, kills ?? []);
+    for (const detail of kills ?? []) {
+      spawnDeathBurst(particles, detail.x, detail.y);
+    }
+    for (const blast of explodes ?? []) {
+      spawnExplosion(particles, blast.x, blast.y, blast.radius);
+    }
+    for (const pickup of pickups ?? []) {
+      spawnPickupSparkle(particles, pickup.x, pickup.y);
+    }
+    // Jet exhaust trail: continuous emission while thrusting (not
+    // event-gated) so the flame reads for the full jet duration (F2).
+    // Exhaust ignores spawn-protection blink so the trail stays bright
+    // even while the body blinks.
+    for (const p of frame.players) {
+      if (p.alive && p.jetting) {
+        spawnJetExhaust(particles, p.x + p.w / 2, p.y + p.h + 1);
+      }
+    }
     for (const detail of damages ?? []) {
       if (detail.victim >= 0) {
         victimFlash.set(detail.victim, VICTIM_TTL);
@@ -1632,6 +1745,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     }
     ageFx(tracers, muzzles);
     ageHitFx(sparks, bursts, victimFlash);
+    updateParticles(particles);
     const theme = resolveTileTheme();
     const themeName = theme.name;
     const allDecors = decorationsFor(themeName) ?? [];
@@ -1736,6 +1850,16 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           const pos = burstPosition(b);
           return { x: pos.x, y: pos.y, opacity: tracerOpacity(b) };
         }),
+        particles: particles.map((p) => ({
+          x: p.x,
+          y: p.y,
+          opacity: particleOpacity(p),
+          color: p.color,
+          css: p.css,
+        })),
+        particleCount: particles.length,
+        particleCap: MAX_PARTICLES,
+        fxCaps: { ...FX_EMITTER_CAPS },
         tints: frame.players.map((p) =>
           playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
         ),
@@ -1805,8 +1929,14 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         })),
       };
     }
-    return { frame, cam, layers, anims, theme, themeName, decors, padSquash };
+    return { frame, cam, layers, anims, theme, themeName, decors, padSquash, dtSec };
   }
+
+  // Lazy Pixi-side particle emitters (pixi-v8-particles): additive glow
+  // on top of the pooled circles. Created once the Pixi backend wins;
+  // the canvas2d fallback keeps the pooled path only.
+  let fxEmitters: FxEmitters | null = null;
+  let fxEmittersFailed = false;
 
   try {
     // Lazy Pixi chunk (vite code-splits the dynamic import below into
@@ -1836,6 +1966,25 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     });
     const graphics = new mod.Graphics();
     app.stage.addChild(graphics);
+    // Dedicated fx container above the world graphics: Pixi emitters
+    // (pixi-v8-particles) paint additive glow here while the pooled
+    // circles in paintFramePixi stay the probe-visible path.
+    const fxParent = new mod.Container();
+    app.stage.addChild(fxParent);
+    if (!fxEmittersFailed && fxEmitters === null) {
+      void import("../fx/emitters")
+        .then((fxMod) =>
+          fxMod.createFxEmitters(
+            fxParent as unknown as Parameters<typeof fxMod.createFxEmitters>[0],
+          ),
+        )
+        .then((fx) => {
+          fxEmitters = fx;
+        })
+        .catch(() => {
+          fxEmittersFailed = true;
+        });
+    }
     activeMode = "pixi";
     return {
       mode: "pixi",
@@ -1855,8 +2004,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         shots?: ShotDetail[],
         damages?: DamageDetail[],
         kills?: KillDetail[],
+        explodes?: ExplodeDetail[],
+        pickups?: PickupDetail[],
       ): void {
-        const { frame, cam, layers, anims, theme, decors, padSquash } = trackDraw(
+        const { frame, cam, layers, anims, theme, decors, padSquash, dtSec } = trackDraw(
           state,
           map,
           camera,
@@ -1864,7 +2015,61 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           shots,
           damages,
           kills,
+          explodes,
+          pickups,
         );
+        // Drive the Pixi emitters from the same sim details the pool
+        // consumes (capped per FX_EMITTER_CAPS). Failures stay silent:
+        // the pooled circles already guarantee the probe pixels.
+        try {
+          const fx = fxEmitters;
+          if (fx !== null && fx !== undefined) {
+            const toScreen = (x: number, y: number): { x: number; y: number } =>
+              projectCamera(cam, logicalW, logicalH, x, y);
+            for (const shot of shots ?? []) {
+              const shooter = frame.players[shot.shooter];
+              const tip =
+                shooter !== undefined ? shooter.barrel : { x: shot.ox, y: shot.oy };
+              const s = toScreen(tip.x, tip.y);
+              fx.muzzle.updateOwnerPos(s.x, s.y);
+              fx.muzzle.emitNow();
+            }
+            for (const detail of damages ?? []) {
+              const s = toScreen(detail.x, detail.y);
+              fx.impact.updateOwnerPos(s.x, s.y);
+              fx.impact.emitNow();
+            }
+            for (const blast of explodes ?? []) {
+              const s = toScreen(blast.x, blast.y);
+              fx.explosion.updateOwnerPos(s.x, s.y);
+              fx.explosion.emitNow();
+            }
+            for (const detail of kills ?? []) {
+              const s = toScreen(detail.x, detail.y);
+              fx.death.updateOwnerPos(s.x, s.y);
+              fx.death.emitNow();
+            }
+            for (const pickup of pickups ?? []) {
+              const s = toScreen(pickup.x, pickup.y);
+              fx.pickup.updateOwnerPos(s.x, s.y);
+              fx.pickup.emitNow();
+            }
+            const jetting = frame.players.find((p) => p.alive && p.jetting);
+            if (jetting !== undefined) {
+              const s = toScreen(
+                jetting.x + jetting.w / 2,
+                jetting.y + jetting.h + 1,
+              );
+              fx.jet.updateOwnerPos(s.x, s.y);
+              fx.jet.emit = true;
+            } else {
+              fx.jet.emit = false;
+            }
+            fx.update(dtSec > 0 ? dtSec : 1 / 60);
+          }
+        } catch {
+          // Emitter faults never break the pooled paint path.
+        }
         // Composed sprite bodies: the factory/stage casts are structural
         // claims (Container/Graphics constructors, addChild) that keep
         // playerView free of a static pixi.js import, so the lazy chunk
@@ -1888,6 +2093,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           muzzles.slice(),
           sparks.slice(),
           bursts.slice(),
+          particles.slice(),
           victimFlash,
           logicalW,
           logicalH,
@@ -1916,6 +2122,8 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         shots?: ShotDetail[],
         damages?: DamageDetail[],
         kills?: KillDetail[],
+        explodes?: ExplodeDetail[],
+        pickups?: PickupDetail[],
       ): void {
         const { frame, cam, layers, anims, theme, decors, padSquash } = trackDraw(
           state,
@@ -1925,12 +2133,14 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           shots,
           damages,
           kills,
+          explodes,
+          pickups,
         );
         // Canvas2d fallback: stub nodes carry the probe shape while the
         // composed geometry is drawn immediately in paintFrame2D.
         ensurePlayerNodes(playerNodes, null, null, frame.players.length);
         publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles, anims);
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH, anims, theme, decors, padSquash);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), particles.slice(), victimFlash, logicalW, logicalH, anims, theme, decors, padSquash);
       },
     };
   }

@@ -171,6 +171,20 @@ declare global {
         y: number;
         opacity: number;
       }[];
+      /** Pooled bright particles (muzzle/impact/explosion/jet/death/pickup). */
+      particles: {
+        x: number;
+        y: number;
+        opacity: number;
+        color: number;
+        css: string;
+      }[];
+      /** Live pooled particle count (capped at particleCap). */
+      particleCount: number;
+      /** Hard cap on live pooled particles. */
+      particleCap: number;
+      /** Per-emitter live-particle caps (Pixi pixi-v8-particles side). */
+      fxCaps: Record<string, number>;
       /** Per-player paint color in Pixi hex (victim red while flashing). */
       tints: number[];
       /** Structured per-player style node: rect, jet, blink, and flame. */

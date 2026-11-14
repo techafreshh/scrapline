@@ -116,6 +116,11 @@ import {
   updateNametags,
   type NametagsHandles,
 } from "./ui/nametags";
+import {
+  buildPadlabels,
+  updatePadlabels,
+  type PadlabelsHandles,
+} from "./ui/padlabels";
 
 /** Fixed-timestep sim step in seconds. */
 const STEP = 1 / TICK_HZ;
@@ -324,6 +329,8 @@ refreshInput();
 let hud: HudHandles = buildHud(document);
 /** Live name-tag handles; rebuilt idempotently on every match start. */
 let nametags: NametagsHandles = buildNametags(document);
+/** Live pad-label handles; rebuilt idempotently on every match start. */
+let padlabels: PadlabelsHandles = buildPadlabels(document);
 
 /** Cached canvas CSS rect: refreshAimOrigin runs every frame, so the
  * layout read is cached and only refreshed on resize (plus once). */
@@ -798,6 +805,16 @@ function frame(now: number): void {
       canvasH: LOGICAL_H,
       show: loadShowNameTags(storage),
     });
+    // Floating pad labels (issue #154): reconciled every animation
+    // frame from the live pickup rows (change-guarded in the binder)
+    // so weapon swaps land within a frame, well inside the 500ms probe
+    // budget.
+    updatePadlabels(padlabels, {
+      pickups: world.pickups,
+      camera,
+      canvasW: LOGICAL_W,
+      canvasH: LOGICAL_H,
+    });
   }
   window.__scraplineTick = world.tick;
   // Merge, never replace: the renderer-published probe fields
@@ -968,6 +985,7 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   window.__scraplineWorld = world;
   hud = buildHud(document);
   nametags = buildNametags(document);
+  padlabels = buildPadlabels(document);
   if (hud.endScreen !== null) {
     hud.endScreen.style.display = "none";
   }

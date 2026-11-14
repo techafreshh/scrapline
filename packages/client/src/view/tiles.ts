@@ -270,29 +270,30 @@ export interface TilePaint {
 
 /**
  * Paint for one tile kind under one theme. Solids use the theme base
- * with its lighter highlight and darker edge; planks reuse the one-way
- * fill; pads use the bounce base plus its chevron stripe; backwalls
- * are the flat 60% quad (no highlight/edge).
+ * with its lighter highlight and darker edge; hazard planks (`=`)
+ * and pads (`^`/`B`) use the per-theme hazard pair so kilima reads as
+ * yellow/black striped metal; backwalls are the flat 60% quad
+ * (no highlight/edge).
  */
 export function tilePaintFor(kind: TileKind, theme: TileTheme): TilePaint {
   if (kind === "oneway") {
     return {
-      baseHex: theme.oneWayHex,
-      baseCss: theme.oneWay,
-      highlightHex: theme.highlightHex,
-      highlightCss: theme.highlight,
-      edgeHex: theme.edgeHex,
-      edgeCss: theme.edge,
+      baseHex: theme.hazardHex,
+      baseCss: theme.hazardCss,
+      highlightHex: theme.hazardHex,
+      highlightCss: theme.hazardCss,
+      edgeHex: theme.hazardStripeHex,
+      edgeCss: theme.hazardStripeCss,
     };
   }
   if (kind === "bounce") {
     return {
-      baseHex: theme.bounceHex,
-      baseCss: theme.bounce,
-      highlightHex: theme.bounceStripeHex,
-      highlightCss: theme.bounceStripe,
-      edgeHex: theme.edgeHex,
-      edgeCss: theme.edge,
+      baseHex: theme.hazardHex,
+      baseCss: theme.hazardCss,
+      highlightHex: theme.hazardStripeHex,
+      highlightCss: theme.hazardStripeCss,
+      edgeHex: theme.hazardStripeHex,
+      edgeCss: theme.hazardStripeCss,
     };
   }
   if (kind === "backwall") {
@@ -312,6 +313,65 @@ export function tilePaintFor(kind: TileKind, theme: TileTheme): TilePaint {
     highlightCss: theme.highlight,
     edgeHex: theme.edgeHex,
     edgeCss: theme.edge,
+  };
+}
+
+/** Per-theme tileset entry: flat CC0 asset key plus the paint pair. */
+export interface TilesetEntry {
+  /** Asset key without extension (e.g. tile-kilima). */
+  key: string;
+  /** Flat CC0 source file (e.g. tile-kilima.svg). */
+  file: string;
+  /** Entry base as Pixi hex. */
+  baseHex: number;
+  /** Entry base as CSS. */
+  baseCss: string;
+  /** Entry stripe as Pixi hex. */
+  stripeHex: number;
+  /** Entry stripe as CSS. */
+  stripeCss: string;
+}
+
+/** Theme name read off a TileTheme-like value (undefined when absent). */
+function themeNameOf(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value !== null && typeof value === "object") {
+    const rec = value as { name?: unknown };
+    if (typeof rec.name === "string") {
+      return rec.name;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Tileset entry for one tile kind under one theme. Hazard kinds
+ * (`oneway`, `bounce`) resolve to the per-theme hazard pair; every
+ * other kind falls back to the solid paint. Unknown themes fall back
+ * to kilima via themeFor, so bad input never crashes paint.
+ */
+export function tilesetFor(kind: unknown, theme: unknown): TilesetEntry {
+  const resolved = themeFor(themeNameOf(theme));
+  const key = `tile-${resolved.name}`;
+  if (kind === "oneway" || kind === "bounce") {
+    return {
+      key,
+      file: `${key}.svg`,
+      baseHex: resolved.hazardHex,
+      baseCss: resolved.hazardCss,
+      stripeHex: resolved.hazardStripeHex,
+      stripeCss: resolved.hazardStripeCss,
+    };
+  }
+  return {
+    key,
+    file: `${key}.svg`,
+    baseHex: resolved.baseHex,
+    baseCss: resolved.base,
+    stripeHex: resolved.highlightHex,
+    stripeCss: resolved.highlight,
   };
 }
 

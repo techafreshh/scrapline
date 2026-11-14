@@ -672,7 +672,9 @@ export function bindCarousel(
     }
   };
   try {
-    binder.config = carouselConfigFor(doc, storage);
+    // Boot seeds from persisted storage (never from the static skeleton
+    // pressed state): a stored non-default map must survive reload.
+    binder.config = loadSetup(storage);
     selectCarouselMap(doc, storage, binder.config.map);
   } catch {
     // Stored-selection paint best-effort only.

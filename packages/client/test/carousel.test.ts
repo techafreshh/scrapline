@@ -4,7 +4,7 @@
 // menu-scene.test.ts (no jsdom).
 import { describe, expect, it } from "vitest";
 import { THEMES } from "../src/view/theme";
-import { MAP_LIST, loadSetup, type SetupStorage } from "../src/setup";
+import { MAP_LIST, loadSetup, saveSetup, type SetupStorage } from "../src/setup";
 import {
   CAROUSEL_ID,
   CAROUSEL_MAPS,
@@ -492,6 +492,23 @@ describe("bindCarousel", () => {
     );
     for (const card of cards) {
       expect(card.listeners.get("click") ?? []).toHaveLength(1);
+    }
+  });
+
+  it("boot keeps the stored map when the static skeleton disagrees", () => {
+    // Static skeleton ships kilima-pressed; storage already holds dune.
+    const { doc } = makeDoc({ withSkeleton: true, legacyPressed: "kilima" });
+    const storage = fakeStorage();
+    saveSetup(storage, { ...loadSetup(storage), map: "dune" });
+    const binder = bindCarousel(doc as Document, storage);
+    expect(binder.config.map).toBe("dune");
+    expect(loadSetup(storage).map).toBe("dune");
+    const cards = (doc as { querySelectorAll(sel: string): FakeEl[] }).querySelectorAll(
+      "[data-map-card]",
+    );
+    for (const card of cards) {
+      const active = card.getAttribute("data-map-card") === "dune";
+      expect(card.getAttribute("aria-pressed")).toBe(active ? "true" : "false");
     }
   });
 

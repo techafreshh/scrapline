@@ -98,6 +98,15 @@ import {
   VIGNETTE_ALPHA,
 } from "../view/background";
 import {
+  backdropOffsetX,
+  FAR_PARALLAX,
+  FAR_PERIOD,
+  MID_PARALLAX,
+  MID_PERIOD,
+  paintBackdrop2D,
+  paintBackdropPixi,
+} from "../view/backdrop";
+import {
   bounceSquashScale,
   paintPickup2D,
   paintPickupPixi,
@@ -793,6 +802,7 @@ function paintFramePixi(
   const arena = projectCamera(cam, canvasWidth, canvasHeight, 0, 0);
   graphics.rect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
   graphics.fill(0x0b1020);
+  paintBackdropPixi(graphics, cam.x, cam.y, canvasWidth, canvasHeight, activeTheme.name);
   paintDecorPixi(graphics, px, py, cam.scale, decors);
   paintTilesPixi(graphics, px, py, tileSize, cam.scale, layers, activeTheme, padSquash);
   for (const prop of frame.props) {
@@ -1199,6 +1209,7 @@ function paintFrame2D(
   const arena = projectCamera(cam, canvasWidth, canvasHeight, 0, 0);
   ctx.fillStyle = "#0b1020";
   ctx.fillRect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
+  paintBackdrop2D(ctx, cam.x, cam.y, canvasWidth, canvasHeight, activeTheme.name);
   paintDecor2D(ctx, px, py, cam.scale, decors);
   paintTiles2D(ctx, px, py, tileSize, cam.scale, layers, activeTheme, padSquash);
   for (const prop of frame.props) {
@@ -1910,6 +1921,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     } catch {
       // Headless: module theme stays at the resolved value regardless.
     }
+    // Screen-space parallax offsets for the live camera (probe mirrors
+    // for the 200px-move acceptance: far 40px, mid 100px).
+    const backdropFarX = backdropOffsetX(cam.x, FAR_PARALLAX, FAR_PERIOD);
+    const backdropMidX = backdropOffsetX(cam.x, MID_PARALLAX, MID_PERIOD);
     if (typeof window !== "undefined") {
       try {
         const game = (window as unknown as Record<string, unknown>)["__game"] as
@@ -1939,6 +1954,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             vignetteAlpha: VIGNETTE_ALPHA,
             lightsRespected: isLightsRespected(map ?? null),
             skyCoversViewport: skyCoversViewport(logicalW, logicalH),
+            backdropFarX,
+            backdropMidX,
+            backdropFarFactor: FAR_PARALLAX,
+            backdropMidFactor: MID_PARALLAX,
             fps: Math.round(fpsEma * 10) / 10,
             quality,
             shockwaveCount: shockwaves.length,
@@ -1962,6 +1981,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         theme: themeName,
         cameraX: cam.x,
         cameraY: cam.y,
+        backdropFarX,
+        backdropMidX,
+        backdropFarFactor: FAR_PARALLAX,
+        backdropMidFactor: MID_PARALLAX,
         fps: Math.round(fpsEma * 10) / 10,
         mode: activeMode,
         barrels: frame.players.map((p) => ({

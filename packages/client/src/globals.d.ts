@@ -4,6 +4,7 @@
 import type { World } from "../../core/src/world";
 import type { InputMirror } from "./input";
 import type { AtlasIndex } from "./atlas";
+import type { QualityLevel } from "./fx/filters";
 
 declare global {
   interface Window {
@@ -98,6 +99,12 @@ declare global {
       skyTop: { r: number; g: number; b: number };
       /** Vignette rim alpha (0.25, inside [0.15, 0.35]). */
       vignetteAlpha: number;
+      /** Active post-effect quality (high keeps the hurt pulse). */
+      quality?: QualityLevel;
+      /** Live shockwave ring count (one per blast, 500ms life). */
+      shockwaveCount?: number;
+      /** Hurt-pulse strength in [0, 1] (150ms window, high only). */
+      hurtPulse?: number;
       /** Defensive lights/decoration handling (always true after paint). */
       lightsRespected: boolean;
       /** True when the sky band covers the full canvas. */
@@ -246,6 +253,17 @@ declare global {
         active: boolean;
         weapon: string | null;
       }[];
+      /** Renderer post-effect quality (mirrors the settings toggle). */
+      quality?: QualityLevel;
+      /** Live shockwave rings (radius/alpha at the current draw). */
+      shockwaves?: {
+        x: number;
+        y: number;
+        radius: number;
+        alpha: number;
+      }[];
+      /** Hurt-pulse strength (high quality while a hurt flash is live). */
+      hurtPulse?: number;
     };
   }
 }

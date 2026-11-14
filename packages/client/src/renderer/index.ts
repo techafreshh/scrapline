@@ -36,6 +36,24 @@ import {
   updateParticles,
   type Particle,
 } from "../fx/particles";
+import {
+  hurtPulseStrength,
+  paintChromaticPulse2D,
+  paintChromaticPulsePixi,
+  paintGlowHalo2D,
+  paintGlowHaloPixi,
+  paintShockwaveRing2D,
+  paintShockwaveRingPixi,
+  shockwaveAlive,
+  shockwaveAlphaAt,
+  shockwaveRadiusAt,
+  spawnShockwave,
+  updateShockwaves,
+  type QualityLevel,
+  type Shockwave,
+} from "../fx/filters";
+import { loadQuality, parseQuality } from "../settings";
+import type { SetupStorage } from "../setup";
 import { FX_EMITTER_CAPS } from "../fx/particles-config";
 import type { FxEmitters } from "../fx/emitters";
 import {
@@ -143,6 +161,8 @@ export const MAX_TRACERS = 32;
 export const MAX_MUZZLES = 8;
 /** Muzzle-dot radius in local px (matches the composed gunMuzzle dot). */
 const MUZZLE_DOT_R = 2;
+/** Muzzle-halo half-extent in screen px (the painted dot radius). */
+const MUZZLE_HALO_R = 4;
 /** Impact-spark lifetime in draws (~150ms at 60 fps). */
 export const SPARK_TTL = 9;
 /** Death-burst lifetime in draws (~300ms at 60 fps). */
@@ -411,6 +431,8 @@ export interface Renderer {
   mode: "pixi" | "canvas2d";
   /** Live-update the renderer density (DPR-driven, clamped). */
   setResolution(dpr: number): void;
+  /** Live-update the post-effect quality (high keeps the hurt pulse). */
+  setQuality(quality: QualityLevel): void;
 }
 
 /** One capped transient fx flash in world coords. */
@@ -757,6 +779,10 @@ function paintFramePixi(
   theme?: TileTheme,
   decors: readonly Decoration[] = [],
   padSquash: number = 1,
+  shockwaves: readonly Shockwave[] = [],
+  nowMs: number = 0,
+  quality: QualityLevel = "high",
+  hurtPulse: number = 0,
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
@@ -835,6 +861,14 @@ function paintFramePixi(
     });
   }
   for (const muzzle of muzzles) {
+    paintGlowHaloPixi(
+      graphics,
+      px(muzzle.x),
+      py(muzzle.y),
+      MUZZLE_HALO_R,
+      cam.scale,
+      0xfff7cc,
+    );
     graphics.circle(px(muzzle.x), py(muzzle.y), 4);
     graphics.fill({ color: 0xfff7cc, alpha: tracerOpacity(muzzle) });
   }
@@ -851,6 +885,23 @@ function paintFramePixi(
     graphics.circle(px(particle.x), py(particle.y), Math.max(1, particle.size * cam.scale));
     graphics.fill({ color: particle.color, alpha: particleOpacity(particle) });
   }
+  // Shockwave rings expand 10->60 world px over 500ms (all qualities).
+  for (const sw of shockwaves) {
+    if (!shockwaveAlive(sw, nowMs)) {
+      continue;
+    }
+    paintShockwaveRingPixi(
+      graphics,
+      px(sw.x),
+      py(sw.y),
+      shockwaveRadiusAt(sw, nowMs) * cam.scale,
+      cam.scale,
+      shockwaveAlphaAt(sw, nowMs),
+    );
+  }
+  // Chromatic hurt pulse washes the frame while a hurt flash is live
+  // (high quality only; low quality paints nothing here).
+  paintChromaticPulsePixi(graphics, canvasWidth, canvasHeight, hurtPulse, quality);
   paintVignettePixi(graphics, canvasWidth, canvasHeight);
 }
 
@@ -1135,6 +1186,10 @@ function paintFrame2D(
   theme?: TileTheme,
   decors: readonly Decoration[] = [],
   padSquash: number = 1,
+  shockwaves: readonly Shockwave[] = [],
+  nowMs: number = 0,
+  quality: QualityLevel = "high",
+  hurtPulse: number = 0,
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
@@ -1221,6 +1276,7 @@ function paintFrame2D(
   }
   for (const muzzle of muzzles) {
     ctx.save();
+    paintGlowHalo2D(ctx, px(muzzle.x), py(muzzle.y), MUZZLE_HALO_R, cam.scale, "#fff7cc");
     ctx.globalAlpha = tracerOpacity(muzzle);
     ctx.fillStyle = "#fff7cc";
     ctx.beginPath();
@@ -1262,6 +1318,23 @@ function paintFrame2D(
     ctx.fill();
     ctx.restore();
   }
+  // Shockwave rings expand 10->60 world px over 500ms (all qualities).
+  for (const sw of shockwaves) {
+    if (!shockwaveAlive(sw, nowMs)) {
+      continue;
+    }
+    paintShockwaveRing2D(
+      ctx,
+      px(sw.x),
+      py(sw.y),
+      shockwaveRadiusAt(sw, nowMs) * cam.scale,
+      cam.scale,
+      shockwaveAlphaAt(sw, nowMs),
+    );
+  }
+  // Chromatic hurt pulse washes the frame while a hurt flash is live
+  // (high quality only; low quality paints nothing here).
+  paintChromaticPulse2D(ctx, canvasWidth, canvasHeight, hurtPulse, quality);
   paintVignette2D(ctx, canvasWidth, canvasHeight);
 }
 
@@ -1549,6 +1622,41 @@ export function ageFx(tracers: Tracer[], muzzles: Muzzle[]): void {
 }
 
 /**
+ * Null-safe localStorage surface for the renderer's quality default.
+ * Mirrors the browserStorage helper in main.ts so createRenderer can
+ * seed from loadQuality before main forwards the settings toggle.
+ */
+function rendererStorage(): SetupStorage | null {
+  try {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    const ls = window.localStorage;
+    if (ls === undefined || ls === null) {
+      return null;
+    }
+    return {
+      getItem: (key: string): string | null => {
+        try {
+          return ls.getItem(key);
+        } catch {
+          return null;
+        }
+      },
+      setItem: (key: string, value: string): void => {
+        try {
+          ls.setItem(key, value);
+        } catch {
+          // Private-mode storage: the default still applies.
+        }
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Build a renderer for the canvas. PixiJS v8 (`await app.init({canvas})`)
  * is tried first; any failure (notably missing WebGL in headless
  * browsers) falls back to the 2D canvas backend drawing the same ops.
@@ -1571,6 +1679,17 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   // painted on both backends; capped at MAX_PARTICLES for perf.
   const particles: Particle[] = [];
   const victimFlash = new Map<number, number>();
+  // Live shockwave rings in world coords (one per blast, 500ms life).
+  const shockwaves: Shockwave[] = [];
+  // Renderer-owned post-effect quality (seeded from storage, forwarded
+  // from the settings binder). High keeps the chromatic hurt pulse and
+  // the Pixi filter pass; rings, halos, and vignette paint on all levels.
+  let quality: QualityLevel = "high";
+  try {
+    quality = loadQuality(rendererStorage());
+  } catch {
+    quality = "high";
+  }
   // Live per-player composed-sprite nodes (real Pixi containers on the
   // Pixi backend, plain-object stubs on the canvas2d fallback).
   const playerNodes: PlayerNode[] = [];
@@ -1607,6 +1726,8 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     decors: Decoration[];
     padSquash: number;
     dtSec: number;
+    nowMs: number;
+    hurtPulse: number;
   } {
     const frame = describeFrame(state, map ?? null);
     const cam = camera ?? createCamera(frame.arena.width, frame.arena.height);
@@ -1719,6 +1840,12 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     for (const blast of explodes ?? []) {
       spawnExplosion(particles, blast.x, blast.y, blast.radius);
     }
+    // One shockwave ring per blast center; the ring store ages on the
+    // wall clock so the 10->60px expansion tracks real capture time.
+    for (const blast of explodes ?? []) {
+      spawnShockwave(shockwaves, blast.x, blast.y, now);
+    }
+    updateShockwaves(shockwaves, now);
     for (const pickup of pickups ?? []) {
       spawnPickupSparkle(particles, pickup.x, pickup.y);
     }
@@ -1768,6 +1895,16 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       tileMapForDecor !== null
         ? culled.filter((decor) => !isDecorOccluded(decor, tileMapForDecor))
         : culled;
+    // Hurt-pulse strength: max over the per-player hurt clocks (the
+    // 150ms window from view/anim.ts). Computed on every draw but only
+    // painted on high quality, so low quality keeps a zero hue delta.
+    let hurtPulse = 0;
+    for (const animState of animStates) {
+      const strength = hurtPulseStrength(now, animState.lastHurtAtMs);
+      if (strength > hurtPulse) {
+        hurtPulse = strength;
+      }
+    }
     try {
       setCurrentTheme(themeName);
     } catch {
@@ -1803,6 +1940,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             lightsRespected: isLightsRespected(map ?? null),
             skyCoversViewport: skyCoversViewport(logicalW, logicalH),
             fps: Math.round(fpsEma * 10) / 10,
+            quality,
+            shockwaveCount: shockwaves.length,
+            hurtPulse: Math.round(hurtPulse * 100) / 100,
           });
         }
       } catch {
@@ -1927,9 +2067,17 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           active: p.active,
           weapon: p.weapon ?? null,
         })),
+        quality,
+        shockwaves: shockwaves.map((sw) => ({
+          x: sw.x,
+          y: sw.y,
+          radius: shockwaveRadiusAt(sw, now),
+          alpha: shockwaveAlphaAt(sw, now),
+        })),
+        hurtPulse: Math.round(hurtPulse * 100) / 100,
       };
     }
-    return { frame, cam, layers, anims, theme, themeName, decors, padSquash, dtSec };
+    return { frame, cam, layers, anims, theme, themeName, decors, padSquash, dtSec, nowMs: now, hurtPulse };
   }
 
   // Lazy Pixi-side particle emitters (pixi-v8-particles): additive glow
@@ -1937,6 +2085,139 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   // the canvas2d fallback keeps the pooled path only.
   let fxEmitters: FxEmitters | null = null;
   let fxEmittersFailed = false;
+
+  // Lazy Pixi-side post filters (pixi-filters): Glow on the fx
+  // container, Shockwave driven by live rings, RGBSplit while a hurt
+  // flash is live — high quality only. Loaded once, applied
+  // best-effort; the pooled paint twins stay the probe-visible path.
+  let filterCtors: {
+    Glow: new (options?: Record<string, unknown>) => unknown;
+    Shock: new (options?: Record<string, unknown>) => unknown;
+    RGB: new (options?: Record<string, unknown>) => unknown;
+  } | null = null;
+  let filterCtorsPending = false;
+  let glowFilter: unknown = null;
+  let shockFilter: unknown = null;
+  let rgbFilter: unknown = null;
+
+  function kickFilterLoad(): void {
+    if (filterCtors !== null || filterCtorsPending) {
+      return;
+    }
+    filterCtorsPending = true;
+    void Promise.all([
+      import("pixi-filters/glow"),
+      import("pixi-filters/shockwave"),
+      import("pixi-filters/rgb-split"),
+    ])
+      .then(([glowMod, shockMod, rgbMod]) => {
+        filterCtors = {
+          Glow: (glowMod as unknown as { GlowFilter: new (o?: Record<string, unknown>) => unknown }).GlowFilter,
+          Shock: (shockMod as unknown as { ShockwaveFilter: new (o?: Record<string, unknown>) => unknown }).ShockwaveFilter,
+          RGB: (rgbMod as unknown as { RGBSplitFilter: new (o?: Record<string, unknown>) => unknown }).RGBSplitFilter,
+        };
+      })
+      .catch(() => {
+        // Filter chunk failed: the pooled paint stays the sole path.
+        filterCtorsPending = false;
+      });
+  }
+
+  /**
+   * Drive the cached Pixi filters from live fx state (high quality
+   * only). Every assignment is guarded: unknown filter shapes or
+   * shorn stages clear instead of throwing.
+   */
+  function applyPixiFilters(
+    stage: { filters: unknown },
+    fxLayer: { filters: unknown },
+    worldGfx: { filters: unknown },
+    liveCam: Camera,
+    rings: Shockwave[],
+    stampMs: number,
+    pulse: number,
+  ): void {
+    if (quality !== "high" || filterCtors === null) {
+      try {
+        fxLayer.filters = [];
+      } catch {
+        // Shorn layer: pooled paint already covers the frame.
+      }
+      try {
+        worldGfx.filters = [];
+      } catch {
+        // Shorn graphics: pooled paint already covers the frame.
+      }
+      try {
+        stage.filters = [];
+      } catch {
+        // Shorn stage: pooled paint already covers the frame.
+      }
+      return;
+    }
+    try {
+      if (glowFilter === null) {
+        glowFilter = new filterCtors.Glow({ distance: 15, outerStrength: 2 });
+      }
+      fxLayer.filters = [glowFilter];
+    } catch {
+      // Glow faults never gate the pooled paint.
+    }
+    try {
+      const live = rings.filter((sw) => shockwaveAlive(sw, stampMs));
+      if (live.length > 0) {
+        const newest = live[live.length - 1] as Shockwave;
+        if (shockFilter === null) {
+          shockFilter = new filterCtors.Shock({});
+        }
+        const center = projectCamera(liveCam, logicalW, logicalH, newest.x, newest.y);
+        const filter = shockFilter as Record<string, unknown>;
+        try {
+          filter["center"] = [center.x, center.y];
+        } catch {
+          // Unknown uniform shape: the stroked ring still shows.
+        }
+        try {
+          filter["time"] = (stampMs - newest.startedMs) / 1000;
+        } catch {
+          // Unknown uniform shape: the stroked ring still shows.
+        }
+        try {
+          filter["radius"] = shockwaveRadiusAt(newest, stampMs) * liveCam.scale;
+        } catch {
+          // Unknown uniform shape: the stroked ring still shows.
+        }
+        worldGfx.filters = [shockFilter];
+      } else {
+        worldGfx.filters = [];
+      }
+    } catch {
+      // Shockwave faults never gate the pooled paint.
+    }
+    try {
+      if (pulse > 0) {
+        if (rgbFilter === null) {
+          rgbFilter = new filterCtors.RGB({});
+        }
+        const split = rgbFilter as Record<string, unknown>;
+        try {
+          split["red"] = { x: -3 * pulse, y: 0 };
+        } catch {
+          // Unknown uniform shape: the wash overlay still shows.
+        }
+        try {
+          split["blue"] = { x: 3 * pulse, y: 0 };
+        } catch {
+          // Unknown uniform shape: the wash overlay still shows.
+        }
+        stage.filters = [rgbFilter];
+      } else {
+        stage.filters = [];
+      }
+    } catch {
+      // RGB-split faults never gate the pooled paint.
+    }
+  }
 
   try {
     // Lazy Pixi chunk (vite code-splits the dynamic import below into
@@ -1985,6 +2266,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           fxEmittersFailed = true;
         });
     }
+    // Fire-and-forget filter chunk: resolves into filterCtors for the
+    // high-quality pass below; failures keep the pooled paint only.
+    kickFilterLoad();
     activeMode = "pixi";
     return {
       mode: "pixi",
@@ -1994,6 +2278,13 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           app.renderer.resolution = clamped;
         } catch {
           // Headless/shorn renderers: density stays at init value.
+        }
+      },
+      setQuality(next: QualityLevel): void {
+        try {
+          quality = parseQuality(next);
+        } catch {
+          quality = "high";
         }
       },
       draw(
@@ -2007,7 +2298,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         explodes?: ExplodeDetail[],
         pickups?: PickupDetail[],
       ): void {
-        const { frame, cam, layers, anims, theme, decors, padSquash, dtSec } = trackDraw(
+        const { frame, cam, layers, anims, theme, decors, padSquash, dtSec, nowMs, hurtPulse } = trackDraw(
           state,
           map,
           camera,
@@ -2100,7 +2391,27 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           theme,
           decors,
           padSquash,
+          shockwaves.slice(),
+          nowMs,
+          quality,
+          hurtPulse,
         );
+        // High-quality Pixi filter pass (best-effort): Glow on the fx
+        // layer, Shockwave from live rings, RGBSplit while hurt. Low
+        // quality clears every stage filter so no chromatic shift occurs.
+        try {
+          applyPixiFilters(
+            app.stage as unknown as { filters: unknown },
+            fxParent as unknown as { filters: unknown },
+            graphics as unknown as { filters: unknown },
+            cam,
+            shockwaves,
+            nowMs,
+            hurtPulse,
+          );
+        } catch {
+          // Filter faults never gate the pooled paint.
+        }
       },
     };
   } catch {
@@ -2114,6 +2425,13 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       // Canvas2d fallback: browser CSS upscale covers density, so the
       // resolution setter stays an intentional no-op.
       setResolution(): void {},
+      setQuality(next: QualityLevel): void {
+        try {
+          quality = parseQuality(next);
+        } catch {
+          quality = "high";
+        }
+      },
       draw(
         state: StateLike,
         map?: MapLike | TileMapLike | null,
@@ -2125,7 +2443,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         explodes?: ExplodeDetail[],
         pickups?: PickupDetail[],
       ): void {
-        const { frame, cam, layers, anims, theme, decors, padSquash } = trackDraw(
+        const { frame, cam, layers, anims, theme, decors, padSquash, nowMs, hurtPulse } = trackDraw(
           state,
           map,
           camera,
@@ -2140,7 +2458,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         // composed geometry is drawn immediately in paintFrame2D.
         ensurePlayerNodes(playerNodes, null, null, frame.players.length);
         publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles, anims);
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), particles.slice(), victimFlash, logicalW, logicalH, anims, theme, decors, padSquash);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), particles.slice(), victimFlash, logicalW, logicalH, anims, theme, decors, padSquash, shockwaves.slice(), nowMs, quality, hurtPulse);
       },
     };
   }

@@ -40,7 +40,7 @@ import {
   enemyCosmeticsFor,
   loadCosmetics,
 } from "./cosmetics";
-import { bindSettings, parseVolume } from "./settings";
+import { bindSettings, loadQuality, parseVolume } from "./settings";
 import {
   ensureAudioOnGesture,
   groupShotWeapons,
@@ -298,6 +298,9 @@ function seedGame(
     lightsRespected: true,
     skyCoversViewport: true,
     fps: 60,
+    quality: "high",
+    shockwaveCount: 0,
+    hurtPulse: 0,
   };
 }
 
@@ -361,6 +364,13 @@ void Promise.allSettled([createRenderer(canvas), loadAtlas()]).then(
     if (rendererResult.status === "fulfilled") {
       const r: Renderer = rendererResult.value;
       renderer = r;
+      // Seed the post-effect quality from storage next to the
+      // responsive-size wiring; the settings toggle forwards later.
+      try {
+        r.setQuality(loadQuality(storage));
+      } catch {
+        // Storage unreadable: the renderer default (high) stands.
+      }
       applyResponsiveSize();
       if (world === null) {
         renderer.draw(new World({ seed: 0 }).state);
@@ -957,6 +967,20 @@ fullscreenToggle = () => {
 // The settings slider stays the single volume surface: seed the engine
 // gain from the persisted volume and track the slider live (0 mutes).
 setVolume(settingsBinder.volume);
+// The quality button owns storage + label (bindSettings); forward the
+// persisted level to the live renderer after every toggle.
+const qualityButton = document.getElementById("btn-quality");
+if (qualityButton instanceof HTMLButtonElement) {
+  qualityButton.addEventListener("click", () => {
+    if (renderer !== null) {
+      try {
+        renderer.setQuality(loadQuality(storage));
+      } catch {
+        // Storage unreadable mid-toggle: keep the renderer level.
+      }
+    }
+  });
+}
 const volumeSlider = document.getElementById("volume");
 if (volumeSlider instanceof HTMLInputElement) {
   volumeSlider.addEventListener("input", () => {

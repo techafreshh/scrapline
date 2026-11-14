@@ -216,7 +216,7 @@ async function waitForHealth(base, timeoutMs) {
     try {
       const res = await fetch(`${base}/api/health`);
       const text = await res.text();
-      if (res.status === 200 && text.includes('"status":"ok"')) {
+      if (res.status === 200 && text.includes('"status":"ok"') && text.includes('"ok":true')) {
         return;
       }
       lastError = new Error(`unexpected health: ${res.status} ${text}`);
@@ -286,8 +286,10 @@ async function run() {
     // Prior health/state probes: the skeleton contract still passes.
     const health = await (await fetch(`${base}/api/health`)).text();
     assert(health.includes('"status":"ok"'), "/api/health must report status ok");
+    assert(health.includes('"ok":true'), "/api/health must report ok true");
     const rootHealth = await (await fetch(`${base}/health`)).text();
     assert(rootHealth.includes('"status":"ok"'), "/health must report status ok");
+    assert(rootHealth.includes('"ok":true'), "/health must report ok true");
     const healthz = await (await fetch(`${base}/healthz`)).text();
     assert(healthz.includes('"ok":true'), "/healthz must report ok true");
     const rootRes = await fetch(`${base}/`);

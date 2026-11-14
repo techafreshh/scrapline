@@ -162,6 +162,15 @@ test("client auto-joins a 1-bot match and mirrors window.__game", () => {
   assert.match(source, /persist:\s*false/);
 });
 
+test("presentation verifier pins the exact health probe", () => {
+  const verifier = fs.readFileSync(
+    path.join(__dirname, "..", "scripts", "verify-presentation.mjs"),
+    "utf8",
+  );
+  assert.match(verifier, /\/api\/health must report ok true/);
+  assert.match(verifier, /\/health must report ok true/);
+});
+
 test("repo ships zero *.png/*.jpg images", () => {
   const root = path.join(__dirname, "..");
   const hits = [];

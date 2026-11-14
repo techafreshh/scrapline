@@ -205,6 +205,18 @@
         padding: 3px 12px;
         white-space: nowrap;
       }
+      /* Rotating menu tip line (issue #157): chip-like flavor text on
+        the same 0.5s opacity fade idiom as the killfeed entries. */
+      #menu-tip {
+        position: relative;
+        z-index: 1;
+        display: block;
+        font-size: 12px;
+        letter-spacing: 0.4px;
+        color: #a5f3fc;
+        opacity: 1;
+        transition: opacity 0.5s ease-out;
+      }
       #hud {
         position: absolute;
         top: 8px;
@@ -652,6 +664,7 @@
         <button id="play">Play vs bots</button>
         <button id="settings-open">Settings</button>
         <button id="howto-open">How to Play</button>
+        <div id="menu-tip" aria-live="polite">Grab a shield pickup to survive an extra hit.</div>
       </div>
       <div id="setup" style="display: none">
         <h2>Match setup</h2>

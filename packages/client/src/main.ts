@@ -44,6 +44,7 @@ import {
 import { bindSettings, loadQuality, loadShowNameTags, parseVolume } from "./settings";
 import { bindMenuScene } from "./menu/scene";
 import { bindCarousel } from "./menu/carousel";
+import { bindMenuTips } from "./menu/tips";
 import {
   ensureAudioOnGesture,
   groupShotWeapons,
@@ -1067,6 +1068,14 @@ try {
   void bindCarousel(document, storage);
 } catch {
   // Carousel optional: Quick Play still loads the stored setup.
+}
+// Rotating menu tips (issue #157): one small mechanics line under the
+// menu buttons, advancing every 10s with a fade while the menu is
+// visible (paused while hidden). Never gates boot.
+try {
+  void bindMenuTips(document);
+} catch {
+  // Tips optional: the static skeleton already names a mechanic.
 }
 // The F key and the Settings button share one persisted toggle path.
 fullscreenToggle = () => {

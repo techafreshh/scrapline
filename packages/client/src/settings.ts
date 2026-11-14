@@ -62,6 +62,42 @@ export function parseFullscreen(value: unknown): boolean {
   return false;
 }
 
+/** localStorage key for the post-effect quality level. */
+export const SETTINGS_QUALITY_KEY = "scrapline.settings.quality";
+
+/** Post-effect quality level (high = full glow/shockwave/chromatic). */
+export type Quality = "high" | "low";
+
+/** First-visit (and corrupt-storage) default quality. */
+export const DEFAULT_QUALITY: Quality = "high";
+
+/**
+ * Tolerantly normalize an unknown value into a quality level: only
+ * "low" variants (any case, trimmed, plus "0"/"off"/"false") mean low,
+ * everything else (missing, corrupt, "high") means high.
+ */
+export function parseQuality(value: unknown): Quality {
+  if (typeof value === "boolean") {
+    return value ? "high" : "low";
+  }
+  if (typeof value === "number") {
+    return value === 0 ? "low" : "high";
+  }
+  if (typeof value === "string") {
+    const text = value.trim().toLowerCase();
+    if (
+      text === "low" ||
+      text === "l" ||
+      text === "0" ||
+      text === "off" ||
+      text === "false"
+    ) {
+      return "low";
+    }
+  }
+  return "high";
+}
+
 /** Null-safe read: storage errors (or absence) yield null. */
 function safeGet(
   storage: SetupStorage | null | undefined,
@@ -143,18 +179,54 @@ export function saveFullscreen(
   }
 }
 
+/**
+ * Load the persisted post-effect quality; missing, corrupt, or
+ * unreadable values fall back to DEFAULT_QUALITY (high).
+ */
+export function loadQuality(
+  storage: SetupStorage | null | undefined,
+): Quality {
+  const raw = safeGet(storage, SETTINGS_QUALITY_KEY);
+  if (raw === null) {
+    return DEFAULT_QUALITY;
+  }
+  return parseQuality(raw);
+}
+
+/** Persist the quality level as "high"/"low"; storage errors are swallowed. */
+export function saveQuality(
+  storage: SetupStorage | null | undefined,
+  quality: Quality,
+): void {
+  if (storage === null || storage === undefined) {
+    return;
+  }
+  try {
+    storage.setItem(
+      SETTINGS_QUALITY_KEY,
+      parseQuality(quality) === "low" ? "low" : "high",
+    );
+  } catch {
+    // Private-mode storage: the toggle still works, just not persisted.
+  }
+}
+
 /** Live binder state returned by bindSettings. */
 export interface SettingsBinder {
   /** Current master volume (updated by the slider). */
   volume: number;
   /** Current fullscreen intent (updated by the toggle). */
   fullscreen: boolean;
-  /** Reveal the overlay, prefilling the slider and toggle from storage. */
+  /** Current post-effect quality (updated by the toggle). */
+  quality: Quality;
+  /** Reveal the overlay, prefilling the slider and toggles from storage. */
   show(): void;
   /** Hide the overlay. */
   hide(): void;
   /** Flip the persisted fullscreen intent (shared button + F-key path). */
   toggleFullscreen(): Promise<boolean>;
+  /** Flip the persisted post-effect quality (shared button path). */
+  toggleQuality(): Promise<Quality>;
 }
 
 /** Minimal slider surface; the real HTMLInputElement satisfies it. */
@@ -236,6 +308,15 @@ function renderFullscreen(doc: Document, on: boolean): void {
   }
 }
 
+/** Render the quality button label; missing button is a no-op. */
+function renderQuality(doc: Document, quality: Quality): void {
+  const button = asButton(doc.getElementById("btn-quality"));
+  if (button !== null) {
+    button.textContent =
+      parseQuality(quality) === "low" ? "Quality: LOW" : "Quality: HIGH";
+  }
+}
+
 /** Swallow a Fullscreen API result that may be a promise (or thenable). */
 function swallowFullscreenResult(result: unknown): void {
   if (result === null || result === undefined) {
@@ -300,6 +381,21 @@ export function toggleFullscreen(
 }
 
 /**
+ * Shared quality toggle: flip the persisted level (low <-> high),
+ * re-render the button label from the new level immediately, and
+ * resolve it. Storage errors keep the in-memory flip (headless-safe).
+ */
+export function toggleQuality(
+  doc: Document,
+  storage: SetupStorage | null | undefined,
+): Promise<Quality> {
+  const next: Quality = loadQuality(storage) === "low" ? "high" : "low";
+  saveQuality(storage, next);
+  renderQuality(doc, next);
+  return Promise.resolve(next);
+}
+
+/**
  * Wire the settings overlay: prefill the volume slider from storage,
  * persist every slider input, expose show/hide for the overlay. Missing
  * elements are no-ops; listeners attach once.
@@ -311,11 +407,14 @@ export function bindSettings(
   const binder: SettingsBinder = {
     volume: loadVolume(storage),
     fullscreen: loadFullscreen(storage),
+    quality: loadQuality(storage),
     show(): void {
       binder.volume = loadVolume(storage);
       render(doc, binder.volume);
       binder.fullscreen = loadFullscreen(storage);
       renderFullscreen(doc, binder.fullscreen);
+      binder.quality = loadQuality(storage);
+      renderQuality(doc, binder.quality);
       setDisplay(doc.getElementById("settings"), "");
     },
     hide(): void {
@@ -325,6 +424,13 @@ export function bindSettings(
       const result = toggleFullscreen(doc, storage);
       return result.then((next) => {
         binder.fullscreen = next;
+        return next;
+      });
+    },
+    toggleQuality(): Promise<Quality> {
+      const result = toggleQuality(doc, storage);
+      return result.then((next) => {
+        binder.quality = next;
         return next;
       });
     },
@@ -343,6 +449,13 @@ export function bindSettings(
   if (fullscreenButton !== null) {
     fullscreenButton.addEventListener("click", () => {
       void binder.toggleFullscreen();
+    });
+  }
+
+  const qualityButton = asButton(doc.getElementById("btn-quality"));
+  if (qualityButton !== null) {
+    qualityButton.addEventListener("click", () => {
+      void binder.toggleQuality();
     });
   }
 
@@ -383,5 +496,6 @@ export function bindSettings(
 
   render(doc, binder.volume);
   renderFullscreen(doc, binder.fullscreen);
+  renderQuality(doc, binder.quality);
   return binder;
 }

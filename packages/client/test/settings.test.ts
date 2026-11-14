@@ -4,17 +4,23 @@
 // assertions, no padding, no DOM needed).
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_QUALITY,
   DEFAULT_VOLUME,
   FULLSCREEN_KEY,
+  SETTINGS_QUALITY_KEY,
   SETTINGS_VOLUME_KEY,
   bindSettings,
   loadFullscreen,
+  loadQuality,
   loadVolume,
   parseFullscreen,
+  parseQuality,
   parseVolume,
   saveFullscreen,
+  saveQuality,
   saveVolume,
   toggleFullscreen,
+  toggleQuality,
 } from "../src/settings";
 import type { SetupStorage } from "../src/setup";
 
@@ -430,5 +436,116 @@ describe("fullscreen binder", () => {
     expect(storage.getItem(FULLSCREEN_KEY)).toBe("1");
     expect(binder.fullscreen).toBe(true);
     expect(button.textContent).toBe("Fullscreen: ON");
+  });
+});
+
+describe("parseQuality", () => {
+  it("treats only low variants as low, everything else as high", () => {
+    expect(parseQuality("low")).toBe("low");
+    expect(parseQuality("LOW")).toBe("low");
+    expect(parseQuality(" low ")).toBe("low");
+    expect(parseQuality("0")).toBe("low");
+    expect(parseQuality("off")).toBe("low");
+    expect(parseQuality("false")).toBe("low");
+    expect(parseQuality(false)).toBe("low");
+    expect(parseQuality(0)).toBe("low");
+    expect(parseQuality("high")).toBe("high");
+    expect(parseQuality("HIGH")).toBe("high");
+    expect(parseQuality("1")).toBe("high");
+    expect(parseQuality("")).toBe("high");
+    expect(parseQuality("banana")).toBe("high");
+    expect(parseQuality(undefined)).toBe("high");
+    expect(parseQuality(null)).toBe("high");
+    expect(parseQuality(true)).toBe("high");
+    expect(parseQuality(1)).toBe("high");
+    expect(parseQuality({})).toBe("high");
+  });
+});
+
+describe("loadQuality/saveQuality", () => {
+  it("defaults to HIGH when storage is empty or absent", () => {
+    expect(DEFAULT_QUALITY).toBe("high");
+    expect(loadQuality(fakeStorage())).toBe("high");
+    expect(loadQuality(null)).toBe("high");
+    expect(loadQuality(undefined)).toBe("high");
+  });
+
+  it("round-trips low and high spellings", () => {
+    const storage = fakeStorage();
+    saveQuality(storage, "low");
+    expect(storage.getItem(SETTINGS_QUALITY_KEY)).toBe("low");
+    expect(loadQuality(storage)).toBe("low");
+    saveQuality(storage, "high");
+    expect(storage.getItem(SETTINGS_QUALITY_KEY)).toBe("high");
+    expect(loadQuality(storage)).toBe("high");
+  });
+
+  it("falls back to HIGH on corrupt stored values", () => {
+    expect(loadQuality(fakeStorage({ [SETTINGS_QUALITY_KEY]: "loud" }))).toBe(
+      "high",
+    );
+    expect(loadQuality(fakeStorage({ [SETTINGS_QUALITY_KEY]: "" }))).toBe(
+      "high",
+    );
+  });
+
+  it("is a no-op when storage is absent", () => {
+    expect(() => saveQuality(null, "low")).not.toThrow();
+    expect(() => saveQuality(undefined, "low")).not.toThrow();
+  });
+});
+
+describe("quality binder", () => {
+  it("prefills the button HIGH by default and re-prefills on show()", () => {
+    const storage = fakeStorage();
+    const button = fakeButton("Quality: HIGH");
+    const overlay = { style: { display: "none" } };
+    const binder = bindSettings(
+      fakeDocFull({ "btn-quality": button, settings: overlay }),
+      storage,
+    );
+    expect(binder.quality).toBe("high");
+    expect(button.textContent).toBe("Quality: HIGH");
+    storage.setItem(SETTINGS_QUALITY_KEY, "low");
+    binder.show();
+    expect(binder.quality).toBe("low");
+    expect(button.textContent).toBe("Quality: LOW");
+    binder.hide();
+    expect(overlay.style.display).toBe("none");
+  });
+
+  it("click toggles the stored value and the label", async () => {
+    const storage = fakeStorage();
+    const button = fakeButton("Quality: HIGH");
+    const binder = bindSettings(
+      fakeDocFull({ "btn-quality": button }),
+      storage,
+    );
+    button.fire("click");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(storage.getItem(SETTINGS_QUALITY_KEY)).toBe("low");
+    expect(binder.quality).toBe("low");
+    expect(button.textContent).toBe("Quality: LOW");
+    button.fire("click");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(storage.getItem(SETTINGS_QUALITY_KEY)).toBe("high");
+    expect(binder.quality).toBe("high");
+    expect(button.textContent).toBe("Quality: HIGH");
+  });
+
+  it("no-ops when the button is missing", async () => {
+    const storage = fakeStorage();
+    const binder = bindSettings(fakeDoc({}), storage);
+    await expect(binder.toggleQuality()).resolves.toBe("low");
+    expect(storage.getItem(SETTINGS_QUALITY_KEY)).toBe("low");
+  });
+
+  it("resolves the flipped level through the shared toggle", async () => {
+    const storage = fakeStorage();
+    const doc = fakeDoc({});
+    await expect(toggleQuality(doc, storage)).resolves.toBe("low");
+    expect(storage.getItem(SETTINGS_QUALITY_KEY)).toBe("low");
+    await expect(toggleQuality(doc, storage)).resolves.toBe("high");
+    expect(storage.getItem(SETTINGS_QUALITY_KEY)).toBe("high");
   });
 });

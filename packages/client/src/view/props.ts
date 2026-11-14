@@ -10,6 +10,10 @@
 // squash to BOUNCE_SQUASH_MIN at 300ms after a bounce event, then ease
 // back to idle by BOUNCE_SQUASH_DURATION_MS.
 import { BARREL_HP, CRATE_HP } from "../../../core/src/constants";
+import {
+  paintGlowHalo2D,
+  paintGlowHaloPixi,
+} from "../fx/filters";
 
 /** HP fraction at or below which a prop reads cracked. */
 export const PROP_CRACK_FRACTION = 0.5;
@@ -444,6 +448,10 @@ export function paintPickupPixi(
   const padH = PICKUP_PAD_H * scale;
   const plaqueW = PLAQUE_W * scale;
   const plaqueH = PLAQUE_H * scale;
+  // Glow halo behind the pad: per-kind outer band over a white-hot
+  // core, so the 6px-outside-edge sample reads >20% above background
+  // on every theme (both backends, all qualities).
+  paintGlowHaloPixi(graphics, cx, cy, padW / 2, scale, pad.edgeHex);
   graphics.rect(cx - padW / 2, cy - padH / 2, padW, padH);
   graphics.fill(0x1f2937);
   graphics.rect(cx - padW / 2, cy + padH / 2 - Math.max(1, 2 * scale), padW, Math.max(1, 2 * scale));
@@ -495,6 +503,8 @@ export function paintPickup2D(
   const padH = PICKUP_PAD_H * scale;
   const plaqueW = PLAQUE_W * scale;
   const plaqueH = PLAQUE_H * scale;
+  // Glow halo behind the pad (mirrors paintPickupPixi).
+  paintGlowHalo2D(ctx, cx, cy, padW / 2, scale, pad.edgeCss);
   ctx.fillStyle = "#1f2937";
   ctx.fillRect(cx - padW / 2, cy - padH / 2, padW, padH);
   ctx.fillStyle = pad.edgeCss;

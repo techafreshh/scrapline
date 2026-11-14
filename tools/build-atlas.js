@@ -11,7 +11,9 @@ const path = require("node:path");
 
 const ROOT = path.join(__dirname, "..");
 const SRC = path.join(ROOT, "packages", "client", "assets");
+const SRC_FONTS = path.join(SRC, "fonts");
 const DEST = path.join(ROOT, "packages", "client", "dist", "assets");
+const DEST_FONTS = path.join(DEST, "fonts");
 const ATLAS = path.join(DEST, "atlas.json");
 
 // Total built assets must stay at or under 6 MB (the presentation-v2
@@ -82,9 +84,34 @@ function main() {
   }
   const index = { meta: { app: "scrapline", version: 1 }, frames };
   fs.writeFileSync(ATLAS, JSON.stringify(index, null, 2) + "\n");
+  // Display webfont plus bitmap manifest (issue #151): copy the OFL
+  // woff2 and fonts.json verbatim so /assets/fonts/* serves offline.
+  // Missing fonts dir fails loudly like the missing-svg case above.
+  let fontNames;
+  try {
+    fontNames = fs.readdirSync(SRC_FONTS).filter((name) => {
+      const lower = name.toLowerCase();
+      return (
+        lower.endsWith(".woff2") ||
+        lower.endsWith(".woff") ||
+        lower.endsWith(".ttf") ||
+        lower.endsWith(".otf") ||
+        lower.endsWith(".json")
+      );
+    });
+  } catch {
+    fail(`missing ${SRC_FONTS} — add the OFL display webfont first.`);
+  }
+  if (fontNames.length === 0) {
+    fail(`no font files in ${SRC_FONTS} — nothing to ingest.`);
+  }
+  fs.mkdirSync(DEST_FONTS, { recursive: true });
+  for (const name of fontNames.sort()) {
+    fs.copyFileSync(path.join(SRC_FONTS, name), path.join(DEST_FONTS, name));
+  }
   const bytes = sizeBytes(DEST);
   console.log(
-    `build-atlas: ingested ${names.length} sprites -> ${ATLAS} (${(bytes / 1048576).toFixed(2)} MB)`,
+    `build-atlas: ingested ${names.length} sprites + ${fontNames.length} fonts -> ${ATLAS} (${(bytes / 1048576).toFixed(2)} MB)`,
   );
   if (bytes > BUDGET_BYTES) {
     fail(`asset budget exceeded: ${bytes} bytes > ${BUDGET_BYTES} bytes.`);

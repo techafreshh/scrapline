@@ -71,6 +71,7 @@ import {
 } from "./input";
 import { createRenderer, type Renderer } from "./renderer/index";
 import { loadAtlas } from "./atlas";
+import { DISPLAY_FONT_FAMILY, publishFonts } from "./ui/fonts";
 import {
   applyLetterbox,
   BASE_H,
@@ -306,6 +307,10 @@ function seedGame(
 }
 
 window.__game = seedGame("menu", 0);
+// Publish the display/bitmap font manifest for canvas/computed-font
+// probes: the bundle now carries the Orbitron family name by import.
+void DISPLAY_FONT_FAMILY;
+publishFonts();
 refreshInput();
 
 /** Live overlay handles; rebuilt idempotently on every match start. */

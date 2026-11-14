@@ -50,6 +50,10 @@ const CONTENT_TYPES = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".wasm": "application/wasm",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
 };
 
 const FAVICON_SVG =

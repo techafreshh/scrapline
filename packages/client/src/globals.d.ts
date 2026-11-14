@@ -11,6 +11,14 @@ declare global {
     __scraplineTick: number;
     __scraplineInput: InputMirror;
     __scraplineAtlas: AtlasIndex | null;
+    __scraplineFonts?: {
+      displayFamily: string;
+      displayFile: string;
+      displayLicense: string;
+      bitmapFamily: string;
+      manifest: unknown;
+      css: string;
+    };
     __scraplineWorld: World | null;
     __matchConfig: { bots: number; tier: string; map: string } | null;
     __game: {

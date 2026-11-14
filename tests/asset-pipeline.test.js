@@ -94,10 +94,17 @@ test("packages/client/assets holds only CC0 SVG sources", () => {
   const names = fs.readdirSync(ASSETS);
   assert.ok(names.length >= 1, "expected at least one CC0 source sprite");
   for (const name of names) {
+    // The OFL display webfont lives under fonts/ (issue #151), not as a
+    // top-level sprite: its own manifest entry covers it below.
+    if (name === "fonts") {
+      continue;
+    }
     assert.match(name, /\.svg$/, `${name} must be an SVG source`);
     const body = fs.readFileSync(path.join(ASSETS, name), "utf8");
     assert.match(body, /<svg[\s>]/, `${name} must be a valid SVG root`);
   }
+  const svgs = names.filter((name) => name.endsWith(".svg"));
+  assert.ok(svgs.length >= 1, "expected at least one CC0 source sprite");
 });
 
 test("every asset file is listed under the manifest Files section", () => {

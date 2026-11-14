@@ -66,7 +66,59 @@
         align-items: center;
         justify-content: center;
         gap: 12px;
-        background: rgba(5, 7, 15, 0.82);
+        background: rgba(5, 7, 15, 0.62);
+        overflow: hidden;
+      }
+      #menu-scene {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 0;
+      }
+      #menu-soldier {
+        position: absolute;
+        left: 50%;
+        top: 30%;
+        width: 30px;
+        height: 62px;
+        margin-left: -15px;
+        border-radius: 7px;
+        background: #00e5ff;
+        border: 2px solid rgba(248, 250, 252, 0.9);
+        box-shadow:
+          0 0 18px rgba(0, 229, 255, 0.75),
+          0 6px 14px rgba(0, 0, 0, 0.55);
+        transform: translate(-50%, 0);
+        will-change: transform;
+      }
+      #menu-soldier::before {
+        content: "";
+        position: absolute;
+        left: 4px;
+        right: 4px;
+        top: 8px;
+        height: 8px;
+        border-radius: 4px;
+        background: #f8fafc;
+        opacity: 0.95;
+      }
+      #menu-flame {
+        position: absolute;
+        left: 50%;
+        top: 100%;
+        width: 16px;
+        height: 20px;
+        margin-left: -8px;
+        margin-top: 2px;
+        border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+        background: radial-gradient(circle at 50% 20%, #fef08a 0%, #fb923c 55%, #f97316 100%);
+        opacity: 0.85;
+      }
+      #menu h1,
+      #menu button {
+        position: relative;
+        z-index: 1;
       }
       #menu h1 {
         margin: 0;
@@ -96,6 +148,22 @@
         font-size: 20px;
         font-weight: bold;
         padding: 12px 30px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      #quick-play-chip {
+        display: block;
+        font-size: 12px;
+        font-weight: normal;
+        letter-spacing: 0.4px;
+        color: #a5f3fc;
+        background: rgba(8, 20, 36, 0.85);
+        border: 1px solid rgba(125, 249, 255, 0.45);
+        border-radius: 999px;
+        padding: 3px 12px;
+        white-space: nowrap;
       }
       #hud {
         position: absolute;
@@ -534,7 +602,8 @@
       <div id="loading">Loading...</div>
       <div id="menu">
         <h1>Scrapline</h1>
-        <button id="quick-play">Quick Play</button>
+        <div id="menu-scene" aria-hidden="true"><div id="menu-soldier"><div id="menu-flame"></div></div></div>
+        <button id="quick-play">Quick Play<span id="quick-play-chip">3 bots · normal · first to 25 · 5 min</span></button>
         <button id="play">Play vs bots</button>
         <button id="settings-open">Settings</button>
         <button id="howto-open">How to Play</button>

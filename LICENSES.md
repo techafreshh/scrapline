@@ -21,6 +21,14 @@ dedicated to the public domain. No external packs are vendored.
   - packages/client/assets/weapon-sniper.svg
   - packages/client/assets/weapon-rocket.svg
 
+## Pack: Orbitron display webfont (OFL)
+
+- Author: Matt McInerney (via Google Fonts)
+- License: OFL-1.1 (SIL Open Font License 1.1)
+- Files:
+  - packages/client/assets/fonts/orbitron-700.woff2
+  - packages/client/assets/fonts/fonts.json
+
 ## Pack: Scrapline CC0 arena sprites
 
 - Author: Scrapline contributors

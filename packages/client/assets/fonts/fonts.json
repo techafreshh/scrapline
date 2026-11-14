@@ -1,0 +1,22 @@
+{
+  "app": "scrapline",
+  "version": 1,
+  "display": {
+    "family": "Orbitron",
+    "file": "orbitron-700.woff2",
+    "weight": 700,
+    "style": "normal",
+    "license": "OFL-1.1",
+    "licenseUrl": "https://scripts.sil.org/OFL",
+    "source": "https://fonts.google.com/specimen/Orbitron",
+    "author": "Matt McInerney",
+    "usage": "titles and menu headings"
+  },
+  "bitmap": {
+    "family": "Scrapline Bitmap",
+    "kind": "3x5 pixel digits",
+    "license": "OFL-1.1 (companion in-house bitmap, same license file)",
+    "glyphs": "0123456789:- ",
+    "usage": "HUD numbers (HP, grenades, timer) rendered as crisp rects"
+  }
+}

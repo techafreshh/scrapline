@@ -88,6 +88,14 @@ import {
   type Decoration,
 } from "../view/decor";
 import {
+  culledLights,
+  lightsForMap,
+  lightsForQuality,
+  paintLights2D,
+  paintLightsPixi,
+  type Light,
+} from "../view/lights";
+import {
   isLightsRespected,
   paintSky2D,
   paintSkyPixi,
@@ -787,6 +795,7 @@ function paintFramePixi(
   canvasHeight: number,
   theme?: TileTheme,
   decors: readonly Decoration[] = [],
+  lights: readonly Light[] = [],
   padSquash: number = 1,
   shockwaves: readonly Shockwave[] = [],
   nowMs: number = 0,
@@ -805,6 +814,7 @@ function paintFramePixi(
   paintBackdropPixi(graphics, cam.x, cam.y, canvasWidth, canvasHeight, activeTheme.name);
   paintDecorPixi(graphics, px, py, cam.scale, decors);
   paintTilesPixi(graphics, px, py, tileSize, cam.scale, layers, activeTheme, padSquash);
+  paintLightsPixi(graphics, px, py, cam.scale, lights, nowMs);
   for (const prop of frame.props) {
     if (!prop.alive) {
       continue;
@@ -1195,6 +1205,7 @@ function paintFrame2D(
   anims: readonly AnimPose[],
   theme?: TileTheme,
   decors: readonly Decoration[] = [],
+  lights: readonly Light[] = [],
   padSquash: number = 1,
   shockwaves: readonly Shockwave[] = [],
   nowMs: number = 0,
@@ -1212,6 +1223,7 @@ function paintFrame2D(
   paintBackdrop2D(ctx, cam.x, cam.y, canvasWidth, canvasHeight, activeTheme.name);
   paintDecor2D(ctx, px, py, cam.scale, decors);
   paintTiles2D(ctx, px, py, tileSize, cam.scale, layers, activeTheme, padSquash);
+  paintLights2D(ctx, px, py, cam.scale, lights, nowMs);
   for (const prop of frame.props) {
     if (!prop.alive) {
       continue;
@@ -1735,6 +1747,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     theme: TileTheme;
     themeName: string;
     decors: Decoration[];
+    lights: Light[];
     padSquash: number;
     dtSec: number;
     nowMs: number;
@@ -1906,6 +1919,20 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       tileMapForDecor !== null
         ? culled.filter((decor) => !isDecorOccluded(decor, tileMapForDecor))
         : culled;
+    // Static additive lights: registry per theme, culled to the live
+    // camera, then capped by the renderer-owned quality (low paints at
+    // most the first LOW_LIGHT_CAP pools, high paints the full set).
+    const lights = lightsForQuality(
+      culledLights(
+        lightsForMap(themeName),
+        cam,
+        logicalW,
+        logicalH,
+        frame.arena.width,
+        frame.arena.height,
+      ),
+      quality,
+    );
     // Hurt-pulse strength: max over the per-player hurt clocks (the
     // 150ms window from view/anim.ts). Computed on every draw but only
     // painted on high quality, so low quality keeps a zero hue delta.
@@ -1950,6 +1977,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             pickupCount: frame.pickups.length,
             decorationCount: allDecors.length,
             occludedTiles: occluded,
+            lightCount: lights.length,
             skyTop: skyTopRgb(themeName),
             vignetteAlpha: VIGNETTE_ALPHA,
             lightsRespected: isLightsRespected(map ?? null),
@@ -2097,10 +2125,11 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           radius: shockwaveRadiusAt(sw, now),
           alpha: shockwaveAlphaAt(sw, now),
         })),
+        lightCount: lights.length,
         hurtPulse: Math.round(hurtPulse * 100) / 100,
       };
     }
-    return { frame, cam, layers, anims, theme, themeName, decors, padSquash, dtSec, nowMs: now, hurtPulse };
+    return { frame, cam, layers, anims, theme, themeName, decors, lights, padSquash, dtSec, nowMs: now, hurtPulse };
   }
 
   // Lazy Pixi-side particle emitters (pixi-v8-particles): additive glow
@@ -2321,7 +2350,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         explodes?: ExplodeDetail[],
         pickups?: PickupDetail[],
       ): void {
-        const { frame, cam, layers, anims, theme, decors, padSquash, dtSec, nowMs, hurtPulse } = trackDraw(
+        const { frame, cam, layers, anims, theme, decors, lights, padSquash, dtSec, nowMs, hurtPulse } = trackDraw(
           state,
           map,
           camera,
@@ -2413,6 +2442,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           logicalH,
           theme,
           decors,
+          lights,
           padSquash,
           shockwaves.slice(),
           nowMs,
@@ -2466,7 +2496,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         explodes?: ExplodeDetail[],
         pickups?: PickupDetail[],
       ): void {
-        const { frame, cam, layers, anims, theme, decors, padSquash, nowMs, hurtPulse } = trackDraw(
+        const { frame, cam, layers, anims, theme, decors, lights, padSquash, nowMs, hurtPulse } = trackDraw(
           state,
           map,
           camera,
@@ -2481,7 +2511,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         // composed geometry is drawn immediately in paintFrame2D.
         ensurePlayerNodes(playerNodes, null, null, frame.players.length);
         publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles, anims);
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), particles.slice(), victimFlash, logicalW, logicalH, anims, theme, decors, padSquash, shockwaves.slice(), nowMs, quality, hurtPulse);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), particles.slice(), victimFlash, logicalW, logicalH, anims, theme, decors, lights, padSquash, shockwaves.slice(), nowMs, quality, hurtPulse);
       },
     };
   }

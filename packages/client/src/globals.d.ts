@@ -93,6 +93,8 @@ declare global {
       solidTileH: number;
       /** Total decorations on the active map (>=3 per map). */
       decorationCount: number;
+      /** Total static light pools painted this frame (quality-capped). */
+      lightCount: number;
       /** Decoration rects intersecting solid collision (always 0). */
       occludedTiles: number;
       /** Top-stop channels of the per-theme sky grade. */
@@ -270,6 +272,8 @@ declare global {
         radius: number;
         alpha: number;
       }[];
+      /** Live static light pool count (quality-capped paint list). */
+      lightCount?: number;
       /** Hurt-pulse strength (high quality while a hurt flash is live). */
       hurtPulse?: number;
       /** Far parallax screen offset in backing-store px (0.2x). */

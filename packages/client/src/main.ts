@@ -293,6 +293,7 @@ function seedGame(
     solidTileH: 32,
     decorationCount: 0,
     occludedTiles: 0,
+    lightCount: 0,
     skyTop: { r: 0x5a, g: 0x6b, b: 0x7a },
     vignetteAlpha: 0.25,
     lightsRespected: true,

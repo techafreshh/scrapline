@@ -78,8 +78,14 @@ declare global {
       bounceZ: number;
       /** One-way render order (above solids). */
       oneWayZ: number;
-      /** Bounce pad height in world units (8, in [6,12]). */
+      /** Bounce pad height in world units (8 idle, squashes on bounce). */
       bounceTileH: number;
+      /** Live pad squash scale (1 idle, 0.6 at the 300ms peak). */
+      padSquash?: number;
+      /** Live prop count (probe count). */
+      propCount?: number;
+      /** Live pickup count (probe count). */
+      pickupCount?: number;
       /** One-way plank height in world units (8). */
       oneWayTileH: number;
       /** Solid tile height in world units (32). */
@@ -203,6 +209,29 @@ declare global {
       shakeX: number;
       /** Current screen-px shake offset. */
       shakeY: number;
+      /** Live pad squash scale (1 idle, 0.6 at the 300ms peak). */
+      padSquash?: number;
+      /** Live bounce pad height in world units (8 idle). */
+      bounceTileH?: number;
+      /** Live prop boxes with hp states. */
+      props?: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        kind: string;
+        alive: boolean;
+        hp: number;
+        maxHp: number;
+      }[];
+      /** Live pickup markers with held weapons. */
+      pickups?: {
+        x: number;
+        y: number;
+        kind: string;
+        active: boolean;
+        weapon: string | null;
+      }[];
     };
   }
 }

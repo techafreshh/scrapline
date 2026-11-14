@@ -109,6 +109,14 @@ declare global {
       lightsRespected: boolean;
       /** True when the sky band covers the full canvas. */
       skyCoversViewport: boolean;
+      /** Far parallax screen offset in backing-store px (0.2x). */
+      backdropFarX?: number;
+      /** Mid parallax screen offset in backing-store px (0.5x). */
+      backdropMidX?: number;
+      /** Far parallax factor (0.2). */
+      backdropFarFactor?: number;
+      /** Mid parallax factor (0.5). */
+      backdropMidFactor?: number;
       /** Renderer fps exponential moving average (one decimal). */
       fps: number;
     };
@@ -264,6 +272,14 @@ declare global {
       }[];
       /** Hurt-pulse strength (high quality while a hurt flash is live). */
       hurtPulse?: number;
+      /** Far parallax screen offset in backing-store px (0.2x). */
+      backdropFarX?: number;
+      /** Mid parallax screen offset in backing-store px (0.5x). */
+      backdropMidX?: number;
+      /** Far parallax factor (0.2). */
+      backdropFarFactor?: number;
+      /** Mid parallax factor (0.5). */
+      backdropMidFactor?: number;
     };
   }
 }

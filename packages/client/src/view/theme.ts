@@ -47,6 +47,20 @@ export interface TileTheme {
   bounceStripe: string;
   /** Bounce chevron stripe as Pixi hex. */
   bounceStripeHex: number;
+  /** Per-theme tileset asset key (flat CC0 source, e.g. tile-kilima). */
+  tileset: string;
+  /** Hazard stripe base (yellow/black warning read on platforms). */
+  hazard: string;
+  /** Hazard stripe base as Pixi hex. */
+  hazardHex: number;
+  /** Hazard stripe base as CSS twin. */
+  hazardCss: string;
+  /** Hazard stripe dark band. */
+  hazardStripe: string;
+  /** Hazard stripe dark band as Pixi hex. */
+  hazardStripeHex: number;
+  /** Hazard stripe dark band as CSS twin. */
+  hazardStripeCss: string;
 }
 
 /** kilima: neutral gray (r≈g≈b). */
@@ -68,6 +82,13 @@ const KILIMA: TileTheme = {
   bounceHex: 0xeab308,
   bounceStripe: "#1c1917",
   bounceStripeHex: 0x1c1917,
+  tileset: "tile-kilima",
+  hazard: "#FFD21F",
+  hazardHex: 0xffd21f,
+  hazardCss: "#FFD21F",
+  hazardStripe: "#111111",
+  hazardStripeHex: 0x111111,
+  hazardStripeCss: "#111111",
 };
 
 /** dune: warm sand (r-b = 89 > 5). */
@@ -89,6 +110,13 @@ const DUNE: TileTheme = {
   bounceHex: 0xf59e0b,
   bounceStripe: "#451a03",
   bounceStripeHex: 0x451a03,
+  tileset: "tile-dune",
+  hazard: "#c2410c",
+  hazardHex: 0xc2410c,
+  hazardCss: "#c2410c",
+  hazardStripe: "#1c1917",
+  hazardStripeHex: 0x1c1917,
+  hazardStripeCss: "#1c1917",
 };
 
 /** frostbite: cool ice (b-r = 89 > 10). */
@@ -110,6 +138,13 @@ const FROSTBITE: TileTheme = {
   bounceHex: 0x22d3ee,
   bounceStripe: "#083344",
   bounceStripeHex: 0x083344,
+  tileset: "tile-frostbite",
+  hazard: "#38bdf8",
+  hazardHex: 0x38bdf8,
+  hazardCss: "#38bdf8",
+  hazardStripe: "#082f49",
+  hazardStripeHex: 0x082f49,
+  hazardStripeCss: "#082f49",
 };
 
 /** Pure theme registry (never mutated by callers). */

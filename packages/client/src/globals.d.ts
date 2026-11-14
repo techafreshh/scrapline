@@ -23,6 +23,10 @@ declare global {
         node: { name: string; children: { name: string; label?: string }[] };
         color: number;
         colorCss: string;
+        /** Selected soldier frame id (additive; defaults sensibly pre-draw). */
+        frame?: string;
+        /** Equipped weapon id (additive; defaults sensibly pre-draw). */
+        weapon?: string;
       }[];
       /** Named sprite parts per player node (>= 6). */
       spritePartCount: number;
@@ -184,6 +188,10 @@ declare global {
         heightScale: number;
         /** True while inside the 150ms white hurt-flash window. */
         hurtFlash: boolean;
+        /** Selected soldier frame id (additive; defaults sensibly pre-draw). */
+        frame?: string;
+        /** Equipped weapon id (additive; defaults sensibly pre-draw). */
+        weapon?: string;
       }[];
       /** Active zoom multiplier (1 / 0.8 / 0.64). */
       zoom: number;

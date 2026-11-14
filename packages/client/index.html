@@ -5,7 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Scrapline</title>
     <link rel="icon" href="/favicon.ico" type="image/svg+xml" />
+    <link
+      rel="preload"
+      href="./assets/fonts/orbitron-700.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <style>
+      /* Bundled OFL display webfont for titles/menu (issue #151). */
+      @font-face {
+        font-family: "Orbitron";
+        src: url("./assets/fonts/orbitron-700.woff2") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
       body {
         margin: 0;
         padding: 0;
@@ -57,6 +72,7 @@
         margin: 0;
         font-size: 28px;
         letter-spacing: 1px;
+        font-family: "Orbitron", system-ui, sans-serif;
       }
       #play,
       #quick-play,
@@ -252,6 +268,14 @@
         gap: 12px;
         background: rgba(5, 7, 15, 0.82);
       }
+      #menu h1,
+      #menu button,
+      #setup h2,
+      #settings h2,
+      #howto h2,
+      #end-screen h2 {
+        font-family: "Orbitron", system-ui, sans-serif;
+      }
       #setup h2,
       #settings h2,
       #howto h2 {
@@ -336,6 +360,41 @@
       #start:hover,
       #btn-start:hover {
         background: #16213a;
+      }
+      /* Bitmap HUD numbers: hard rects stay crisp at any zoom. */
+      .hud-bitmap {
+        position: relative;
+        text-shadow: none !important;
+        image-rendering: pixelated;
+      }
+      .hud-bitmap-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      .hud-bitmap-gfx {
+        display: inline-flex;
+        gap: 3px;
+        align-items: flex-start;
+        image-rendering: pixelated;
+      }
+      .hud-glyph {
+        display: inline-grid;
+        grid-template-columns: repeat(3, 3px);
+        grid-auto-rows: 3px;
+        gap: 0;
+      }
+      .hud-px {
+        display: block;
+        width: 3px;
+        height: 3px;
+        background: transparent;
+      }
+      .hud-px.on {
+        background: #e2e8f0;
       }
     </style>
   </head>

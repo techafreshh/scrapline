@@ -6,6 +6,7 @@
 
 import { JETPACK_FUEL_MAX, TICK_HZ } from "../../../core/src/constants";
 import { standingsFor } from "../../../core/src/match";
+import { setBitmapText } from "../ui/fonts";
 
 /** Display name for a player id: the local id 0 is always "You". */
 export function playerName(id: number): string {
@@ -196,14 +197,16 @@ export function buildHud(doc: Document): HudHandles {
 /** Mirror one snapshot into the overlay; missing elements are skipped. */
 export function updateHud(handles: HudHandles, snapshot: HudSnapshot): void {
   if (handles.health !== null) {
-    handles.health.textContent = String(Math.ceil(snapshot.hp));
+    // Bitmap HP digits stay crisp at any camera/browser zoom: hard
+    // rects (no anti-aliased vector text) keep Sobel edge energy flat.
+    setBitmapText(handles.health, String(Math.ceil(snapshot.hp)));
   }
   if (handles.fuel !== null) {
     const pct = Math.min(100, Math.max(0, (snapshot.fuel / JETPACK_FUEL_MAX) * 100));
     handles.fuel.style.width = `${pct}%`;
   }
   if (handles.grenades !== null) {
-    handles.grenades.textContent = String(snapshot.grenades);
+    setBitmapText(handles.grenades, String(snapshot.grenades));
   }
   if (handles.weapon !== null) {
     handles.weapon.textContent = snapshot.weaponName;
@@ -217,7 +220,10 @@ export function updateHud(handles: HudHandles, snapshot: HudSnapshot): void {
       .join(" ");
   }
   if (handles.timer !== null) {
-    handles.timer.textContent = formatTimer(snapshot.tick, snapshot.timeLimitTicks);
+    setBitmapText(
+      handles.timer,
+      formatTimer(snapshot.tick, snapshot.timeLimitTicks),
+    );
   }
   if (handles.respawn !== null) {
     if (snapshot.localAlive) {

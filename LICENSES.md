@@ -31,4 +31,11 @@ dedicated to the public domain. No external packs are vendored.
   - packages/client/assets/tile-frostbite.svg
   - packages/client/assets/prop-crate.svg
   - packages/client/assets/prop-barrel.svg
+  - packages/client/assets/prop-barrel-cracked.svg
+  - packages/client/assets/prop-crate-cracked.svg
+  - packages/client/assets/prop-explosion.svg
+  - packages/client/assets/prop-bounce-pad.svg
   - packages/client/assets/pickup-health.svg
+  - packages/client/assets/pickup-grenade.svg
+  - packages/client/assets/pickup-pad.svg
+  - packages/client/assets/weapon-hornet.svg

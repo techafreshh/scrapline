@@ -42,6 +42,7 @@ import {
   loadCosmetics,
 } from "./cosmetics";
 import { bindSettings, loadQuality, loadShowNameTags, parseVolume } from "./settings";
+import { bindMenuScene } from "./menu/scene";
 import {
   ensureAudioOnGesture,
   groupShotWeapons,
@@ -1049,6 +1050,13 @@ const setupBinder = bindSetup(document, storage, (config: SetupConfig) => {
   startMatch(config);
 });
 const settingsBinder = bindSettings(document, storage);
+// Animated menu art scene plus the Quick Play summary chip (issue
+// #155): owns the #menu-scene hover loop and repaints the chip from
+// the live setup (stepper readout, pressed buttons, URL, storage)
+// every 100ms, well inside the 500ms probe budget. Canvas backdrop
+// stays owned by the match renderer; the soldier rides above it.
+const menuScene = bindMenuScene(document, storage);
+void menuScene;
 // The F key and the Settings button share one persisted toggle path.
 fullscreenToggle = () => {
   void settingsBinder.toggleFullscreen();

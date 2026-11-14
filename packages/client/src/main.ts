@@ -43,6 +43,7 @@ import {
 } from "./cosmetics";
 import { bindSettings, loadQuality, loadShowNameTags, parseVolume } from "./settings";
 import { bindMenuScene } from "./menu/scene";
+import { bindCarousel } from "./menu/carousel";
 import {
   ensureAudioOnGesture,
   groupShotWeapons,
@@ -1057,6 +1058,16 @@ const settingsBinder = bindSettings(document, storage);
 // stays owned by the match renderer; the soldier rides above it.
 const menuScene = bindMenuScene(document, storage);
 void menuScene;
+// Map carousel with live headless thumbnails (issue #156): builds one
+// card per arena inside #menu, paints each thumbnail synchronously
+// from core map data, and persists card clicks as the setup default so
+// Quick Play loads the selected map. Never gates boot: a shorn DOM or
+// missing 2d context degrades to unpainted cards.
+try {
+  void bindCarousel(document, storage);
+} catch {
+  // Carousel optional: Quick Play still loads the stored setup.
+}
 // The F key and the Settings button share one persisted toggle path.
 fullscreenToggle = () => {
   void settingsBinder.toggleFullscreen();

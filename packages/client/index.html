@@ -126,6 +126,46 @@
         letter-spacing: 1px;
         font-family: "Orbitron", system-ui, sans-serif;
       }
+      #map-carousel {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        overflow-x: auto;
+        max-width: 92vw;
+        padding: 4px 2px;
+      }
+      .map-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 6px;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        background: #0b1020;
+        color: #cbd5e1;
+        cursor: pointer;
+      }
+      .map-card:hover {
+        background: #16213a;
+      }
+      .map-card[aria-pressed="true"] {
+        border-color: #7df9ff;
+        color: #7df9ff;
+      }
+      .map-card .map-thumb {
+        width: 192px;
+        height: 96px;
+        display: block;
+        border-radius: 4px;
+        background: #0b1020;
+      }
+      .map-card .map-name {
+        font-size: 13px;
+        letter-spacing: 0.6px;
+      }
       #play,
       #quick-play,
       #settings-open,
@@ -603,6 +643,11 @@
       <div id="menu">
         <h1>Scrapline</h1>
         <div id="menu-scene" aria-hidden="true"><div id="menu-soldier"><div id="menu-flame"></div></div></div>
+        <div id="map-carousel" role="listbox" aria-label="Choose arena">
+          <button class="map-card" data-map-card="kilima" aria-pressed="true" role="option" aria-selected="true" type="button"><canvas class="map-thumb" width="192" height="96"></canvas><span class="map-name">kilima</span></button>
+          <button class="map-card" data-map-card="dune" aria-pressed="false" role="option" aria-selected="false" type="button"><canvas class="map-thumb" width="192" height="96"></canvas><span class="map-name">dune</span></button>
+          <button class="map-card" data-map-card="frostbite" aria-pressed="false" role="option" aria-selected="false" type="button"><canvas class="map-thumb" width="192" height="96"></canvas><span class="map-name">frostbite</span></button>
+        </div>
         <button id="quick-play">Quick Play<span id="quick-play-chip">3 bots · normal · first to 25 · 5 min</span></button>
         <button id="play">Play vs bots</button>
         <button id="settings-open">Settings</button>

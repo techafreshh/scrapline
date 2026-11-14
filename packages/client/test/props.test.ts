@@ -20,7 +20,6 @@ import {
   bounceSquashScale,
   isPropCracked,
   pickupPaintFor,
-  propAssetFor,
   propCrackStage,
   propHpFraction,
   propMaxHp,
@@ -94,21 +93,6 @@ describe("prop crack states", () => {
     expect(26 * 34).toBeGreaterThan(500);
     expect(30 * 30).toBeGreaterThan(500);
   });
-
-  it("resolves cracked atlas cards per state", () => {
-    expect(propAssetFor("barrel", BARREL_HP)).toEqual({
-      key: "prop-barrel",
-      file: "prop-barrel.svg",
-    });
-    expect(propAssetFor("barrel", BARREL_HP / 2)).toEqual({
-      key: "prop-barrel-cracked",
-      file: "prop-barrel-cracked.svg",
-    });
-    expect(propAssetFor("crate", CRATE_HP / 2)).toEqual({
-      key: "prop-crate-cracked",
-      file: "prop-crate-cracked.svg",
-    });
-  });
 });
 
 describe("weapon plaques", () => {
@@ -174,6 +158,10 @@ describe("bounce squash cycle", () => {
 
   it("holds idle without a trigger and tracks the trigger clock", () => {
     expect(bounceSquashScale(1000, null)).toBe(1);
+    // Null/blank triggers never squash, even inside the 300ms window.
+    expect(bounceSquashScale(300, null)).toBe(1);
+    expect(bounceSquashScale(300, undefined)).toBe(1);
+    expect(bounceSquashScale(300, "")).toBe(1);
     expect(bounceSquashScale(NaN, 500)).toBe(1);
     expect(bounceSquashScale(1300, 1000)).toBeLessThanOrEqual(0.85);
     expect(bounceSquashScale(1700, 1000)).toBe(1);

@@ -151,28 +151,6 @@ export function propPaintFor(kind: unknown, hp: unknown): PropPaint {
   return { ...(cracked ? CRATE_CRACKED : CRATE_INTACT) };
 }
 
-/**
- * CC0 asset card for a prop state (atlas key without extension).
- * Intact rows track the shipped prop-*.svg sources; cracked rows
- * track the prop-*-cracked.svg overlays.
- */
-export function propAssetFor(
-  kind: unknown,
-  hp: unknown,
-): { key: string; file: string } {
-  const cracked = isPropCracked(kind, hp);
-  const isBarrel =
-    typeof kind === "string" && kind.trim().toLowerCase() === "barrel";
-  if (isBarrel) {
-    return cracked
-      ? { key: "prop-barrel-cracked", file: "prop-barrel-cracked.svg" }
-      : { key: "prop-barrel", file: "prop-barrel.svg" };
-  }
-  return cracked
-    ? { key: "prop-crate-cracked", file: "prop-crate-cracked.svg" }
-    : { key: "prop-crate", file: "prop-crate.svg" };
-}
-
 /** One weapon icon plaque entry (atlas card plus display color). */
 export interface WeaponPlaque {
   /** Atlas key without extension (e.g. weapon-hornet). */
@@ -318,6 +296,12 @@ export function bounceSquashScale(
   nowMs: unknown,
   lastBounceAtMs: unknown,
 ): number {
+  if (lastBounceAtMs == null) {
+    return 1;
+  }
+  if (typeof lastBounceAtMs === "string" && lastBounceAtMs.trim() === "") {
+    return 1;
+  }
   const now = Number(nowMs);
   const trigger = Number(lastBounceAtMs);
   if (!Number.isFinite(now) || !Number.isFinite(trigger)) {

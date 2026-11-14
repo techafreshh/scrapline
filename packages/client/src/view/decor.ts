@@ -7,6 +7,10 @@
 import { TILE_SIZE } from "../../../core/src/map";
 import { visibleTileRange, type Camera } from "../renderer/camera";
 import { decorationsFor } from "../maps";
+import {
+  paintGlowHalo2D,
+  paintGlowHaloPixi,
+} from "../fx/filters";
 
 /** Static decoration rect in world px (y-down, carried by core map data). */
 export interface Decoration {
@@ -210,6 +214,11 @@ function paintOnePixi(
       graphics.lineTo(cx + w, cy);
       graphics.stroke({ width: bar, color: paint.accentHex });
     }
+    // Red beacon at the mast tip with a glow halo (doorway-light read).
+    const beaconR = Math.max(1.5, 2 * scale);
+    paintGlowHaloPixi(graphics, cx, sy, beaconR, scale, paint.accentHex);
+    graphics.circle(cx, sy, beaconR);
+    graphics.fill(paint.accentHex);
   } else if (kind === "watchtower") {
     const legW = Math.max(1.5, 4 * scale);
     graphics.rect(sx, sy + h * 0.25, w, h * 0.2);
@@ -264,7 +273,11 @@ function paintOnePixi(
     graphics.rect(sx, sy, w, h);
     graphics.fill(paint.fillHex);
     for (let i = 0; i < 4; i += 1) {
-      graphics.circle(sx + (w * (i + 0.5)) / 4, sy + h / 2, Math.max(1.5, 3 * scale));
+      const dotX = sx + (w * (i + 0.5)) / 4;
+      const dotY = sy + h / 2;
+      const dotR = Math.max(1.5, 3 * scale);
+      paintGlowHaloPixi(graphics, dotX, dotY, dotR, scale, paint.accentHex);
+      graphics.circle(dotX, dotY, dotR);
       graphics.fill(paint.accentHex);
     }
   } else {
@@ -343,6 +356,13 @@ function paintOne2D(
       ctx.lineTo(cx + w, cy);
       ctx.stroke();
     }
+    // Red beacon at the mast tip with a glow halo (mirrors Pixi).
+    const beaconR = Math.max(1.5, 2 * scale);
+    paintGlowHalo2D(ctx, cx, sy, beaconR, scale, paint.accentCss);
+    ctx.fillStyle = paint.accentCss;
+    ctx.beginPath();
+    ctx.arc(cx, sy, beaconR, 0, Math.PI * 2);
+    ctx.fill();
   } else if (kind === "watchtower") {
     const legW = Math.max(1.5, 4 * scale);
     ctx.fillStyle = paint.accentCss;
@@ -406,8 +426,13 @@ function paintOne2D(
     ctx.fillRect(sx, sy, w, h);
     ctx.fillStyle = paint.accentCss;
     for (let i = 0; i < 4; i += 1) {
+      const dotX = sx + (w * (i + 0.5)) / 4;
+      const dotY = sy + h / 2;
+      const dotR = Math.max(1.5, 3 * scale);
+      paintGlowHalo2D(ctx, dotX, dotY, dotR, scale, paint.accentCss);
+      ctx.fillStyle = paint.accentCss;
       ctx.beginPath();
-      ctx.arc(sx + (w * (i + 0.5)) / 4, sy + h / 2, Math.max(1.5, 3 * scale), 0, Math.PI * 2);
+      ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
       ctx.fill();
     }
   } else {

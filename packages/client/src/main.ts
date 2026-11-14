@@ -64,6 +64,7 @@ import {
   toInput,
 } from "./input";
 import { createRenderer, type Renderer } from "./renderer/index";
+import { loadAtlas } from "./atlas";
 import {
   applyLetterbox,
   BASE_H,
@@ -338,21 +339,34 @@ try {
 } catch {
   // Non-DOM harnesses: the renderer bootstrap below still proceeds.
 }
-void createRenderer(canvas)
-  .then((r: Renderer) => {
-    renderer = r;
-    applyResponsiveSize();
-    if (world === null) {
-      renderer.draw(new World({ seed: 0 }).state);
+try {
+  const loading = document.getElementById("loading");
+  if (loading instanceof HTMLElement) {
+    loading.textContent = "Loading sprite atlas...";
+  }
+} catch {
+  // Non-DOM harnesses: the atlas fetch below still proceeds.
+}
+// Atlas preload races renderer init behind the same loading screen: the
+// assets/atlas.json fetch fires before the first frame, and the canvas
+// only reveals once both settle (either may fail without hanging boot).
+void Promise.allSettled([createRenderer(canvas), loadAtlas()]).then(
+  ([rendererResult]) => {
+    if (rendererResult.status === "fulfilled") {
+      const r: Renderer = rendererResult.value;
+      renderer = r;
+      applyResponsiveSize();
+      if (world === null) {
+        renderer.draw(new World({ seed: 0 }).state);
+      }
+    } else {
+      renderer = null;
     }
-    revealCanvas();
-  })
-  .catch(() => {
-    renderer = null;
     // Canvas2d fallback unavailable (no 2d context): still drop the
     // loading screen so the failure surfaces instead of hanging.
     revealCanvas();
-  });
+  },
+);
 
 let world: World | null = null;
 let camera: Camera | null = null;

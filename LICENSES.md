@@ -1,0 +1,24 @@
+# Scrapline third-party asset licenses
+
+All game art in this repository is authored in-house for this project and
+dedicated to the public domain. No external packs are vendored.
+
+## Pack: Scrapline CC0 soldier sprites
+
+- Author: Scrapline contributors
+- License: CC0-1.0 (public domain dedication; no attribution required)
+- Files:
+  - packages/client/assets/soldier-idle.svg
+  - packages/client/assets/soldier-run-a.svg
+  - packages/client/assets/soldier-run-b.svg
+  - packages/client/assets/soldier-jet.svg
+
+## Pack: Scrapline CC0 arena sprites
+
+- Author: Scrapline contributors
+- License: CC0-1.0 (public domain dedication; no attribution required)
+- Files:
+  - packages/client/assets/tile-kilima.svg
+  - packages/client/assets/prop-crate.svg
+  - packages/client/assets/prop-barrel.svg
+  - packages/client/assets/pickup-health.svg

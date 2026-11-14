@@ -5,7 +5,7 @@
   "description": "Scrapline browser client (PixiJS + Vite)",
   "type": "commonjs",
   "scripts": {
-    "build": "vite build"
+    "build": "vite build && node ../../tools/build-atlas.js"
   },
   "dependencies": {
     "pixi.js": "^8.0.0"

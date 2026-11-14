@@ -93,15 +93,25 @@ export interface WeaponDef {
 
 /**
  * Per-weapon gun table. Lengths are visual alignment only (never damage
- * tuning); the pistol row matches BARREL_LENGTH exactly so the pistol
- * stays the canonical default and the barrel-convention guard keeps
- * passing. Read via weaponLength()/weaponDef() so the pistol row tracks
- * the shared constant at call time instead of freezing it at module top
- * level (renderer/index.ts imports this module, so a top-level read
- * would TDZ-crash whichever entry point loads first).
+ * tuning); the pistol row tracks BARREL_LENGTH through access-time
+ * getters (never a frozen literal), so the drawn gun segment and the tip
+ * math stay single-sourced. Getters defer the BARREL_LENGTH read past
+ * module top level: renderer/index.ts imports this module, so a top-level
+ * read would TDZ-crash whichever entry point loads first (same idiom as
+ * character.ts gunBarrel()).
  */
 export const WEAPON_DEFS: Record<WeaponId, WeaponDef> = {
-  pistol: { length: 8, width: 3, color: 0xf8fafc, colorCss: "#F8FAFC", muzzleX: 8 },
+  pistol: {
+    get length(): number {
+      return BARREL_LENGTH;
+    },
+    width: 3,
+    color: 0xf8fafc,
+    colorCss: "#F8FAFC",
+    get muzzleX(): number {
+      return BARREL_LENGTH;
+    },
+  },
   smg: { length: 10, width: 3, color: 0xe2e8f0, colorCss: "#E2E8F0", muzzleX: 10 },
   rifle: { length: 12, width: 3, color: 0xfbbf24, colorCss: "#FBBF24", muzzleX: 12 },
   shotgun: { length: 13, width: 4, color: 0xfb923c, colorCss: "#FB923C", muzzleX: 13 },

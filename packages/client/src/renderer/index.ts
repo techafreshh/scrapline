@@ -808,7 +808,7 @@ function drawCharacter2D(
         : crouch
           ? "crouch"
           : "idle";
-  const base = soldierAccentFor(p.index);
+  const base = !p.alive ? "#475569" : soldierAccentFor(p.index);
   const paint =
     anim?.hurtFlash === true
       ? "#ffffff"

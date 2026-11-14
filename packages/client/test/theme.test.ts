@@ -73,6 +73,30 @@ describe("tile themes", () => {
     expect(themeFor("dune")).toEqual(THEMES.dune);
   });
 
+  it("exposes a distinct flat tileset asset key per theme", () => {
+    expect(THEMES.kilima.tileset).toBe("tile-kilima");
+    expect(THEMES.dune.tileset).toBe("tile-dune");
+    expect(THEMES.frostbite.tileset).toBe("tile-frostbite");
+    expect(themeFor("unknown").tileset).toBe("tile-kilima");
+  });
+
+  it("pins the kilima hazard pair to the probe hexes", () => {
+    expect(THEMES.kilima.hazardHex).toBe(0xffd21f);
+    expect(THEMES.kilima.hazardCss).toBe("#FFD21F");
+    expect(THEMES.kilima.hazard).toBe("#FFD21F");
+    expect(THEMES.kilima.hazardStripeHex).toBe(0x111111);
+    expect(THEMES.kilima.hazardStripeCss).toBe("#111111");
+    expect(THEMES.kilima.hazardStripe).toBe("#111111");
+  });
+
+  it("gives dune and frostbite theme-distinct hazard pairs", () => {
+    for (const name of ["dune", "frostbite"] as const) {
+      expect(THEMES[name].hazardHex).not.toBe(THEMES.kilima.hazardHex);
+      expect(THEMES[name].hazardCss).not.toBe(THEMES.kilima.hazardCss);
+    }
+    expect(THEMES.dune.hazardHex).not.toBe(THEMES.frostbite.hazardHex);
+  });
+
   it("tracks the renderer current theme with a kilima default", () => {
     setCurrentTheme("kilima");
     expect(getCurrentTheme()).toBe("kilima");

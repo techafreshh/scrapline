@@ -540,19 +540,29 @@ function paintTilesPixi(
     graphics.rect(x, y, tileSize + 1, highlightH);
     graphics.fill(theme.highlightHex);
   }
-  // One-way planks: thin 8px strips at the tile top.
+  // One-way planks: hazard-striped 8px strips at the tile top — the
+  // theme hazard base with alternating dark vertical bands, so every
+  // plank pixel samples from the hazard pair (kilima: #FFD21F/#111111).
   const plankH = ONEWAY_PLANK_H * scale;
+  const plankBands = 8;
   for (const cell of layers.oneWays) {
     const x = px(cell.tx * TILE_SIZE);
     const y = py(cell.ty * TILE_SIZE);
     graphics.rect(x, y, tileSize + 1, plankH);
-    graphics.fill(theme.oneWayHex);
+    graphics.fill(theme.hazardHex);
+    const bandW = (tileSize + 1) / plankBands;
+    for (let i = 1; i < plankBands; i += 2) {
+      graphics.rect(x + i * bandW, y, bandW + 1, plankH);
+      graphics.fill(theme.hazardStripeHex);
+    }
     graphics.rect(x, y, tileSize + 1, highlightH);
-    graphics.fill(theme.highlightHex);
+    graphics.fill(theme.hazardHex);
     graphics.rect(x, y + plankH - edgeW, tileSize + 1, edgeW);
-    graphics.fill(theme.edgeHex);
+    graphics.fill(theme.hazardStripeHex);
   }
-  // Bounce pads: striped 8px chevrons anchored at the tile bottom.
+  // Bounce pads: hazard 8px chevrons anchored at the tile bottom —
+  // the theme hazard base with dark chevron stripes in the exact
+  // stripe hex (kilima: #FFD21F base, #111111 chevrons).
   const padH = BOUNCE_PAD_H * scale;
   const stripeW = Math.max(1, 1.5 * scale);
   for (const cell of layers.bounces) {
@@ -560,13 +570,13 @@ function paintTilesPixi(
     const y = py(cell.ty * TILE_SIZE);
     const padY = y + tileSize + 1 - padH;
     graphics.rect(x, padY, tileSize + 1, padH);
-    graphics.fill(theme.bounceHex);
+    graphics.fill(theme.hazardHex);
     for (let i = 0; i < 2; i += 1) {
       const cy = padY + (padH * (i + 1)) / 3;
       graphics.moveTo(x + 2, cy);
       graphics.lineTo(x + tileSize / 2, cy - 2 * scale);
       graphics.lineTo(x + tileSize - 1, cy);
-      graphics.stroke({ width: stripeW, color: theme.bounceStripeHex });
+      graphics.stroke({ width: stripeW, color: theme.hazardStripeHex });
     }
   }
 }
@@ -603,14 +613,20 @@ function paintTiles2D(
     ctx.fillRect(x, y, tileSize + 1, highlightH);
   }
   const plankH = ONEWAY_PLANK_H * scale;
+  const plankBands = 8;
   for (const cell of layers.oneWays) {
     const x = px(cell.tx * TILE_SIZE);
     const y = py(cell.ty * TILE_SIZE);
-    ctx.fillStyle = theme.oneWay;
+    ctx.fillStyle = theme.hazardCss;
     ctx.fillRect(x, y, tileSize + 1, plankH);
-    ctx.fillStyle = theme.highlight;
+    const bandW = (tileSize + 1) / plankBands;
+    ctx.fillStyle = theme.hazardStripeCss;
+    for (let i = 1; i < plankBands; i += 2) {
+      ctx.fillRect(x + i * bandW, y, bandW + 1, plankH);
+    }
+    ctx.fillStyle = theme.hazardCss;
     ctx.fillRect(x, y, tileSize + 1, highlightH);
-    ctx.fillStyle = theme.edge;
+    ctx.fillStyle = theme.hazardStripeCss;
     ctx.fillRect(x, y + plankH - edgeW, tileSize + 1, edgeW);
   }
   const padH = BOUNCE_PAD_H * scale;
@@ -618,9 +634,9 @@ function paintTiles2D(
     const x = px(cell.tx * TILE_SIZE);
     const y = py(cell.ty * TILE_SIZE);
     const padY = y + tileSize + 1 - padH;
-    ctx.fillStyle = theme.bounce;
+    ctx.fillStyle = theme.hazardCss;
     ctx.fillRect(x, padY, tileSize + 1, padH);
-    ctx.strokeStyle = theme.bounceStripe;
+    ctx.strokeStyle = theme.hazardStripeCss;
     ctx.lineWidth = Math.max(1, 1.5 * scale);
     ctx.lineCap = "round";
     for (let i = 0; i < 2; i += 1) {

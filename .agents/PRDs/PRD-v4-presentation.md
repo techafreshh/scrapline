@@ -48,7 +48,7 @@
 
 ## V. Verification
 
-- **V1. Presentation-v2 verification lap.** agent-browser protocol (as #121): at 1920×1080 + 1280×720 capture menu scene, carousel, mid-match with particles/glow/name tags/ammo module, fullscreen toggle, standings. Assert: particles visible on fire/explosion, glow on pickups/doorways, name tags readable, assets ≤ 6 MB, fps guardrail green, all prior probes green. Compare side-by-side against reference screenshots stored in `docs/benchmark/` (committed from this session's captures).
+- **V1. Presentation-v2 verification lap.** agent-browser protocol (as #121): at 1920×1080 + 1280×720 capture menu scene, carousel, mid-match with particles/glow/name tags/ammo module, fullscreen toggle, standings. Assert: particles visible on fire/explosion, glow on pickups/doorways, name tags readable, assets ≤ 6 MB, fps guardrail green, all prior probes green. Compare side-by-side against freshly captured live reference screenshots of play.skyscrap.fun taken via the agent-browser protocol each verification lap, with no committed screenshot directory per the zero-image policy.
 
 **Acceptance (milestone level)**
 - [ ] Mid-match screenshot is recognizable as "same class as" the reference at a glance: articulated soldiers, themed terrain, glow, particles, full HUD

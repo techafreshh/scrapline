@@ -29,7 +29,10 @@ describe("bench:repro", () => {
 
 describe("bench:throughput", () => {
   it("prints ticks/s and p95_ms at small scale", async () => {
-    const stdout = await runBench(["tools/bench-throughput.ts", "--envs", "2", "--steps", "20"]);
+    // 200 steps (400 ticks) so fixed spawn/IPC overhead amortizes and the
+    // >=1000 ticks/s floor measures steady-state throughput instead of
+    // startup noise under parallel-vitest CPU contention.
+    const stdout = await runBench(["tools/bench-throughput.ts", "--envs", "2", "--steps", "200"]);
     expect(stdout).toMatch(/\d+ ticks\/s/);
     expect(stdout).toMatch(/p95_ms=\d/);
     const rateMatch = stdout.match(/(\d+) ticks\/s/);

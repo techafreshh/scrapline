@@ -1,8 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <title>Scrapline CC0 kilima savanna platform tile (32x32)</title>
-  <rect x="0" y="0" width="32" height="32" fill="#a16207"/>
-  <rect x="0" y="24" width="32" height="8" fill="#713f12"/>
-  <rect x="0" y="0" width="32" height="4" fill="#facc15"/>
-  <rect x="0" y="0" width="2" height="32" fill="#713f12"/>
-  <rect x="30" y="0" width="2" height="32" fill="#713f12"/>
+  <title>Scrapline CC0 kilima savanna hazard platform tile (32x32)</title>
+  <rect x="0" y="0" width="32" height="32" fill="#FFD21F"/>
+  <rect x="4" y="0" width="4" height="32" fill="#111111"/>
+  <rect x="12" y="0" width="4" height="32" fill="#111111"/>
+  <rect x="20" y="0" width="4" height="32" fill="#111111"/>
+  <rect x="28" y="0" width="4" height="32" fill="#111111"/>
+  <rect x="0" y="0" width="32" height="2" fill="#FFD21F"/>
+  <rect x="0" y="30" width="32" height="2" fill="#111111"/>
 </svg>

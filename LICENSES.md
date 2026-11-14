@@ -27,6 +27,8 @@ dedicated to the public domain. No external packs are vendored.
 - License: CC0-1.0 (public domain dedication; no attribution required)
 - Files:
   - packages/client/assets/tile-kilima.svg
+  - packages/client/assets/tile-dune.svg
+  - packages/client/assets/tile-frostbite.svg
   - packages/client/assets/prop-crate.svg
   - packages/client/assets/prop-barrel.svg
   - packages/client/assets/pickup-health.svg

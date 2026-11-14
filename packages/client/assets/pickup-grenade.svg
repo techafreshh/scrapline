@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <title>Scrapline CC0 grenade pickup icon (32x32)</title>
+  <rect x="4" y="4" width="24" height="24" fill="#0b1020"/>
+  <rect x="4" y="4" width="24" height="24" fill="none" stroke="#eab308" stroke-width="2"/>
+  <ellipse cx="16" cy="19" rx="7" ry="8" fill="#a3e635"/>
+  <ellipse cx="14" cy="17" rx="2" ry="3" fill="#d9f99d"/>
+  <rect x="13" y="7" width="6" height="4" fill="#78716c"/>
+  <circle cx="22" cy="8" r="3" fill="none" stroke="#e2e8f0" stroke-width="2"/>
+</svg>

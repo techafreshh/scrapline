@@ -60,6 +60,14 @@ import {
   VIGNETTE_ALPHA,
 } from "../view/background";
 import {
+  bounceSquashScale,
+  paintPickup2D,
+  paintPickupPixi,
+  paintProp2D,
+  paintPropPixi,
+  propMaxHp,
+} from "../view/props";
+import {
   clampRendererResolution,
 } from "../view/resize";
 import {
@@ -204,6 +212,10 @@ export interface FramePickup {
   y: number;
   kind: string;
   active: boolean;
+  /** Held weapon for weapon pads (Hornet alias included). */
+  weapon?: string;
+  /** Granted amount for health/grenade pads. */
+  amount?: number;
 }
 
 /** Prop box for one frame. */
@@ -214,6 +226,10 @@ export interface FrameProp {
   h: number;
   kind: string;
   alive: boolean;
+  /** Current HP (drives the cracked sprite at <=50%). */
+  hp: number;
+  /** Max HP for the kind (drives the hp fraction). */
+  maxHp: number;
 }
 
 /** Pure per-frame view-model. */
@@ -332,6 +348,8 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
       y: p.y,
       kind: p.kind,
       active: p.active,
+      weapon: (p as { weapon?: unknown }).weapon as string | undefined,
+      amount: (p as { amount?: unknown }).amount as number | undefined,
     })),
     props: state.props.map((p) => ({
       x: p.x,
@@ -340,6 +358,8 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
       h: p.h,
       kind: p.kind,
       alive: p.alive,
+      hp: (p as { hp?: unknown }).hp as number,
+      maxHp: propMaxHp((p as { kind?: unknown }).kind),
     })),
     arena,
   };
@@ -514,6 +534,7 @@ function paintTilesPixi(
   scale: number,
   layers: LayerCounts,
   theme: TileTheme,
+  padSquash: number = 1,
 ): void {
   // Backwall quads behind the playfield at 60% brightness (z 0).
   for (const cell of layers.backwalls) {
@@ -562,8 +583,11 @@ function paintTilesPixi(
   }
   // Bounce pads: hazard 8px chevrons anchored at the tile bottom —
   // the theme hazard base with dark chevron stripes in the exact
-  // stripe hex (kilima: #FFD21F base, #111111 chevrons).
-  const padH = BOUNCE_PAD_H * scale;
+  // stripe hex (kilima: #FFD21F base, #111111 chevrons). padSquash
+  // compresses height from the tile bottom on bounce events (0.6 at
+  // the 300ms peak, easing back to 1 by 600ms).
+  const squash = Number.isFinite(padSquash) && padSquash > 0 ? padSquash : 1;
+  const padH = BOUNCE_PAD_H * scale * squash;
   const stripeW = Math.max(1, 1.5 * scale);
   for (const cell of layers.bounces) {
     const x = px(cell.tx * TILE_SIZE);
@@ -590,6 +614,7 @@ function paintTiles2D(
   scale: number,
   layers: LayerCounts,
   theme: TileTheme,
+  padSquash: number = 1,
 ): void {
   for (const cell of layers.backwalls) {
     ctx.fillStyle = theme.backwall;
@@ -629,7 +654,8 @@ function paintTiles2D(
     ctx.fillStyle = theme.hazardStripeCss;
     ctx.fillRect(x, y + plankH - edgeW, tileSize + 1, edgeW);
   }
-  const padH = BOUNCE_PAD_H * scale;
+  const squash2d = Number.isFinite(padSquash) && padSquash > 0 ? padSquash : 1;
+  const padH = BOUNCE_PAD_H * scale * squash2d;
   for (const cell of layers.bounces) {
     const x = px(cell.tx * TILE_SIZE);
     const y = py(cell.ty * TILE_SIZE);
@@ -705,6 +731,7 @@ function paintFramePixi(
   canvasHeight: number,
   theme?: TileTheme,
   decors: readonly Decoration[] = [],
+  padSquash: number = 1,
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
@@ -716,22 +743,34 @@ function paintFramePixi(
   graphics.rect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
   graphics.fill(0x0b1020);
   paintDecorPixi(graphics, px, py, cam.scale, decors);
-  paintTilesPixi(graphics, px, py, tileSize, cam.scale, layers, activeTheme);
+  paintTilesPixi(graphics, px, py, tileSize, cam.scale, layers, activeTheme, padSquash);
   for (const prop of frame.props) {
     if (!prop.alive) {
       continue;
     }
-    graphics.rect(px(prop.x), py(prop.y), prop.w * cam.scale, prop.h * cam.scale);
-    graphics.fill(prop.kind === "barrel" ? 0xb45309 : 0x92400e);
+    paintPropPixi(
+      graphics,
+      px(prop.x),
+      py(prop.y),
+      prop.w * cam.scale,
+      prop.h * cam.scale,
+      cam.scale,
+      prop.kind,
+      prop.hp,
+    );
   }
   for (const pickup of frame.pickups) {
     if (!pickup.active) {
       continue;
     }
-    const color =
-      pickup.kind === "weapon" ? 0x22d3ee : pickup.kind === "health" ? 0x22c55e : 0xeab308;
-    graphics.rect(px(pickup.x) - 4, py(pickup.y) - 4, 8, 8);
-    graphics.fill(color);
+    paintPickupPixi(
+      graphics,
+      px(pickup.x),
+      py(pickup.y),
+      cam.scale,
+      pickup.kind,
+      pickup.weapon,
+    );
   }
   for (const proj of frame.projectiles) {
     graphics.circle(px(proj.x), py(proj.y), Math.max(2, 2 * cam.scale));
@@ -1065,6 +1104,7 @@ function paintFrame2D(
   anims: readonly AnimPose[],
   theme?: TileTheme,
   decors: readonly Decoration[] = [],
+  padSquash: number = 1,
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
@@ -1075,21 +1115,27 @@ function paintFrame2D(
   ctx.fillStyle = "#0b1020";
   ctx.fillRect(arena.x, arena.y, frame.arena.width * cam.scale, frame.arena.height * cam.scale);
   paintDecor2D(ctx, px, py, cam.scale, decors);
-  paintTiles2D(ctx, px, py, tileSize, cam.scale, layers, activeTheme);
+  paintTiles2D(ctx, px, py, tileSize, cam.scale, layers, activeTheme, padSquash);
   for (const prop of frame.props) {
     if (!prop.alive) {
       continue;
     }
-    ctx.fillStyle = prop.kind === "barrel" ? "#b45309" : "#92400e";
-    ctx.fillRect(px(prop.x), py(prop.y), prop.w * cam.scale, prop.h * cam.scale);
+    paintProp2D(
+      ctx,
+      px(prop.x),
+      py(prop.y),
+      prop.w * cam.scale,
+      prop.h * cam.scale,
+      cam.scale,
+      prop.kind,
+      prop.hp,
+    );
   }
   for (const pickup of frame.pickups) {
     if (!pickup.active) {
       continue;
     }
-    ctx.fillStyle =
-      pickup.kind === "weapon" ? "#22d3ee" : pickup.kind === "health" ? "#22c55e" : "#eab308";
-    ctx.fillRect(px(pickup.x) - 4, py(pickup.y) - 4, 8, 8);
+    paintPickup2D(ctx, px(pickup.x), py(pickup.y), cam.scale, pickup.kind, pickup.weapon);
   }
   for (const proj of frame.projectiles) {
     ctx.fillStyle = proj.kind === "grenade" ? "#a3e635" : "#f97316";
@@ -1470,6 +1516,12 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   let sessionStarted = false;
   let sessionPerfStart = 0;
   let sessionWallStart = 0;
+  // Last bounce-event trigger in perf-ms; drives the pad squash cycle
+  // (peak 0.6x at 300ms, eased back to 1x by 600ms) on both backends.
+  let lastBounceAtMs: number | null = null;
+  // Rising-edge latch for step-on activation: retriggers only on the
+  // first overlapping draw, so standing on a pad still recovers.
+  let wasOnBouncePad = false;
 
   function trackDraw(
     state: StateLike,
@@ -1479,7 +1531,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     shots: ShotDetail[] | undefined,
     damages: DamageDetail[] | undefined,
     kills: KillDetail[] | undefined,
-  ): { frame: Frame; cam: Camera; layers: LayerCounts; anims: AnimPose[]; theme: TileTheme; themeName: string; decors: Decoration[] } {
+  ): { frame: Frame; cam: Camera; layers: LayerCounts; anims: AnimPose[]; theme: TileTheme; themeName: string; decors: Decoration[]; padSquash: number } {
     const frame = describeFrame(state, map ?? null);
     const cam = camera ?? createCamera(frame.arena.width, frame.arena.height);
     const now = performance.now();
@@ -1525,6 +1577,43 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       dtSec,
       damageVictims,
     );
+    if ((events ?? []).includes("bounce")) {
+      lastBounceAtMs = now;
+    }
+    const layers = collectLayers(frame, map ?? null, cam, logicalW, logicalH);
+    // Pad-step activation without touching the sacred sim: a live player
+    // box overlapping any bounce tile retriggers the squash cycle, so
+    // stepping on a pad reads as a bounce even when the sim emits no
+    // event (grenade bounces still retrigger through the event path).
+    let onPad = false;
+    if (layers.bounces.length > 0 && frame.players.length > 0) {
+      for (const p of frame.players) {
+        if (!p.alive) {
+          continue;
+        }
+        for (const cell of layers.bounces) {
+          const bx = cell.tx * TILE_SIZE;
+          const by = cell.ty * TILE_SIZE;
+          if (
+            p.x < bx + TILE_SIZE &&
+            p.x + p.w > bx &&
+            p.y < by + TILE_SIZE &&
+            p.y + p.h > by
+          ) {
+            onPad = true;
+            break;
+          }
+        }
+        if (onPad) {
+          break;
+        }
+      }
+    }
+    if (onPad && !wasOnBouncePad) {
+      lastBounceAtMs = now;
+    }
+    wasOnBouncePad = onPad;
+    const padSquash = bounceSquashScale(now, lastBounceAtMs);
     pushFlashes(flashes, frame, events ?? []);
     spawnShots(tracers, muzzles, frame, shots ?? []);
     spawnSparks(sparks, damages ?? []);
@@ -1543,7 +1632,6 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     }
     ageFx(tracers, muzzles);
     ageHitFx(sparks, bursts, victimFlash);
-    const layers = collectLayers(frame, map ?? null, cam, logicalW, logicalH);
     const theme = resolveTileTheme();
     const themeName = theme.name;
     const allDecors = decorationsFor(themeName) ?? [];
@@ -1588,9 +1676,12 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             solidZ: SOLID_Z,
             bounceZ: BOUNCE_Z,
             oneWayZ: ONEWAY_Z,
-            bounceTileH: BOUNCE_PAD_H,
+            bounceTileH: BOUNCE_PAD_H * padSquash,
             oneWayTileH: ONEWAY_PLANK_H,
             solidTileH: SOLID_TILE_H,
+            padSquash,
+            propCount: frame.props.length,
+            pickupCount: frame.pickups.length,
             decorationCount: allDecors.length,
             occludedTiles: occluded,
             skyTop: skyTopRgb(themeName),
@@ -1693,9 +1784,28 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         trauma: cam.trauma ?? 0,
         shakeX: cam.shakeX ?? 0,
         shakeY: cam.shakeY ?? 0,
+        padSquash,
+        bounceTileH: BOUNCE_PAD_H * padSquash,
+        props: frame.props.map((p) => ({
+          x: p.x,
+          y: p.y,
+          w: p.w,
+          h: p.h,
+          kind: p.kind,
+          alive: p.alive,
+          hp: p.hp,
+          maxHp: p.maxHp,
+        })),
+        pickups: frame.pickups.map((p) => ({
+          x: p.x,
+          y: p.y,
+          kind: p.kind,
+          active: p.active,
+          weapon: p.weapon ?? null,
+        })),
       };
     }
-    return { frame, cam, layers, anims, theme, themeName, decors };
+    return { frame, cam, layers, anims, theme, themeName, decors, padSquash };
   }
 
   try {
@@ -1746,7 +1856,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         damages?: DamageDetail[],
         kills?: KillDetail[],
       ): void {
-        const { frame, cam, layers, anims, theme, decors } = trackDraw(
+        const { frame, cam, layers, anims, theme, decors, padSquash } = trackDraw(
           state,
           map,
           camera,
@@ -1783,6 +1893,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           logicalH,
           theme,
           decors,
+          padSquash,
         );
       },
     };
@@ -1806,7 +1917,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         damages?: DamageDetail[],
         kills?: KillDetail[],
       ): void {
-        const { frame, cam, layers, anims, theme, decors } = trackDraw(
+        const { frame, cam, layers, anims, theme, decors, padSquash } = trackDraw(
           state,
           map,
           camera,
@@ -1819,7 +1930,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         // composed geometry is drawn immediately in paintFrame2D.
         ensurePlayerNodes(playerNodes, null, null, frame.players.length);
         publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles, anims);
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH, anims, theme, decors);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), victimFlash, logicalW, logicalH, anims, theme, decors, padSquash);
       },
     };
   }

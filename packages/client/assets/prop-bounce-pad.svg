@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="12" viewBox="0 0 32 12">
+  <title>Scrapline CC0 bounce pad idle art, squash scales height at runtime (32x12)</title>
+  <rect x="0" y="0" width="32" height="12" fill="#FFD21F"/>
+  <polygon points="2,8 16,3 30,8" fill="none" stroke="#111111" stroke-width="2"/>
+  <polygon points="2,11 16,6 30,11" fill="none" stroke="#111111" stroke-width="2"/>
+  <rect x="0" y="0" width="32" height="2" fill="#FFD21F"/>
+  <rect x="0" y="10" width="32" height="2" fill="#111111"/>
+</svg>

@@ -168,7 +168,7 @@ test("presentation verifier pins the exact health probe", () => {
     "utf8",
   );
   assert.match(verifier, /\/api\/health must report ok true/);
-  assert.match(verifier, /\/health must report ok true/);
+  assert.match(verifier, /"\/health must report ok true/);
 });
 
 test("repo ships zero *.png/*.jpg images", () => {

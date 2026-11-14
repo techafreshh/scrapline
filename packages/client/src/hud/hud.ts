@@ -6,6 +6,7 @@
 
 import { JETPACK_FUEL_MAX, TICK_HZ } from "../../../core/src/constants";
 import { standingsFor } from "../../../core/src/match";
+import { updateAmmo } from "../ui/ammo";
 import { setBitmapText } from "../ui/fonts";
 
 /** Display name for a player id: the local id 0 is always "You". */
@@ -169,6 +170,11 @@ export interface HudHandles {
   respawn: HTMLElement | null;
   endScreen: HTMLElement | null;
   endStandings: HTMLElement | null;
+  ammoModule: HTMLElement | null;
+  ammoIcon: HTMLElement | null;
+  ammoName: HTMLElement | null;
+  ammoCounts: HTMLElement | null;
+  ammoPips: HTMLElement | null;
 }
 
 function byId(doc: Document, id: string): HTMLElement | null {
@@ -191,6 +197,11 @@ export function buildHud(doc: Document): HudHandles {
     respawn: byId(doc, "respawn"),
     endScreen: byId(doc, "end-screen"),
     endStandings: byId(doc, "end-standings"),
+    ammoModule: byId(doc, "ammo-module"),
+    ammoIcon: byId(doc, "ammo-icon"),
+    ammoName: byId(doc, "ammo-name"),
+    ammoCounts: byId(doc, "ammo-counts"),
+    ammoPips: byId(doc, "ammo-pips"),
   };
 }
 
@@ -214,6 +225,23 @@ export function updateHud(handles: HudHandles, snapshot: HudSnapshot): void {
   if (handles.ammo !== null) {
     handles.ammo.textContent = `${snapshot.weaponName} ${snapshot.magAmmo}`;
   }
+  // Bottom-right weapon module (issue #152): plain vector text plus
+  // icon and grenade pips. The legacy #hud-ammo line above keeps its
+  // exact shape so reserve-free snapshots still read `Pistol 7`.
+  updateAmmo(
+    {
+      module: handles.ammoModule ?? null,
+      icon: handles.ammoIcon ?? null,
+      name: handles.ammoName ?? null,
+      counts: handles.ammoCounts ?? null,
+      pips: handles.ammoPips ?? null,
+    },
+    {
+      magAmmo: snapshot.magAmmo,
+      weapon: snapshot.weaponName,
+      grenades: snapshot.grenades,
+    },
+  );
   if (handles.score !== null) {
     handles.score.textContent = standingsRows(snapshot.scores, snapshot.ids)
       .map((row) => `${row.rank} ${row.name}: ${row.score}`)

@@ -124,10 +124,73 @@
         width: 100%;
         background: #22d3ee;
       }
+      #ammo-module {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        min-width: 240px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        background: rgba(11, 16, 32, 0.92);
+        border: 1px solid #7df9ff;
+        border-radius: 10px;
+        pointer-events: none;
+        color: #f8fafc;
+      }
+      #ammo-icon {
+        width: 44px;
+        height: 40px;
+        object-fit: contain;
+        flex: 0 0 auto;
+      }
+      #ammo-readout {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+      #ammo-name {
+        font-size: 14px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        color: #7df9ff;
+        white-space: nowrap;
+      }
+      #ammo-row {
+        display: flex;
+        align-items: center;
+      }
+      #ammo-counts {
+        font-size: 18px;
+        font-weight: bold;
+        color: #f8fafc;
+        white-space: nowrap;
+      }
+      #ammo-pips {
+        display: inline-flex;
+        gap: 5px;
+        margin-left: 10px;
+        align-items: center;
+      }
+      #ammo-pips .pip {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid #eab308;
+      }
+      #ammo-pips .pip.filled {
+        background: #eab308;
+      }
+      #ammo-pips .pip.empty {
+        background: transparent;
+      }
       #killfeed {
         position: absolute;
         right: 8px;
-        bottom: 8px;
+        bottom: 110px;
         display: flex;
         flex-direction: column;
         gap: 2px;
@@ -491,6 +554,16 @@
         <div id="hud-ammo"></div>
         <div id="hud-score"></div>
         <div id="hud-timer"></div>
+      </div>
+      <div id="ammo-module" style="display: none">
+        <img id="ammo-icon" src="./assets/weapon-hornet.svg" alt="Hornet SMG icon" />
+        <div id="ammo-readout">
+          <div id="ammo-name">Hornet SMG</div>
+          <div id="ammo-row">
+            <span id="ammo-counts">32/96</span>
+            <span id="ammo-pips"></span>
+          </div>
+        </div>
       </div>
       <div id="crosshair"></div>
       <div id="killfeed"></div>

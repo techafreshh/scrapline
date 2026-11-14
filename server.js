@@ -52,6 +52,13 @@ const CONTENT_TYPES = {
   ".wasm": "application/wasm",
 };
 
+const FAVICON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">' +
+  '<rect width="16" height="16" fill="#0b1020"/>' +
+  '<circle cx="8" cy="8" r="5" fill="none" stroke="#7df9ff" stroke-width="1.5"/>' +
+  '<circle cx="8" cy="8" r="1.5" fill="#7df9ff"/>' +
+  "</svg>";
+
 function contentTypeFor(file) {
   return CONTENT_TYPES[path.extname(file).toLowerCase()] || "application/octet-stream";
 }
@@ -93,6 +100,10 @@ const server = http.createServer((req, res) => {
   }
   if (readable && url.pathname === "/healthz") {
     send(req, res, 200, "application/json", '{"ok":true}');
+    return;
+  }
+  if (readable && url.pathname === "/favicon.ico") {
+    send(req, res, 200, "image/svg+xml", FAVICON_SVG);
     return;
   }
   if (readable && (url.pathname === "/" || url.pathname === "/index.html")) {

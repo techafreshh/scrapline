@@ -130,6 +130,19 @@ test("GET /healthz returns 200 JSON containing ok true", async () => {
   assert.match(health.text, /"ok":true/);
 });
 
+test("GET /favicon.ico returns 200 SVG icon", async () => {
+  const icon = await get("/favicon.ico");
+  assert.equal(icon.status, 200);
+  assert.match(icon.contentType, /image\/svg\+xml/);
+  assert.match(icon.text, /<svg/);
+});
+
+test("HEAD /favicon.ico returns 200 SVG content-type", async () => {
+  const res = await fetch(base + "/favicon.ico", { method: "HEAD" });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") || "", /image\/svg\+xml/);
+});
+
 test("GET / includes the literal canvas tag", async () => {
   const root = await get("/");
   assert.equal(root.status, 200);

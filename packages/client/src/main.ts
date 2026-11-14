@@ -4,6 +4,7 @@
 // enhancement (Pixi v8 with a 2D canvas fallback) that never gates input.
 
 import {
+  GRENADE_MAX,
   JETPACK_FUEL_MAX,
   PLAYER_CROUCH_HEIGHT,
   PLAYER_HEIGHT,
@@ -109,6 +110,7 @@ import {
   updateHud,
   type HudHandles,
 } from "./hud/hud";
+import { updateAmmo } from "./ui/ammo";
 
 /** Fixed-timestep sim step in seconds. */
 const STEP = 1 / TICK_HZ;
@@ -741,6 +743,25 @@ function frame(now: number): void {
       respawnTicks: local.respawnTicks,
     });
   }
+  // Bottom-right weapon module (issue #152): mirrored every
+  // animation frame (change-guarded in the binder) so mag and grenade
+  // deltas land within a frame, well inside the 500ms probe budget.
+  if (local !== undefined) {
+    updateAmmo(
+      {
+        module: hud.ammoModule,
+        icon: hud.ammoIcon,
+        name: hud.ammoName,
+        counts: hud.ammoCounts,
+        pips: hud.ammoPips,
+      },
+      {
+        magAmmo: local.magAmmo,
+        weapon: local.weapon,
+        grenades: local.grenades ?? GRENADE_MAX,
+      },
+    );
+  }
   window.__scraplineTick = world.tick;
   // Merge, never replace: the renderer-published probe fields
   // (players, colors, bounds, muzzle) share this same object.
@@ -808,6 +829,9 @@ function showEndScreen(): void {
   }
   if (hud.hud !== null) {
     hud.hud.style.display = "none";
+  }
+  if (hud.ammoModule !== null) {
+    hud.ammoModule.style.display = "none";
   }
   if (hud.respawn !== null) {
     hud.respawn.style.display = "none";
@@ -911,6 +935,9 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   }
   if (hud.hud !== null) {
     hud.hud.style.display = "";
+  }
+  if (hud.ammoModule !== null) {
+    hud.ammoModule.style.display = "";
   }
   if (hud.killfeed !== null) {
     hud.killfeed.replaceChildren();

@@ -453,7 +453,7 @@ export interface Renderer {
 }
 
 /** One capped transient fx flash in world coords. */
-interface Flash {
+export interface Flash {
   x: number;
   y: number;
   kind: "explode" | "bounce" | "shot";
@@ -1361,8 +1361,12 @@ function paintFrame2D(
   paintVignette2D(ctx, canvasWidth, canvasHeight);
 }
 
-/** Feed step events into capped transient flashes anchored near the action. */
-function pushFlashes(
+/**
+ * Feed step events into capped transient flashes anchored near the action.
+ * Shot flashes ride the local player's weapon-aware barrel tip, so event
+ * flashes coincide with `spawnShots` muzzles by construction.
+ */
+export function pushFlashes(
   flashes: Flash[],
   frame: Frame,
   events: string[],
@@ -1396,10 +1400,9 @@ function pushFlashes(
       continue;
     }
     if (event === "shot" && local !== undefined && local.alive) {
-      const edge = local.w / 2 + 4;
       flashes.push({
-        x: local.x + local.w / 2 + Math.cos(local.aim) * edge,
-        y: local.y + local.h / 2 + Math.sin(local.aim) * edge,
+        x: local.barrel.x,
+        y: local.barrel.y,
         kind: "shot",
         ttl: FLASH_TTL,
       });

@@ -86,6 +86,11 @@ import { buildToast, showToast, type ToastHandles } from "./ui/toast";
 import { createRenderer, type Renderer } from "./renderer/index";
 import { loadAtlas } from "./atlas";
 import { registerServiceWorker } from "./pwa";
+import {
+  hasWebGLSupport,
+  hideNoscript,
+  syncNoscriptFallback,
+} from "./boot";
 import { DISPLAY_FONT_FAMILY, publishFonts } from "./ui/fonts";
 import {
   applyLetterbox,
@@ -473,6 +478,15 @@ try {
 } catch {
   // Non-DOM harnesses: the atlas fetch below still proceeds.
 }
+// Noscript fallback (issue #160): the static "JavaScript is disabled"
+// paragraph renders before any JS runs, so hide it the moment the client
+// boots. The renderer-settle continuation below re-syncs (re-showing it
+// when no WebGL context exists or a non-Pixi backend won).
+try {
+  hideNoscript(document);
+} catch {
+  // Non-DOM harnesses: the renderer bootstrap below still proceeds.
+}
 // Atlas preload races renderer init behind the same loading screen: the
 // assets/atlas.json fetch fires before the first frame, and the canvas
 // only reveals once both settle (either may fail without hanging boot).
@@ -494,6 +508,20 @@ void Promise.allSettled([createRenderer(canvas), loadAtlas()]).then(
       }
     } else {
       renderer = null;
+    }
+    // Re-sync the noscript fallback once the backend settles: hidden
+    // if and only if a real WebGL context exists and the Pixi backend
+    // won; any other outcome (null/stubbed context, canvas2d fallback,
+    // failed init) restores the fallback text. Never gates boot.
+    try {
+      const webgl = hasWebGLSupport();
+      const pixiWon =
+        rendererResult.status === "fulfilled" &&
+        renderer !== null &&
+        renderer.mode === "pixi";
+      syncNoscriptFallback(document, !(webgl && pixiWon));
+    } catch {
+      // Visibility sync failed: the canvas reveal below still proceeds.
     }
     // Canvas2d fallback unavailable (no 2d context): still drop the
     // loading screen so the failure surfaces instead of hanging.

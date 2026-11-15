@@ -24,6 +24,16 @@ import type {
   ShotDetail,
 } from "../../core/src/events";
 import { BotBrain } from "../../core/src/bots/brain";
+import { standingsFor } from "../../core/src/match";
+import {
+  DEFAULT_PROFILE,
+  awardMatchXp,
+  bindProfile,
+  loadProfile,
+  saveProfile,
+  updateProfileBadge,
+  type Profile,
+} from "./meta/profile";
 import { mapRowsFor } from "./maps";
 import { setCurrentTheme } from "./view/theme";
 import {
@@ -457,6 +467,20 @@ function refreshShowNameTags(): void {
     // Storage unreadable: keep the previous cached value.
   }
 }
+/**
+ * Cached local profile: frame() runs at 60 Hz, so the persisted name
+ * and palette are read once at boot (plus on editor/match-start)
+ * instead of hitting synchronous storage on every frame.
+ */
+let cachedProfile: Profile = { ...DEFAULT_PROFILE };
+/** Re-read the persisted profile into the frame-loop cache. */
+function refreshCachedProfile(): void {
+  try {
+    cachedProfile = loadProfile(storage);
+  } catch {
+    // Storage unreadable: keep the previous cached value.
+  }
+}
 let renderer: Renderer | null = null;
 /** Letterbox-fit the canvas/stage to the window, refresh the density. */
 function applyResponsiveSize(): void {
@@ -771,8 +795,10 @@ function stepOnce(): string[] {
         : null;
     pushKillfeed(
       hud,
-      kill.killerId === null ? null : playerName(kill.killerId),
-      playerName(kill.victimId),
+      kill.killerId === null
+        ? null
+        : playerName(kill.killerId, cachedProfile.name),
+      playerName(kill.victimId, cachedProfile.name),
       kill.weapon ?? liveWeapon,
       knownKiller ? killerIdx : null,
       kill.victim,
@@ -805,7 +831,10 @@ function stepOnce(): string[] {
     world.players.map((p) => p.alive),
   );
   for (const kill of kills) {
-    const killer = kill.killerId === null ? null : playerName(kill.killerId);
+    const killer =
+      kill.killerId === null
+        ? null
+        : playerName(kill.killerId, cachedProfile.name);
     if (kill.victimId === 0) {
       lastLocalKiller = killer;
     }
@@ -816,9 +845,28 @@ function stepOnce(): string[] {
   }
   // Match-end stinger plays once on the matchEnd edge (not on the sticky
   // matchOver flag); the jet loop is silenced with the final whistle.
+  // Progression awards once on the same authoritative edge: the local
+  // kill count plus the win/complete bonuses persist to the profile and
+  // repaint the menu badge (the sticky matchOver flag below cannot
+  // double-award: running flips false and the loop stops stepping).
   if (events.includes("matchEnd")) {
     playMatchEnd();
     setJetting(false, 0);
+    try {
+      const ids = world.players.map((p) => p.id);
+      const win = standingsFor(world.scores, ids)[0] === 0;
+      const localKills = world.scores[0] ?? 0;
+      const next = awardMatchXp(loadProfile(storage), {
+        win,
+        kills: localKills,
+        completed: true,
+      });
+      saveProfile(storage, next);
+      cachedProfile = next;
+      updateProfileBadge(document, next);
+    } catch {
+      // Progression best-effort: the end screen still shows.
+    }
   }
   if (events.includes("matchEnd") || world.matchOver) {
     running = false;
@@ -905,20 +953,24 @@ function frame(now: number): void {
     if (local.alive) {
       lastLocalKiller = null;
     }
-    updateHud(hud, {
-      hp: local.hp,
-      fuel: local.fuel,
-      magAmmo: local.magAmmo,
-      weaponName: local.weapon,
-      grenades: local.grenades ?? 0,
-      killedBy: lastLocalKiller,
-      scores: world.scores,
-      ids: world.players.map((p) => p.id),
-      tick: world.tick,
-      timeLimitTicks: world.timeLimitTicks,
-      localAlive: local.alive,
-      respawnTicks: local.respawnTicks,
-    });
+    updateHud(
+      hud,
+      {
+        hp: local.hp,
+        fuel: local.fuel,
+        magAmmo: local.magAmmo,
+        weaponName: local.weapon,
+        grenades: local.grenades ?? 0,
+        killedBy: lastLocalKiller,
+        scores: world.scores,
+        ids: world.players.map((p) => p.id),
+        tick: world.tick,
+        timeLimitTicks: world.timeLimitTicks,
+        localAlive: local.alive,
+        respawnTicks: local.respawnTicks,
+      },
+      cachedProfile.name,
+    );
   }
   // Bottom-right weapon module (issue #152): mirrored every
   // animation frame (change-guarded in the binder) so mag and grenade
@@ -950,6 +1002,8 @@ function frame(now: number): void {
       canvasW: LOGICAL_W,
       canvasH: LOGICAL_H,
       show: cachedShowNameTags,
+      localName: cachedProfile.name,
+      localPalette: cachedProfile.palette,
     });
     // Floating pad labels (issue #154): reconciled every animation
     // frame from the live pickup rows (change-guarded in the binder)
@@ -987,6 +1041,7 @@ function showEndScreen(): void {
     world.scores,
     deaths,
     world.players.map((p) => p.id),
+    cachedProfile.name,
   );
   const winnerEl = document.getElementById("end-winner");
   if (winnerEl instanceof HTMLElement) {
@@ -1162,6 +1217,9 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   // persisted name-tag flag at match start; steady-state frames use the
   // cache without touching storage.
   refreshShowNameTags();
+  // Menu profile edits land in storage via the binder; re-read them here
+  // so the opening nametags already carry the fresh pilot name.
+  refreshCachedProfile();
   padlabels = buildPadlabels(document);
   if (hud.endScreen !== null) {
     hud.endScreen.style.display = "none";
@@ -1230,6 +1288,17 @@ const settingsBinder = bindSettings(document, storage);
 // persisted default/ON fallback is captured here, before the first
 // frame() — the 60 Hz loop below never touches storage itself.
 refreshShowNameTags();
+// Local profile editor plus the `Lv N` menu badge (issue #210): prefill
+// from storage, persist edits, repaint the badge, and keep the
+// frame-loop cache fresh via the change callback. Never gates boot.
+refreshCachedProfile();
+try {
+  void bindProfile(document, storage, (next) => {
+    cachedProfile = next;
+  });
+} catch {
+  // Editor optional: defaults still render as You / Lv 1.
+}
 // Animated menu art scene plus the Quick Play summary chip (issue
 // #155): owns the #menu-scene hover loop and repaints the chip from
 // the live setup (stepper readout, pressed buttons, URL, storage)

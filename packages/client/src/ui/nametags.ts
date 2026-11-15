@@ -81,21 +81,48 @@ export interface NametagsFrame {
   canvasW: number;
   canvasH: number;
   show: boolean;
+  /** Local-name override for the id-0 tag (empty reads You). */
+  localName?: string | null;
+  /** Avatar-palette override tinting only the id-0 tag. */
+  localPalette?: string | null;
 }
 
 /**
  * Tag text for a player id: the shared bot-name identity (local id 0
- * reads "You"), so feed, scoreboard, and tags never disagree.
+ * reads "You"), so feed, scoreboard, and tags never disagree. A
+ * non-empty local name overrides the id-0 tag.
  */
-export function tagTextFor(id: number): string {
-  return playerName(id);
+export function tagTextFor(id: number, localName?: string | null): string {
+  return playerName(id, localName);
+}
+
+/** True for a verbatim #RRGGBB palette override. */
+function isPaletteOverride(value: unknown): value is string {
+  if (typeof value !== "string" || value.length !== 7 || value[0] !== "#") {
+    return false;
+  }
+  for (let i = 1; i < 7; i += 1) {
+    const code = value.charCodeAt(i);
+    if (
+      !(code >= 48 && code <= 57) &&
+      !(code >= 65 && code <= 70) &&
+      !(code >= 97 && code <= 102)
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
  * Tag text color for a player-array index: the single teamCss source
- * (local cyan, odd orange-red, even amber), never hardcoded hex.
+ * (local cyan, odd orange-red, even amber), never hardcoded hex. A
+ * valid-hex palette tints only the local (index 0) tag.
  */
-export function tagColorFor(index: number): string {
+export function tagColorFor(index: number, palette?: string | null): string {
+  if (index === 0 && isPaletteOverride(palette)) {
+    return palette;
+  }
   return teamCss(index);
 }
 
@@ -373,11 +400,11 @@ export function updateNametags(
     if (readAttr(node, "class") !== wantClass) {
       writeAttr(node, "class", wantClass);
     }
-    const wantText = tagTextFor(player.id);
+    const wantText = tagTextFor(player.id, frame.localName);
     if (readText(node) !== wantText) {
       writeText(node, wantText);
     }
-    paintTag(node, tagColorFor(index));
+    paintTag(node, tagColorFor(index, frame.localPalette));
     placeTag(node, point.x, point.y);
     setDisplay(node, "");
   }

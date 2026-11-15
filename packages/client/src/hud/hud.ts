@@ -27,9 +27,17 @@ export const BOT_NAMES: readonly string[] = [
   "Volt",
 ];
 
+/** True for a non-empty local-name override (empty names read You). */
+function hasLocalName(localName: unknown): localName is string {
+  return typeof localName === "string" && localName.trim() !== "";
+}
+
 /** Display name for a player id: local id 0 is You, bots read the pool. */
-export function playerName(id: number): string {
+export function playerName(id: number, localName?: string | null): string {
   if (id === 0) {
+    if (hasLocalName(localName)) {
+      return localName.trim();
+    }
     return "You";
   }
   const pool = BOT_NAMES.length;
@@ -91,6 +99,7 @@ export interface StandingsRow {
 export function standingsRows(
   scores: readonly number[],
   ids: readonly number[],
+  localName?: string | null,
 ): StandingsRow[] {
   const byId = new Map<number, number>();
   for (let k = 0; k < ids.length; k += 1) {
@@ -98,7 +107,7 @@ export function standingsRows(
   }
   return standingsFor(scores, ids).map((id, index) => ({
     id,
-    name: playerName(id),
+    name: playerName(id, localName),
     score: byId.get(id) ?? 0,
     rank: ordinal(index + 1),
   }));
@@ -122,6 +131,7 @@ export function endStandingsRows(
   scores: readonly number[],
   deaths: readonly number[],
   ids: readonly number[],
+  localName?: string | null,
 ): EndStandingsRow[] {
   const killsById = new Map<number, number>();
   const deathsById = new Map<number, number>();
@@ -131,7 +141,7 @@ export function endStandingsRows(
   }
   return standingsFor(scores, ids).map((id, index) => ({
     id,
-    name: playerName(id),
+    name: playerName(id, localName),
     kills: killsById.get(id) ?? 0,
     deaths: deathsById.get(id) ?? deaths[id] ?? 0,
     winner: index === 0,
@@ -240,7 +250,11 @@ export function buildHud(doc: Document): HudHandles {
 }
 
 /** Mirror one snapshot into the overlay; missing elements are skipped. */
-export function updateHud(handles: HudHandles, snapshot: HudSnapshot): void {
+export function updateHud(
+  handles: HudHandles,
+  snapshot: HudSnapshot,
+  localName?: string | null,
+): void {
   if (handles.health !== null) {
     // Bitmap HP digits stay crisp at any camera/browser zoom: hard
     // rects (no anti-aliased vector text) keep Sobel edge energy flat.
@@ -277,7 +291,11 @@ export function updateHud(handles: HudHandles, snapshot: HudSnapshot): void {
     },
   );
   if (handles.score !== null) {
-    handles.score.textContent = standingsRows(snapshot.scores, snapshot.ids)
+    handles.score.textContent = standingsRows(
+      snapshot.scores,
+      snapshot.ids,
+      localName,
+    )
       .map((row) => `${row.rank} ${row.name}: ${row.score}`)
       .join(" ");
   }

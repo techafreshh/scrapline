@@ -7,9 +7,12 @@
 import {
   INTERP_DELAY_MS,
   SnapshotBuffer,
+  poseFromFlags,
   type BufferPlayer,
   type InterpPlayer,
 } from "./interpolation";
+import { mergeRoster, normalizeRosterName, rosterFrom, type RosterEntry } from "./roster";
+import type { OnlineKillEvent, OnlineLeaveEvent } from "./render";
 
 /** Re-exported delay constant for probe convenience. */
 export { INTERP_DELAY_MS };
@@ -49,6 +52,14 @@ export interface OnlineClientOptions {
   url?: string;
   /** Arena view name carried by the hello frame. */
   view?: string;
+  /** Display name carried by the hello frame (server roster nametag). */
+  name?: string;
+  /**
+   * Host-backfill flag carried by the hello frame: true keeps a
+   * disconnected slot idling as a bot (false drops its roster name).
+   * Omitted when undefined so rooms keep their current setting.
+   */
+  backfill?: boolean;
   /** Socket factory; defaults to the global WebSocket. */
   createSocket?: SocketFactory;
   /** Millisecond clock; defaults to Date.now. */
@@ -149,6 +160,16 @@ export class OnlineClient {
   private readonly sampleInput: () => OnlineInput;
   private readonly url: string;
   private view: string;
+  /** Trimmed hello display name (empty omits the field; server falls back). */
+  private readonly helloName: string;
+  /** Hello backfill flag (undefined omits the field). */
+  private readonly helloBackfill: boolean | undefined;
+  /** Server roster rows (welcome/snapshot/join drive it; never wiped by flag-less snapshots). */
+  private roster: RosterEntry[] = [];
+  /** Kill rows drained from snapshot events (renderOnlineSnapshot consumes them). */
+  private pendingKills: OnlineKillEvent[] = [];
+  /** Departures queued from leave frames (bannered within the frame). */
+  private pendingLeaves: OnlineLeaveEvent[] = [];
 
   private socket: OnlineSocket | null = null;
   private interval: unknown = null;
@@ -166,6 +187,10 @@ export class OnlineClient {
     this.sampleInput = options.sampleInput ?? neutralInput;
     this.url = options.url ?? defaultOnlineUrl();
     this.view = options.view ?? "dune";
+    this.helloName =
+      typeof options.name === "string" ? options.name.trim().slice(0, 16) : "";
+    this.helloBackfill =
+      typeof options.backfill === "boolean" ? options.backfill : undefined;
   }
 
   /** Session minted by the welcome frame (null before connect). */
@@ -187,6 +212,31 @@ export class OnlineClient {
   /** Fixed interpolation delay in ms (always INTERP_DELAY_MS). */
   interpDelayMs(): number {
     return INTERP_DELAY_MS;
+  }
+
+  /** Server roster copy (welcome/snapshot/join drive it). */
+  rosterList(): RosterEntry[] {
+    return this.roster.map((row) => ({ ...row }));
+  }
+
+  /** Display name for a player id (roster wins, else `Player<id>`). */
+  nameFor(id: number): string {
+    for (const row of this.roster) {
+      if (row.id === id && row.name.length > 0) {
+        return row.name;
+      }
+    }
+    return `Player${id}`;
+  }
+
+  /** Drain queued snapshot kill rows (renderOnlineSnapshot consumes them). */
+  drainKills(): OnlineKillEvent[] {
+    return this.pendingKills.splice(0);
+  }
+
+  /** Drain queued leave banners (renderOnlineSnapshot consumes them). */
+  drainLeaves(): OnlineLeaveEvent[] {
+    return this.pendingLeaves.splice(0);
   }
 
   /**
@@ -286,7 +336,20 @@ export class OnlineClient {
 
   /** Send the hello frame over the open socket (best-effort). */
   private sendHello(): void {
-    this.sendJson({ t: "hello", proto: ONLINE_PROTO, view: this.view });
+    const hello: Record<string, unknown> = {
+      t: "hello",
+      proto: ONLINE_PROTO,
+      view: this.view,
+    };
+    // Roster identity: the hello name drives every remote nametag, so
+    // Alice's client renders Bob (and vice versa), never a bot pool.
+    if (this.helloName.length > 0) {
+      hello["name"] = this.helloName;
+    }
+    if (this.helloBackfill !== undefined) {
+      hello["backfill"] = this.helloBackfill;
+    }
+    this.sendJson(hello);
   }
 
   /** Send one input frame with the locally counted tick. */
@@ -340,12 +403,53 @@ export class OnlineClient {
       return;
     }
     const rec = msg as Record<string, unknown>;
+    // Roster join: upsert the newcomer so nametags appear before the
+    // next 20 Hz snapshot reconciles the full roster.
+    if (rec["t"] === "join") {
+      const id = rec["id"];
+      if (typeof id === "number" && Number.isFinite(id)) {
+        const pid = Math.floor(id);
+        const name = normalizeRosterName(rec["name"], `Player${pid}`);
+        const at = this.roster.findIndex((row) => row.id === pid);
+        if (at >= 0) {
+          this.roster[at] = { id: pid, name };
+        } else {
+          this.roster.push({ id: pid, name });
+        }
+      }
+      return;
+    }
+    // Leave banner: queue immediately (the frame banner lands well
+    // inside the 1s budget); the roster itself reconciles on the next
+    // snapshot so a backfill bot keeps its name.
+    if (rec["t"] === "leave") {
+      const id = rec["id"];
+      const pid =
+        typeof id === "number" && Number.isFinite(id) ? Math.floor(id) : -1;
+      if (pid >= 0) {
+        const name =
+          typeof rec["name"] === "string" && rec["name"].length > 0
+            ? rec["name"]
+            : this.nameFor(pid);
+        this.pendingLeaves.push({ id: pid, name });
+        if (this.pendingLeaves.length > 8) {
+          this.pendingLeaves.splice(0, this.pendingLeaves.length - 8);
+        }
+      }
+      return;
+    }
     if (rec["t"] === "welcome") {
       if (typeof rec["session"] === "string") {
         this.session = rec["session"];
       }
       if (typeof rec["pid"] === "number" && Number.isFinite(rec["pid"])) {
         this.pid = Math.floor(rec["pid"]);
+      }
+      // Server roster: welcome carries every name (including ours), so
+      // remote nametags resolve from the first frame.
+      const fresh = rosterFrom(rec["roster"]);
+      if (fresh.length > 0) {
+        this.roster = fresh;
       }
       if (this.session !== null) {
         this.connected = true;
@@ -373,14 +477,79 @@ export class OnlineClient {
         if (typeof id !== "number" || !Number.isFinite(id)) {
           continue;
         }
+        // Pose + identity ride into the buffer: flags decode to the
+        // soldier pose (crouch/jet/dead), the roster name drives the
+        // nametag, and fuel bands the exhaust flicker.
+        const pose = poseFromFlags(p["flags"]);
         rows.push({
           id: Math.floor(id),
           x: isFiniteNumber(p["x"]) ? p["x"] : 0,
           y: isFiniteNumber(p["y"]) ? p["y"] : 0,
           aim: isFiniteNumber(p["aim"]) ? p["aim"] : 0,
           hp: isFiniteNumber(p["hp"]) ? p["hp"] : 100,
+          fuel: isFiniteNumber(p["fuel"]) ? (p["fuel"] as number) : 100,
           weapon: typeof p["weapon"] === "string" ? p["weapon"] : "pistol",
+          name:
+            typeof p["name"] === "string" && (p["name"] as string).length > 0
+              ? (p["name"] as string)
+              : undefined,
+          alive: typeof p["alive"] === "boolean" ? (p["alive"] as boolean) : pose.alive,
+          onGround:
+            typeof p["onGround"] === "boolean" ? (p["onGround"] as boolean) : pose.onGround,
+          crouching:
+            typeof p["crouching"] === "boolean"
+              ? (p["crouching"] as boolean)
+              : pose.crouching,
+          jetting:
+            typeof p["jetting"] === "boolean" ? (p["jetting"] as boolean) : pose.jetting,
+          protected:
+            typeof p["protected"] === "boolean"
+              ? (p["protected"] as boolean)
+              : pose.protected,
         });
+      }
+      // Authoritative roster + kill events ride every snapshot: the
+      // roster reconciles join/leave churn at 20 Hz and kills queue for
+      // the identical offline `Killer ▸ Victim` feed line.
+      const freshRoster = rosterFrom(rec["roster"]);
+      if (freshRoster.length > 0) {
+        this.roster = mergeRoster(this.roster, freshRoster);
+      }
+      const events = rec["events"];
+      if (Array.isArray(events)) {
+        for (const item of events) {
+          if (item === null || typeof item !== "object") {
+            continue;
+          }
+          const e = item as Record<string, unknown>;
+          if (e["kind"] !== "kill") {
+            continue;
+          }
+          const victim = e["victim"];
+          if (typeof victim !== "number" || !Number.isFinite(victim)) {
+            continue;
+          }
+          const killer = e["killer"];
+          this.pendingKills.push({
+            killer:
+              typeof killer === "number" && Number.isFinite(killer)
+                ? Math.floor(killer)
+                : null,
+            victim: Math.floor(victim),
+            killerName:
+              typeof e["killerName"] === "string" && (e["killerName"] as string).length > 0
+                ? (e["killerName"] as string)
+                : null,
+            victimName:
+              typeof e["victimName"] === "string" && (e["victimName"] as string).length > 0
+                ? (e["victimName"] as string)
+                : `Player${Math.floor(victim)}`,
+            weapon: typeof e["weapon"] === "string" ? (e["weapon"] as string) : null,
+          });
+        }
+        if (this.pendingKills.length > 25) {
+          this.pendingKills.splice(0, this.pendingKills.length - 25);
+        }
       }
       let at: number;
       try {

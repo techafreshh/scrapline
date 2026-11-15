@@ -22,25 +22,57 @@ const DIST = path.join(ROOT, "packages", "client", "dist");
 
 const PORT = resolvePort();
 
+/**
+ * First finite positive integer in a port-list token: `PORT="3001, 3002"`
+ * / `3001:3002` / `3001 3002` forms all resolve to the first port (the
+ * probed contract), never the last or a merged NaN.
+ */
+function firstPortInteger(text) {
+  if (typeof text === "number") {
+    return Number.isFinite(text) && text > 0 ? Math.floor(text) : undefined;
+  }
+  if (typeof text !== "string") {
+    return undefined;
+  }
+  for (const part of text.split(/[\s,;:]+/)) {
+    if (part.length === 0) {
+      continue;
+    }
+    const n = Number(part);
+    if (Number.isFinite(n) && n > 0) {
+      return Math.floor(n);
+    }
+  }
+  return undefined;
+}
+
 function resolvePort() {
   // PORT env is the contract; also accept a CLI --port flag (or bare
   // numeric arg) so harnesses that pass the port as an argument still
-  // land on the probed port instead of silently serving :3000.
+  // land on the probed port instead of silently serving :3000. Every
+  // source takes the first finite integer, so a list still lands on
+  // the probed (first) port.
   const argv = process.argv.slice(2);
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--port" || arg === "-p" || arg === "--PORT") {
-      const next = Number(argv[i + 1]);
-      if (Number.isFinite(next) && next > 0) return Math.floor(next);
+      const next = firstPortInteger(argv[i + 1]);
+      if (next !== undefined) return next;
     }
-    const eq = /^(?:--port=|--PORT=|-p=)(\d+)$/.exec(arg);
-    if (eq) return Number(eq[1]);
+    const eq = /^(?:--port=|--PORT=|-p=)(.+)$/.exec(arg);
+    if (eq !== null) {
+      const next = firstPortInteger(eq[1]);
+      if (next !== undefined) return next;
+    }
   }
-  const bare = argv.find((a) => /^\d+$/.test(a));
-  if (bare !== undefined) return Number(bare);
+  const bare = argv.find((a) => /^[\d\s,;:]+$/.test(a) && firstPortInteger(a) !== undefined);
+  if (bare !== undefined) return firstPortInteger(bare);
   // npm exposes `npm run dev --port=N` as npm_config_port.
-  const env = Number(process.env.PORT || process.env.npm_config_port || 3000);
-  return Number.isFinite(env) && env > 0 ? Math.floor(env) : 3000;
+  return (
+    firstPortInteger(process.env.PORT) ??
+    firstPortInteger(process.env.npm_config_port) ??
+    3000
+  );
 }
 
 const CONTENT_TYPES = {

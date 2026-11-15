@@ -85,14 +85,66 @@ export interface NametagsFrame {
   localName?: string | null;
   /** Avatar-palette override tinting only the id-0 tag. */
   localPalette?: string | null;
+  /**
+   * Server roster override (issue #217): when present, the roster name
+   * wins over the offline bot-name pool so remotes render their server
+   * name (Bob reads Bob for Alice). Accepts a Map, a plain record, or
+   * readonly [{id, name}] rows; missing ids fall back to the pool.
+   */
+  names?:
+    | ReadonlyMap<number, string>
+    | Readonly<Record<number, string>>
+    | readonly { id: number; name: string }[]
+    | null;
+}
+
+/** Roster lookup: Map, plain record, or [{id, name}] rows (never throws). */
+function rosterNameFor(
+  names: NametagsFrame["names"],
+  id: number,
+): string | null {
+  try {
+    if (names === null || names === undefined) {
+      return null;
+    }
+    if (Array.isArray(names)) {
+      for (const row of names) {
+        if (row !== null && typeof row === "object" && row.id === id) {
+          return typeof row.name === "string" && row.name.length > 0 ? row.name : null;
+        }
+      }
+      return null;
+    }
+    if (typeof (names as ReadonlyMap<number, string>).get === "function") {
+      const hit = (names as ReadonlyMap<number, string>).get(id);
+      return typeof hit === "string" && hit.length > 0 ? hit : null;
+    }
+    if (typeof names === "object") {
+      const hit = (names as Readonly<Record<number, string>>)[id];
+      return typeof hit === "string" && hit.length > 0 ? hit : null;
+    }
+  } catch {
+    // Hostile roster: the pool fallback stands.
+  }
+  return null;
 }
 
 /**
- * Tag text for a player id: the shared bot-name identity (local id 0
- * reads "You"), so feed, scoreboard, and tags never disagree. A
- * non-empty local name overrides the id-0 tag.
+ * Tag text for a player id: the server roster wins when it names the id
+ * (issue #217: Bob reads Bob for Alice), else the shared bot-name
+ * identity (local id 0 reads "You"), so feed, scoreboard, and tags
+ * never disagree. A non-empty local name still overrides the id-0 tag
+ * when the roster is silent for it.
  */
-export function tagTextFor(id: number, localName?: string | null): string {
+export function tagTextFor(
+  id: number,
+  localName?: string | null,
+  names?: NametagsFrame["names"],
+): string {
+  const rosterHit = rosterNameFor(names, id);
+  if (rosterHit !== null) {
+    return rosterHit;
+  }
   return playerName(id, localName);
 }
 
@@ -400,7 +452,7 @@ export function updateNametags(
     if (readAttr(node, "class") !== wantClass) {
       writeAttr(node, "class", wantClass);
     }
-    const wantText = tagTextFor(player.id, frame.localName);
+    const wantText = tagTextFor(player.id, frame.localName, frame.names);
     if (readText(node) !== wantText) {
       writeText(node, wantText);
     }

@@ -13,6 +13,23 @@ import {
   type SocketFactory,
 } from "./client";
 import type { InterpPlayer } from "./interpolation";
+import { buildFeed, type FeedHandles } from "../ui/feed";
+import { buildNametags, type NametagsHandles } from "../ui/nametags";
+import { buildToast, type ToastHandles } from "../ui/toast";
+import { BASE_H, BASE_W } from "../view/resize";
+import type { Camera } from "../renderer/camera";
+import type { RosterEntry } from "./roster";
+import {
+  createOnlineCamera,
+  onlineStateFor,
+  renderOnlineSnapshot,
+  resolveOnlineName,
+  type OnlineKillEvent,
+  type OnlineLeaveEvent,
+} from "./render";
+
+/** Re-exported remote frame shaper (single source lives in render.ts). */
+export { onlineStateFor };
 
 /** Play-online button id (static HTML in packages/client/index.html). */
 export const ONLINE_BUTTON_ID = "play-online";
@@ -42,6 +59,12 @@ export interface OnlineClientLike {
   sample(nowMs?: number): InterpPlayer[];
   interpDelayMs(): number;
   close(): void;
+  /** Server roster copy (absent on legacy stubs; render falls back). */
+  rosterList?(): RosterEntry[];
+  /** Queued snapshot kill rows (absent on legacy stubs; no feed). */
+  drainKills?(): OnlineKillEvent[];
+  /** Queued leave banners (absent on legacy stubs; no banner). */
+  drainLeaves?(): OnlineLeaveEvent[];
 }
 
 /** Dependencies injected into bindOnline (all optional for probes). */
@@ -62,6 +85,15 @@ export interface OnlineBinderDeps {
   sampleInput?: () => OnlineInput;
   /** Explicit room URL (defaults to the same-origin /room endpoint). */
   url?: string;
+  /** Display name helloed to the room (drives the remote nametag). */
+  name?: string;
+  /** Live display-name source (read per click; beats the static name). */
+  getName?: () => string;
+  /**
+   * Host-backfill flag helloed to the room: true keeps a disconnected
+   * slot idling as a bot (undefined leaves the room default alone).
+   */
+  backfill?: boolean;
   /** Client factory (probe seam; defaults to the real OnlineClient). */
   createClient?: (options: OnlineClientOptions) => OnlineClientLike;
   /** Called when a session starts (main.ts pauses the offline loop). */
@@ -106,42 +138,6 @@ function clockOf(deps: OnlineBinderDeps): () => number {
 }
 
 /**
- * Shape interpolated rows as a renderer StateLike: players carry the
- * snapshot pose plus neutral sim fields, entity streams stay empty (the
- * honest path renders remotes only; the offline sim owns the rest).
- */
-export function onlineStateFor(rows: readonly InterpPlayer[], tick: number): {
-  tick: number;
-  players: Record<string, unknown>[];
-  projectiles: never[];
-  pickups: never[];
-  props: never[];
-} {
-  return {
-    tick,
-    players: rows.map((p) => ({
-      id: p.id,
-      x: p.x,
-      y: p.y,
-      aim: p.aim,
-      hp: p.hp,
-      weapon: p.weapon,
-      alive: true,
-      onGround: true,
-      crouching: false,
-      jetting: false,
-      protectionTicks: 0,
-      fuel: 100,
-      vx: 0,
-      vy: 0,
-    })),
-    projectiles: [],
-    pickups: [],
-    props: [],
-  };
-}
-
-/**
  * Wire the static `#play-online` button: click hides #menu, opens the
  * honest-mode session, publishes window.__online, and owns the rAF
  * render-from-buffer loop until stop(). Missing elements are no-ops;
@@ -169,6 +165,28 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
   let interval: unknown = null;
   let rafId = 0;
   let clicked = false;
+  // Overlay handles (idempotent; fake docs read all-null and no-op).
+  let nametags: NametagsHandles;
+  let feed: FeedHandles;
+  let toast: ToastHandles;
+  try {
+    nametags = buildNametags(doc);
+  } catch {
+    nametags = { container: null };
+  }
+  try {
+    feed = buildFeed(doc);
+  } catch {
+    feed = { feed: null };
+  }
+  try {
+    toast = buildToast(doc);
+  } catch {
+    toast = { toast: null };
+  }
+  // Session follow camera (one instance for the draw and the nametag
+  // projection, so tags sit above their soldiers like offline).
+  let camera: Camera | null = null;
 
   const readView = (): string => {
     try {
@@ -265,8 +283,49 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
     if (!Array.isArray(rows)) {
       rows = [];
     }
+    // Remote rendering (issue #217): full soldier system through the
+    // live renderer, server roster nametags, identical killfeed lines,
+    // and `Player left` banners — never the flat offline-mirror path.
+    let roster: RosterEntry[];
     try {
-      renderer.draw(onlineStateFor(rows, 0));
+      roster = client.rosterList?.() ?? [];
+    } catch {
+      roster = [];
+    }
+    let kills: OnlineKillEvent[];
+    try {
+      kills = client.drainKills?.() ?? [];
+    } catch {
+      kills = [];
+    }
+    let leaves: OnlineLeaveEvent[];
+    try {
+      leaves = client.drainLeaves?.() ?? [];
+    } catch {
+      leaves = [];
+    }
+    if (camera === null) {
+      try {
+        camera = createOnlineCamera();
+      } catch {
+        camera = null;
+      }
+    }
+    try {
+      renderOnlineSnapshot({
+        renderer,
+        rows,
+        tick: 0,
+        roster,
+        kills,
+        leaves,
+        nametags,
+        feed,
+        toast,
+        camera,
+        canvasW: BASE_W,
+        canvasH: BASE_H,
+      });
     } catch {
       // Renderer faults never kill the session; the next frame retries.
     }
@@ -310,6 +369,14 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
       // Menu hide best-effort: the session still opens.
     }
     const view = readView();
+    // Roster identity: the profile/live name hellos with the session
+    // so the server roster (and every remote nametag) reads Alice/Bob.
+    let helloName: string;
+    try {
+      helloName = resolveOnlineName(doc, { getName: deps.getName, name: deps.name });
+    } catch {
+      helloName = "";
+    }
     let client: OnlineClientLike | null;
     try {
       client = makeClient({
@@ -319,6 +386,8 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
         sampleInput: deps.sampleInput,
         view,
         url: deps.url,
+        ...(helloName.length > 0 ? { name: helloName } : {}),
+        ...(typeof deps.backfill === "boolean" ? { backfill: deps.backfill } : {}),
       });
     } catch {
       client = null;

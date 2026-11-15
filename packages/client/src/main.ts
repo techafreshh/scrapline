@@ -1459,6 +1459,10 @@ try {
   void bindOnline(document, {
     getRenderer: () => renderer,
     getView: () => matchConfig.map,
+    // Roster identity (issue #217): the persisted pilot name hellos
+    // with the session so the server roster reads Alice/Bob and every
+    // remote soldier renders its server nametag.
+    getName: () => cachedProfile.name,
     sampleInput: () => {
       const intent = localInput();
       return { moveX: intent.moveX, aim: intent.aim, buttons: intent.buttons };

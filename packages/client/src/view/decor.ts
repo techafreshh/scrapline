@@ -5,6 +5,7 @@
 // Decorations are static (no animation state) to hold the 60 fps budget;
 // DECOR_Z matches BACKWALL_Z (painted before solids, never covering them).
 import { TILE_SIZE } from "../../../core/src/map";
+import { toSeedInt } from "../../../core/src/maps/scatter";
 import { visibleTileRange, type Camera } from "../renderer/camera";
 import { decorationsFor, decorationsForSeeded } from "../maps";
 import {
@@ -106,6 +107,29 @@ export function decorationsForMapSeeded(name: unknown, seed: unknown): Decoratio
     return direct as Decoration[];
   }
   return (decorationsForSeeded("kilima", seed) ?? []) as Decoration[];
+}
+
+/**
+ * Stable per-theme decor seed for states without one (headless draws).
+ * Keeps the default render deterministic per arena without a World.
+ */
+const DEFAULT_DECOR_SEEDS: Record<string, number> = {
+  kilima: 123,
+  dune: 20240,
+  frostbite: 4242,
+};
+
+/**
+ * Match seed for the decor stream: the per-theme default only when the
+ * seed key is absent (`undefined`); every present seed coerces exactly
+ * like the core sampler via `toSeedInt`, its contract twin, so string
+ * seeds (e.g. `"123"`) paint seed-123 scatter everywhere.
+ */
+export function decorSeedFor(seed: unknown, themeName: string): number {
+  if (seed === undefined) {
+    return DEFAULT_DECOR_SEEDS[themeName] ?? 0;
+  }
+  return toSeedInt(seed);
 }
 
 /**

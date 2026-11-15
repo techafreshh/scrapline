@@ -5,7 +5,7 @@ import { TILE_SIZE, parseMapSymbols } from "../src/map";
 import { decorations as kilimaDecorations, decorationsWithScatter as kilimaWithScatter } from "../src/maps/kilima";
 import { decorations as duneDecorations, decorationsWithScatter as duneWithScatter } from "../src/maps/dune";
 import { decorations as frostbiteDecorations, decorationsWithScatter as frostbiteWithScatter } from "../src/maps/frostbite";
-import { generateScatterDecorations, scatterKindsFor } from "../src/maps/scatter";
+import { generateScatterDecorations, scatterKindsFor, toSeedInt } from "../src/maps/scatter";
 
 interface Decoration {
   kind: string;
@@ -162,6 +162,29 @@ describe("map decorations", () => {
       expect(combined.slice(0, byMap[base].static.length)).toEqual([...byMap[base].static]);
       const again = byMap[base].withScatter(rows, 123);
       expect(JSON.stringify(combined)).toBe(JSON.stringify(again));
+    }
+  });
+
+  it("toSeedInt coerces present seeds exactly like Number() with a 0 fallback", () => {
+    expect(toSeedInt(123)).toBe(123);
+    expect(toSeedInt("123")).toBe(123);
+    expect(toSeedInt(" 123 ")).toBe(123);
+    expect(toSeedInt(123.9)).toBe(123);
+    expect(toSeedInt("123.9")).toBe(123);
+    expect(toSeedInt(undefined)).toBe(0);
+    expect(toSeedInt(null)).toBe(0);
+    expect(toSeedInt(NaN)).toBe(0);
+    expect(toSeedInt("abc")).toBe(0);
+    expect(toSeedInt(Infinity)).toBe(0);
+  });
+
+  it("string seeds paint byte-identical scatter to the same numeric seed", () => {
+    for (const key of Object.keys(mapModules).sort()) {
+      const base = key.split("/").pop()?.replace(/\.txt$/, "") ?? "";
+      const rows = rowsOf(key);
+      expect(JSON.stringify(generateScatterDecorations(base, rows, "123"))).toBe(
+        JSON.stringify(generateScatterDecorations(base, rows, 123)),
+      );
     }
   });
 

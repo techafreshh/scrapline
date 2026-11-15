@@ -56,7 +56,7 @@ function normalizeMapName(value: unknown): string {
 }
 
 /** Finite seeds floor to an int; anything else reads as seed 0. */
-function toSeedInt(seed: unknown): number {
+export function toSeedInt(seed: unknown): number {
   const n = typeof seed === "number" ? seed : Number(seed);
   if (!Number.isFinite(n)) {
     return 0;

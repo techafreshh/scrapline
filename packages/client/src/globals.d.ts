@@ -63,6 +63,22 @@ declare global {
       playerHeightScale: number;
       /** True while inside the 150ms white hurt-flash window. */
       isHurtFlash: boolean;
+      /** Walk↔sprint blend for the local player (0 at rest, additive). */
+      gaitBlend?: number;
+      /** Stand↔crouch air blend for the local player (additive). */
+      airBlend?: number;
+      /** Alias of airBlend (crouch weight while airborne). */
+      crouchWeight?: number;
+      /** Smoothed aim for the local player (additive, no ±π snap). */
+      aimSmoothed?: number;
+      /** Landing squash for the local player (1 at rest, additive). */
+      landSquash?: number;
+      /** Alias of landSquash (vertical scale through the landing dip). */
+      scaleY?: number;
+      /** Spawn ease for the local player (1 at rest, additive). */
+      spawnEase?: number;
+      /** Death ease for the local player (1 at rest, additive). */
+      deathEase?: number;
       /** Seeded per-bot cosmetics (helmet/visor/palette, length = bot count). */
       enemyCosmetics?: { helmet: string; visor: string; palette: string }[];
       /** Local player's persisted cosmetic pick. */
@@ -235,6 +251,20 @@ declare global {
         heightScale: number;
         /** True while inside the 150ms white hurt-flash window. */
         hurtFlash: boolean;
+        /** Walk↔sprint blend for this player (additive probe field). */
+        gaitBlend?: number;
+        /** Stand↔crouch air blend for this player (additive probe field). */
+        airBlend?: number;
+        /** Alias of airBlend (crouch weight while airborne). */
+        crouchWeight?: number;
+        /** Smoothed aim for this player (additive probe field). */
+        aimSmoothed?: number;
+        /** Landing squash for this player (additive probe field). */
+        landSquash?: number;
+        /** Spawn ease for this player (additive probe field). */
+        spawnEase?: number;
+        /** Death ease for this player (additive probe field). */
+        deathEase?: number;
         /** Selected soldier frame id (additive; defaults sensibly pre-draw). */
         frame?: string;
         /** Equipped weapon id (additive; defaults sensibly pre-draw). */

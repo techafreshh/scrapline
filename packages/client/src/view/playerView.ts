@@ -6,7 +6,7 @@
 import type { WeaponId } from "../../../core/src/weapons";
 import {
   selectSoldierFrame,
-  soldierLegOffset,
+  soldierLegOffsetBlended,
   weaponDef,
   type SoldierFrameId,
 } from "./soldier";
@@ -88,6 +88,20 @@ export interface ProbePlayer {
   frame?: SoldierFrameId;
   /** Equipped weapon id for this player (additive probe field). */
   weapon?: WeaponId;
+  /** Walk↔sprint blend for this player (additive probe field). */
+  gaitBlend?: number;
+  /** Stand↔crouch air blend for this player (additive probe field). */
+  airBlend?: number;
+  /** Alias of airBlend (crouch weight while airborne). */
+  crouchWeight?: number;
+  /** Smoothed aim for this player (additive probe field). */
+  aimSmoothed?: number;
+  /** Landing squash for this player (additive probe field). */
+  landSquash?: number;
+  /** Spawn ease for this player (additive probe field). */
+  spawnEase?: number;
+  /** Death ease for this player (additive probe field). */
+  deathEase?: number;
 }
 
 /** Write an expando field without fighting the Pixi v8 typings. */
@@ -206,6 +220,18 @@ export interface SyncPose {
   weapon?: WeaponId;
   /** Selected soldier frame (drives the frame-specific leg offsets). */
   frame?: SoldierFrameId;
+  /** Walk↔sprint blend in [0, 1] (weights the stride, defaults to 1). */
+  gaitBlend?: number;
+  /** Stand↔crouch air blend in [0, 1] (widens/lowers the stance). */
+  airBlend?: number;
+  /** Smoothed aim in radians (rotates the arms, no ±π snap). */
+  aimSmoothed?: number;
+  /** Landing squash (multiplies scale.y through the 4-frame dip). */
+  landSquash?: number;
+  /** Spawn ease in [0, 1] (rides the ease scale, blink alpha untouched). */
+  spawnEase?: number;
+  /** Death ease in [0, 1] (rides the ease scale, dead pose untouched). */
+  deathEase?: number;
 }
 
 /**
@@ -226,10 +252,26 @@ export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
   }
   const container = node;
   container.position.set(pose.x, pose.y);
-  container.scale.set(pose.scale, pose.scale * pose.squash);
+  const landSquash =
+    typeof pose.landSquash === "number" && Number.isFinite(pose.landSquash)
+      ? pose.landSquash
+      : 1;
+  container.scale.set(pose.scale, pose.scale * pose.squash * landSquash);
   container.alpha = pose.alpha;
   container.visible = pose.visible;
   const swing = pose.legSwing ?? 0;
+  const airBlend =
+    typeof pose.airBlend === "number" && Number.isFinite(pose.airBlend)
+      ? Math.min(1, Math.max(0, pose.airBlend))
+      : 0;
+  const gaitBlend =
+    typeof pose.gaitBlend === "number" && Number.isFinite(pose.gaitBlend)
+      ? Math.min(1, Math.max(0, pose.gaitBlend))
+      : 1;
+  const aim =
+    typeof pose.aimSmoothed === "number" && Number.isFinite(pose.aimSmoothed)
+      ? pose.aimSmoothed
+      : pose.aim;
   const frame: SoldierFrameId =
     pose.frame ??
     selectSoldierFrame({
@@ -242,11 +284,17 @@ export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
   for (const child of container.children) {
     if (child.label === "legL" || child.label === "legR") {
       const side = child.label === "legL" ? -1 : 1;
-      const { dx, dy } = soldierLegOffset(frame, swing, side);
+      const { dx, dy } = soldierLegOffsetBlended(
+        frame,
+        swing,
+        side,
+        gaitBlend,
+        airBlend,
+      );
       child.position.set(dx, dy);
       child.tint = tint;
     } else if (child.label === "armL" || child.label === "armR") {
-      child.rotation = pose.aim;
+      child.rotation = aim;
       child.tint = tint;
       if (
         child.label === "armR" &&
@@ -278,6 +326,22 @@ export interface AnimProbes {
   isFlameVisible: boolean;
   playerHeightScale: number;
   isHurtFlash: boolean;
+  /** Walk↔sprint blend for the local player (additive probe field). */
+  gaitBlend?: number;
+  /** Stand↔crouch air blend for the local player (additive probe field). */
+  airBlend?: number;
+  /** Alias of airBlend (crouch weight while airborne). */
+  crouchWeight?: number;
+  /** Smoothed aim for the local player (additive probe field). */
+  aimSmoothed?: number;
+  /** Landing squash for the local player (additive probe field). */
+  landSquash?: number;
+  /** Alias of landSquash (vertical scale through the landing dip). */
+  scaleY?: number;
+  /** Spawn ease for the local player (additive probe field). */
+  spawnEase?: number;
+  /** Death ease for the local player (additive probe field). */
+  deathEase?: number;
 }
 
 export function publishGameProbes(
@@ -287,7 +351,17 @@ export function publishGameProbes(
   muzzle: { x: number; y: number },
   weaponTip: { x: number; y: number },
   anim?: AnimProbes,
-  extras?: readonly { frame?: SoldierFrameId; weapon?: WeaponId }[],
+  extras?: readonly {
+    frame?: SoldierFrameId;
+    weapon?: WeaponId;
+    gaitBlend?: number;
+    airBlend?: number;
+    crouchWeight?: number;
+    aimSmoothed?: number;
+    landSquash?: number;
+    spawnEase?: number;
+    deathEase?: number;
+  }[],
 ): void {
   if (typeof window === "undefined") {
     return;
@@ -327,6 +401,27 @@ export function publishGameProbes(
       ...(extras?.[k]?.weapon !== undefined
         ? { weapon: extras[k]?.weapon as WeaponId }
         : {}),
+      ...(typeof extras?.[k]?.gaitBlend === "number"
+        ? { gaitBlend: extras[k]?.gaitBlend as number }
+        : {}),
+      ...(typeof extras?.[k]?.airBlend === "number"
+        ? { airBlend: extras[k]?.airBlend as number }
+        : {}),
+      ...(typeof extras?.[k]?.crouchWeight === "number"
+        ? { crouchWeight: extras[k]?.crouchWeight as number }
+        : {}),
+      ...(typeof extras?.[k]?.aimSmoothed === "number"
+        ? { aimSmoothed: extras[k]?.aimSmoothed as number }
+        : {}),
+      ...(typeof extras?.[k]?.landSquash === "number"
+        ? { landSquash: extras[k]?.landSquash as number }
+        : {}),
+      ...(typeof extras?.[k]?.spawnEase === "number"
+        ? { spawnEase: extras[k]?.spawnEase as number }
+        : {}),
+      ...(typeof extras?.[k]?.deathEase === "number"
+        ? { deathEase: extras[k]?.deathEase as number }
+        : {}),
     };
   });
   Object.assign(game, {
@@ -336,6 +431,14 @@ export function publishGameProbes(
     isFlickerRectVisible: false,
     playerHeightScale: anim?.playerHeightScale ?? 1,
     isHurtFlash: anim?.isHurtFlash ?? false,
+    gaitBlend: anim?.gaitBlend ?? 0,
+    airBlend: anim?.airBlend ?? anim?.crouchWeight ?? 0,
+    crouchWeight: anim?.crouchWeight ?? anim?.airBlend ?? 0,
+    aimSmoothed: anim?.aimSmoothed ?? 0,
+    landSquash: anim?.landSquash ?? anim?.scaleY ?? 1,
+    scaleY: anim?.scaleY ?? anim?.landSquash ?? 1,
+    spawnEase: anim?.spawnEase ?? 1,
+    deathEase: anim?.deathEase ?? 1,
     spritePartCount: PART_NAMES.length,
     localPlayerColor: LOCAL_CSS,
     firstEnemyColor: teamCss(1),

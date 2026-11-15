@@ -34,6 +34,18 @@ import {
   updateProfileBadge,
   type Profile,
 } from "./meta/profile";
+import {
+  bindChallenges,
+  collectDueXp,
+  defaultChallengeState,
+  dayIdFor,
+  loadChallenges,
+  recordKill,
+  recordWin,
+  saveChallenges,
+  updateChallengesPanel,
+  type ChallengeState,
+} from "./meta/challenges";
 import { mapRowsFor } from "./maps";
 import { setCurrentTheme } from "./view/theme";
 import {
@@ -803,6 +815,19 @@ function stepOnce(): string[] {
       knownKiller ? killerIdx : null,
       kill.victim,
     );
+    // Daily challenges (issue #211): only local-player kills progress
+    // the rifle/grenade rows (bot-vs-bot kills never count); freshly
+    // completed rows bank their one-shot XP immediately.
+    try {
+      const store = challengeStore();
+      if (recordKill(store, kill)) {
+        saveChallenges(storage, store);
+        updateChallengesPanel(document, store);
+        bankChallengeXp(store);
+      }
+    } catch {
+      // Challenge progress best-effort: the feed still renders.
+    }
   }
   // Blast centers plus pickup pads drive the pooled explosion and
   // sparkle particles (positions the string event bus never carried).
@@ -864,6 +889,20 @@ function stepOnce(): string[] {
       saveProfile(storage, next);
       cachedProfile = next;
       updateProfileBadge(document, next);
+      // Daily challenges (issue #211): the dune-win row completes only
+      // on a win in the running dune setup; due rewards auto-award
+      // once via their claimed flags (kill rows banked mid-match above
+      // re-collect to 0 here by construction).
+      try {
+        const store = challengeStore();
+        if (recordWin(store, { win, map: matchConfig.map })) {
+          saveChallenges(storage, store);
+          updateChallengesPanel(document, store);
+        }
+        bankChallengeXp(store);
+      } catch {
+        // Challenge banking best-effort: the end screen still shows.
+      }
     } catch {
       // Progression best-effort: the end screen still shows.
     }
@@ -1131,6 +1170,53 @@ let botCached: WorldInput[] = [];
 let deaths: number[] = [];
 /** Display name of the local player's most recent killer; cleared on respawn. */
 let lastLocalKiller: string | null = null;
+/** In-memory daily-challenge progress (local-day identity, persisted). */
+let challengeState: ChallengeState | null = null;
+
+/**
+ * Rollover-safe challenge store: reloads from storage whenever the
+ * local day id drifted (a midnight crossing mid-session resets
+ * progress). Never throws; falls back to fresh zeros.
+ */
+function challengeStore(): ChallengeState {
+  try {
+    const today = dayIdFor();
+    if (challengeState !== null && challengeState.dayId === today) {
+      return challengeState;
+    }
+    challengeState = loadChallenges(storage);
+    if (challengeState.dayId !== today) {
+      challengeState = defaultChallengeState(today);
+    }
+    return challengeState;
+  } catch {
+    try {
+      challengeState = defaultChallengeState(dayIdFor());
+    } catch {
+      challengeState = defaultChallengeState("1970-01-01");
+    }
+    return challengeState;
+  }
+}
+
+/**
+ * Bank freshly completed challenge rewards onto the persisted profile:
+ * sums done-but-unclaimed rows (each pays once per day via its claimed
+ * flag) and repaints the badge. No-op when nothing newly completed.
+ */
+function bankChallengeXp(store: ChallengeState): void {
+  const due = collectDueXp(store);
+  if (due <= 0) {
+    return;
+  }
+  saveChallenges(storage, store);
+  updateChallengesPanel(document, store);
+  const current = loadProfile(storage);
+  const boosted: Profile = { ...current, xp: current.xp + due };
+  saveProfile(storage, boosted);
+  cachedProfile = boosted;
+  updateProfileBadge(document, boosted);
+}
 
 /**
  * Optional `?seed=` override for the match seed: a finite int query value
@@ -1324,6 +1410,14 @@ try {
 } catch {
   // Tips optional: the static skeleton already names a mechanic.
 }
+// Daily challenges panel (issue #211): fixed 3-template local-day set
+// progressed from sim kill/match-end edges with one-shot XP banking.
+// Never gates boot.
+try {
+  void bindChallenges(document, storage);
+} catch {
+  // Challenges optional: the static skeleton still lists the rows.
+}
 // The F key and the Settings button share one persisted toggle path.
 fullscreenToggle = () => {
   void settingsBinder.toggleFullscreen();
@@ -1453,6 +1547,13 @@ if (endMenuButton instanceof HTMLButtonElement) {
     }
     if (menu instanceof HTMLElement) {
       menu.style.display = "";
+    }
+    // Daily challenges (issue #211): a midnight crossing while the
+    // end screen sat open resets the rows before the panel reopens.
+    try {
+      updateChallengesPanel(document, challengeStore());
+    } catch {
+      // Panel optional: the menu still shows.
     }
   });
 }

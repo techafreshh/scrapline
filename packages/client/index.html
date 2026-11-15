@@ -211,7 +211,8 @@
       #play,
       #quick-play,
       #settings-open,
-      #howto-open {
+      #howto-open,
+      #challenges-open {
         font-size: 16px;
         padding: 10px 22px;
         border: 1px solid #7df9ff;
@@ -223,7 +224,8 @@
       #play:hover,
       #quick-play:hover,
       #settings-open:hover,
-      #howto-open:hover {
+      #howto-open:hover,
+      #challenges-open:hover {
         background: #16213a;
       }
       #quick-play {
@@ -258,6 +260,49 @@
         color: #a5f3fc;
         opacity: 1;
         transition: opacity 0.5s ease-out;
+      }
+      /* Daily challenges panel (issue #211): pill rows on the
+        quick-play-chip idiom, hidden until #challenges-open toggles it. */
+      #challenges-panel {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: stretch;
+        min-width: 260px;
+      }
+      #challenges-title {
+        font-size: 13px;
+        letter-spacing: 0.6px;
+        color: #7df9ff;
+        text-align: center;
+      }
+      .challenge-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #f8fafc;
+        background: rgba(8, 20, 36, 0.85);
+        border: 1px solid rgba(125, 249, 255, 0.45);
+        border-radius: 999px;
+        padding: 3px 12px;
+        white-space: nowrap;
+      }
+      .challenge-row[data-done="true"] {
+        border-color: #a3e635;
+        color: #a3e635;
+      }
+      .challenge-row .challenge-label {
+        flex: 1 1 auto;
+      }
+      .challenge-row .challenge-progress {
+        font-weight: bold;
+        letter-spacing: 0.4px;
+      }
+      .challenge-row .challenge-reward {
+        color: #a5f3fc;
       }
       #hud {
         position: absolute;
@@ -746,7 +791,14 @@
         <button id="play">Play vs bots</button>
         <button id="settings-open">Settings</button>
         <button id="howto-open">How to Play</button>
+        <button id="challenges-open">Challenges</button>
         <div id="menu-tip" aria-live="polite">Grab a shield pickup to survive an extra hit.</div>
+        <div id="challenges-panel" style="display: none">
+          <span id="challenges-title">Daily Challenges</span>
+          <div class="challenge-row" data-challenge="rifle-5" data-done="false"><span class="challenge-label">Score 5 rifle kills</span><span class="challenge-progress">0/5</span><span class="challenge-reward">30 XP</span></div>
+          <div class="challenge-row" data-challenge="grenade-2" data-done="false"><span class="challenge-label">Score 2 grenade kills</span><span class="challenge-progress">0/2</span><span class="challenge-reward">30 XP</span></div>
+          <div class="challenge-row" data-challenge="win-dune-1" data-done="false"><span class="challenge-label">Win a match on dune</span><span class="challenge-progress">0/1</span><span class="challenge-reward">50 XP</span></div>
+        </div>
       </div>
       <div id="setup" style="display: none">
         <h2>Match setup</h2>

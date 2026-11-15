@@ -9,11 +9,17 @@ import type { SetupStorage } from "./setup";
 /** localStorage key for the persisted master volume. */
 export const SETTINGS_VOLUME_KEY = "scrapline.settings.volume";
 
+/** localStorage key for the persisted music volume. */
+export const SETTINGS_MUSIC_VOLUME_KEY = "scrapline.settings.music";
+
 /** localStorage key for the persisted fullscreen intent ("1" = ON). */
 export const FULLSCREEN_KEY = "scrapline.fullscreen";
 
 /** First-visit (and corrupt-storage) default master volume. */
 export const DEFAULT_VOLUME = 0.8;
+
+/** First-visit (and corrupt-storage) default music volume. */
+export const DEFAULT_MUSIC_VOLUME = 0.7;
 
 /**
  * Tolerantly normalize an unknown value into a 0–1 volume: numbers and
@@ -33,6 +39,35 @@ export function parseVolume(value: unknown): number {
   }
   if (!Number.isFinite(n)) {
     return DEFAULT_VOLUME;
+  }
+  if (n < 0) {
+    return 0;
+  }
+  if (n > 1) {
+    return 1;
+  }
+  return n;
+}
+
+/**
+ * Tolerantly normalize an unknown value into a 0–1 music volume:
+ * numbers and numeric strings clamp into range, everything else falls
+ * back to 0.7 (the parseVolume clamp idiom with the music default).
+ */
+export function parseMusicVolume(value: unknown): number {
+  let n: number;
+  if (typeof value === "number") {
+    n = value;
+  } else if (typeof value === "string") {
+    if (value.trim() === "") {
+      return DEFAULT_MUSIC_VOLUME;
+    }
+    n = Number(value);
+  } else {
+    return DEFAULT_MUSIC_VOLUME;
+  }
+  if (!Number.isFinite(n)) {
+    return DEFAULT_MUSIC_VOLUME;
   }
   if (n < 0) {
     return 0;
@@ -182,6 +217,42 @@ export function saveVolume(
 }
 
 /**
+ * Load the persisted music volume; missing, corrupt, or unreadable
+ * values fall back to DEFAULT_MUSIC_VOLUME.
+ */
+export function loadMusicVolume(
+  storage: SetupStorage | null | undefined,
+): number {
+  const raw = safeGet(storage, SETTINGS_MUSIC_VOLUME_KEY);
+  if (raw === null) {
+    return DEFAULT_MUSIC_VOLUME;
+  }
+  return parseMusicVolume(raw);
+}
+
+/** Persist the (normalized) music volume; storage errors are swallowed. */
+export function saveMusicVolume(
+  storage: SetupStorage | null | undefined,
+  volume: number,
+): void {
+  if (storage === null || storage === undefined) {
+    return;
+  }
+  // Integers serialize with one decimal ("0.0", "1.0") so a muted
+  // profile reads back from localStorage unambiguously; other values
+  // keep their plain form ("0.5"). Both parse back via loadMusicVolume.
+  const normalized = parseMusicVolume(volume);
+  const text = Number.isInteger(normalized)
+    ? normalized.toFixed(1)
+    : String(normalized);
+  try {
+    storage.setItem(SETTINGS_MUSIC_VOLUME_KEY, text);
+  } catch {
+    // Private-mode storage: the menu still works, just not persisted.
+  }
+}
+
+/**
  * Load the persisted fullscreen intent; missing, corrupt, or unreadable
  * values fall back to OFF (false). Never auto-enters fullscreen: the
  * intent only pre-renders the button label until a user gesture toggles.
@@ -276,6 +347,8 @@ export function saveQuality(
 export interface SettingsBinder {
   /** Current master volume (updated by the slider). */
   volume: number;
+  /** Current music volume (updated by the slider). */
+  music: number;
   /** Current fullscreen intent (updated by the toggle). */
   fullscreen: boolean;
   /** Current post-effect quality (updated by the toggle). */
@@ -360,6 +433,14 @@ function setDisplay(el: unknown, display: string): void {
 /** Prefill the slider from the binder volume; missing slider is a no-op. */
 function render(doc: Document, volume: number): void {
   const slider = asSlider(doc.getElementById("volume"));
+  if (slider !== null) {
+    slider.value = String(volume);
+  }
+}
+
+/** Prefill the music slider from the binder volume; missing is a no-op. */
+function renderMusic(doc: Document, volume: number): void {
+  const slider = asSlider(doc.getElementById("music-volume"));
   if (slider !== null) {
     slider.value = String(volume);
   }
@@ -494,12 +575,15 @@ export function bindSettings(
 ): SettingsBinder {
   const binder: SettingsBinder = {
     volume: loadVolume(storage),
+    music: loadMusicVolume(storage),
     fullscreen: loadFullscreen(storage),
     quality: loadQuality(storage),
     showNameTags: loadShowNameTags(storage),
     show(): void {
       binder.volume = loadVolume(storage);
       render(doc, binder.volume);
+      binder.music = loadMusicVolume(storage);
+      renderMusic(doc, binder.music);
       binder.fullscreen = loadFullscreen(storage);
       renderFullscreen(doc, binder.fullscreen);
       binder.quality = loadQuality(storage);
@@ -540,6 +624,15 @@ export function bindSettings(
     slider.addEventListener("input", () => {
       binder.volume = parseVolume(slider.value);
       saveVolume(storage, binder.volume);
+    });
+  }
+
+  const musicSlider = asSlider(doc.getElementById("music-volume"));
+  if (musicSlider !== null) {
+    musicSlider.value = String(binder.music);
+    musicSlider.addEventListener("input", () => {
+      binder.music = parseMusicVolume(musicSlider.value);
+      saveMusicVolume(storage, binder.music);
     });
   }
 
@@ -600,6 +693,7 @@ export function bindSettings(
   }
 
   render(doc, binder.volume);
+  renderMusic(doc, binder.music);
   renderFullscreen(doc, binder.fullscreen);
   renderQuality(doc, binder.quality);
   renderNametags(doc, binder.showNameTags);

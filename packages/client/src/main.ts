@@ -94,6 +94,14 @@ import {
   setVolume,
 } from "./audio/engine";
 import {
+  musicTensionFor,
+  playEndStinger,
+  setMusicVolume,
+  setTension01,
+  startMatchMusic,
+  startMenuMusic,
+} from "./audio/music";
+import {
   applyKeyEvent,
   applyMouseButton,
   applyMouseMove,
@@ -884,6 +892,7 @@ function stepOnce(): string[] {
   // double-award: running flips false and the loop stops stepping).
   if (events.includes("matchEnd")) {
     playMatchEnd();
+    playEndStinger();
     setJetting(false, 0);
     try {
       const ids = world.players.map((p) => p.id);
@@ -1064,6 +1073,21 @@ function frame(now: number): void {
     });
   }
   window.__scraplineTick = world.tick;
+  // Generative soundtrack tension follows match progress (clock plus
+  // the leader's score fraction); best-effort next to the HUD write.
+  try {
+    let top = 0;
+    for (const score of world.scores) {
+      if (score > top) {
+        top = score;
+      }
+    }
+    setTension01(
+      musicTensionFor(world.tick, world.scoreLimit, world.timeLimitTicks, top),
+    );
+  } catch {
+    // Soundtrack best-effort: the sim and HUD still advance.
+  }
   // Merge, never replace: the renderer-published probe fields
   // (players, colors, bounds, muzzle) share this same object.
   Object.assign(window.__game, { tick: world.tick });
@@ -1259,6 +1283,8 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   // the one-shot gesture listeners resume it on first input.
   ensureAudioOnGesture();
   playMatchStart();
+  startMatchMusic();
+  setTension01(0);
   cancelAnimationFrame(rafId);
   const parsed = parseSetup(config);
   matchConfig = parsed;
@@ -1475,6 +1501,9 @@ fullscreenToggle = () => {
 // The settings slider stays the single volume surface: seed the engine
 // gain from the persisted volume and track the slider live (0 mutes).
 setVolume(settingsBinder.volume);
+// The music slider stays the single music surface: seed the generative
+// bus from the persisted music volume (0 silences, never suspends).
+setMusicVolume(settingsBinder.music);
 // The quality button owns storage + label (bindSettings); forward the
 // persisted level to the live renderer after every toggle.
 const qualityButton = document.getElementById("btn-quality");
@@ -1505,12 +1534,28 @@ if (volumeSlider instanceof HTMLInputElement) {
     setVolume(parseVolume(volumeSlider.value));
   });
 }
+const musicSlider = document.getElementById("music-volume");
+if (musicSlider instanceof HTMLInputElement) {
+  musicSlider.addEventListener("input", () => {
+    setMusicVolume(parseVolume(musicSlider.value));
+  });
+}
 // Autoplay-guard fallback: unlock on the first gesture even outside
 // startMatch (creation still only ever happens in a gesture stack).
+// The same gesture starts the loop for the live state: the auto-join
+// match is already running underneath, otherwise the menu loop plays.
+function unlockMusicForState(): void {
+  if (running && world !== null && !world.matchOver) {
+    startMatchMusic();
+  } else {
+    startMenuMusic();
+  }
+}
 window.addEventListener(
   "pointerdown",
   () => {
     ensureAudioOnGesture();
+    unlockMusicForState();
   },
   { once: true },
 );
@@ -1518,6 +1563,7 @@ window.addEventListener(
   "keydown",
   () => {
     ensureAudioOnGesture();
+    unlockMusicForState();
   },
   { once: true },
 );
@@ -1597,6 +1643,12 @@ if (endMenuButton instanceof HTMLButtonElement) {
     }
     if (menu instanceof HTMLElement) {
       menu.style.display = "";
+    }
+    // Back on the menu: the calm loop resumes behind the overlay.
+    try {
+      startMenuMusic();
+    } catch {
+      // Soundtrack best-effort: the menu still shows.
     }
     // Daily challenges (issue #211): a midnight crossing while the
     // end screen sat open resets the rows before the panel reopens.

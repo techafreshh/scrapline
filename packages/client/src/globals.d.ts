@@ -173,6 +173,12 @@ declare global {
           analyser?: AnalyserNode | null;
           /** Mirrored jet-loop target gain (follows setJetting). */
           jetGain?: number;
+          /** Soundtrack mode (music.ts upkeep, gesture-gated). */
+          musicMode?: "menu" | "match" | "stopped";
+          /** Live scheduled soundtrack voices (>= 2 while playing). */
+          musicNodes?: number;
+          /** Match intensity in [0, 1] (follows setTension01). */
+          musicTension?: number;
         }
       | undefined;
     __scraplineDebug: {

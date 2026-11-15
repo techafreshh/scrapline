@@ -162,6 +162,46 @@ export function soldierAccentHex(index: number): number {
 }
 
 /**
+ * Clamp a blend weight into [0, 1] (non-finite readings take the fallback).
+ */
+function clampBlend(weight: number | undefined, fallback: number): number {
+  if (weight === undefined || !Number.isFinite(weight)) {
+    return fallback;
+  }
+  return Math.min(1, Math.max(0, weight));
+}
+
+/**
+ * Blended per-frame leg offset in local px for one side (-1 legL, +1 legR).
+ * Starts from the soldierLegOffset result: the stride dy scales by the
+ * gait blend while the air blend widens (dx) and lowers (dy) the stance,
+ * so run-a/run-b stay mirrored opposites at any blend. Jet tuck and dead
+ * splay ride at full weight (never thinned by the blends); gait 1 + air 0
+ * returns the base offset exactly. Pure: no DOM, no clock reads.
+ */
+export function soldierLegOffsetBlended(
+  frame: SoldierFrameId,
+  swing: number,
+  side: -1 | 1,
+  gaitBlend?: number,
+  airBlend?: number,
+): { dx: number; dy: number } {
+  const base = soldierLegOffset(frame, swing, side);
+  if (frame === "dead" || frame === "jet") {
+    return base;
+  }
+  const gait = clampBlend(gaitBlend, 1);
+  const air = clampBlend(airBlend, 0);
+  if (gait === 1 && air === 0) {
+    return base;
+  }
+  return {
+    dx: base.dx + side * air * 2,
+    dy: base.dy * gait + air * 1,
+  };
+}
+
+/**
  * Per-frame leg offset in local px for one side (-1 legL, +1 legR).
  * Mirrors the anim.ts tuck/dead constants both renderer backends pose
  * from; run-b mirrors run-a so the two run cards read as alternating

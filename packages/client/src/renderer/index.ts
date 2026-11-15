@@ -141,7 +141,7 @@ import {
   selectSoldierFrame,
   soldierAccentFor,
   soldierAccentHex,
-  soldierLegOffset,
+  soldierLegOffsetBlended,
   soldierMuzzleTip,
   weaponDef,
   type SoldierFrameId,
@@ -246,6 +246,8 @@ export interface FramePlayer {
   protected: boolean;
   /** Horizontal velocity in world px/s (drives the run-cycle phase). */
   vx: number;
+  /** Vertical velocity in world px/s (drives the air blend). */
+  vy: number;
   /** True while crouching (drives the height-scale probe). */
   crouching: boolean;
   /** Dynamic hurt timestamp (any clock basis), else null. */
@@ -389,6 +391,7 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
         jetting: p.jetting === true,
         protected: (p.protectionTicks ?? 0) > 0,
         vx: p.vx ?? 0,
+        vy: p.vy ?? 0,
         crouching: p.crouching === true,
         hurtAt:
           typeof hurtRaw === "number" && Number.isFinite(hurtRaw)
@@ -984,9 +987,11 @@ function paintFramePixi(
 /**
  * Draw the animated soldier figure for one player in screen space: the
  * frame selected by selectSoldierFrame (frame-specific leg offsets via
- * soldierLegOffset, tuck/dead poses preserved), accents palette-swapped
- * through soldierAccentFor, and the WEAPON_DEFS gun segment for
- * p.weapon rotated by aim around the (crouch-squashed) pivot. The
+ * soldierLegOffsetBlended, tuck/dead poses preserved), accents
+ * palette-swapped through soldierAccentFor, and the WEAPON_DEFS gun
+ * segment for p.weapon rotated by the smoothed aim around the
+ * (crouch-squashed) pivot. The whole figure rides the landing squash
+ * and the spawn/death ease (crouch itself stays in the part set). The
  * weapon muzzle lands on the frame barrel tip by construction.
  */
 function drawCharacter2D(
@@ -1004,6 +1009,15 @@ function drawCharacter2D(
   const sx = px(p.x);
   const sy = py(p.y);
   const swing = anim?.swing ?? 0;
+  const gaitBlend = anim?.gaitBlend ?? 1;
+  const airBlend = anim?.airBlend ?? 0;
+  const aim = anim?.aimSmoothed ?? p.aim;
+  // Whole-figure vertical squash from the landing dip and the
+  // spawn/death ease (crouch itself stays in the part set, exactly as
+  // before, so unsquashed output is pixel-identical to the old math).
+  const figureSquash =
+    (anim?.landSquash ?? 1) * (anim?.spawnEase ?? 1) * (anim?.deathEase ?? 1);
+  const minPx = 1 / scale;
   const frame: SoldierFrameId =
     anim !== undefined
       ? selectSoldierFrame({
@@ -1026,6 +1040,9 @@ function drawCharacter2D(
       : flashed
         ? VICTIM_TINT_CSS
         : base;
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.scale(scale, scale * figureSquash);
   for (const part of parts) {
     if (part.kind === "limb") {
       continue;
@@ -1036,30 +1053,24 @@ function drawCharacter2D(
       let dy = 0;
       if (part.name === "legL" || part.name === "legR") {
         const side = part.name === "legL" ? -1 : 1;
-        ({ dx, dy } = soldierLegOffset(frame, swing, side));
+        ({ dx, dy } = soldierLegOffsetBlended(frame, swing, side, gaitBlend, airBlend));
       }
       ctx.fillRect(
-        sx + (part.x + dx) * scale,
-        sy + (part.y + dy) * scale,
-        Math.max(1, part.w * scale),
-        Math.max(1, part.h * scale),
+        part.x + dx,
+        part.y + dy,
+        Math.max(minPx, part.w),
+        Math.max(minPx, part.h),
       );
     } else {
       ctx.beginPath();
-      ctx.arc(
-        sx + part.cx * scale,
-        sy + part.cy * scale,
-        Math.max(1, part.r * scale),
-        0,
-        Math.PI * 2,
-      );
+      ctx.arc(part.cx, part.cy, Math.max(minPx, part.r), 0, Math.PI * 2);
       ctx.fill();
     }
   }
-  // Arms plus the held weapon rotate with aim around the pivot.
+  // Arms plus the held weapon rotate with the smoothed aim around the pivot.
   ctx.save();
-  ctx.translate(sx + ARM_PIVOT.x * scale, sy + ARM_PIVOT.y * squashY * scale);
-  ctx.rotate(p.aim);
+  ctx.translate(ARM_PIVOT.x, ARM_PIVOT.y * squashY);
+  ctx.rotate(aim);
   ctx.strokeStyle = paint;
   ctx.fillStyle = paint;
   ctx.lineCap = "round";
@@ -1068,32 +1079,27 @@ function drawCharacter2D(
     if (part.kind !== "limb") {
       continue;
     }
-    ctx.lineWidth = Math.max(1, part.width * scale);
+    ctx.lineWidth = Math.max(minPx, part.width);
     ctx.beginPath();
-    ctx.moveTo(part.x1 * scale, part.y1 * scale);
-    ctx.lineTo(part.x2 * scale, part.y2 * scale);
+    ctx.moveTo(part.x1, part.y1);
+    ctx.lineTo(part.x2, part.y2);
     ctx.stroke();
     if (part.name === "armR") {
       ctx.strokeStyle = gun.colorCss;
       ctx.fillStyle = gun.colorCss;
-      ctx.lineWidth = Math.max(1, gun.width * scale);
+      ctx.lineWidth = Math.max(minPx, gun.width);
       ctx.beginPath();
-      ctx.moveTo(5 * scale, 0);
-      ctx.lineTo(gun.length * scale, 0);
+      ctx.moveTo(5, 0);
+      ctx.lineTo(gun.length, 0);
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(
-        gun.muzzleX * scale,
-        0,
-        Math.max(1, MUZZLE_DOT_R * scale),
-        0,
-        Math.PI * 2,
-      );
+      ctx.arc(gun.muzzleX, 0, Math.max(minPx, MUZZLE_DOT_R), 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = paint;
       ctx.fillStyle = paint;
     }
   }
+  ctx.restore();
   ctx.restore();
 }
 
@@ -1165,7 +1171,8 @@ function syncFramePlayers(
       colorHex: playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
       alpha:
         blinkAlpha(frame.tick, p.protected) * (anim?.spawnAlpha ?? 1),
-      squash: p.h / CHARACTER_H,
+      squash:
+        (p.h / CHARACTER_H) * (anim?.spawnEase ?? 1) * (anim?.deathEase ?? 1),
       visible: true,
       legSwing: anim?.swing ?? 0,
       legPhase: anim?.legPhase ?? 0,
@@ -1174,6 +1181,12 @@ function syncFramePlayers(
       deadPose: anim?.deadPose ?? !p.alive,
       weapon: p.weapon,
       frame: soldierFrame,
+      gaitBlend: anim?.gaitBlend ?? 1,
+      airBlend: anim?.airBlend ?? 0,
+      aimSmoothed: anim?.aimSmoothed ?? p.aim,
+      landSquash: anim?.landSquash ?? 1,
+      spawnEase: anim?.spawnEase ?? 1,
+      deathEase: anim?.deathEase ?? 1,
     });
   }
 }
@@ -1209,6 +1222,14 @@ function publishFrameProbes(
     playerHeightScale:
       first !== undefined ? first.h / CHARACTER_H : 1,
     isHurtFlash: head?.hurtFlash ?? false,
+    gaitBlend: head?.gaitBlend ?? 0,
+    airBlend: head?.airBlend ?? 0,
+    crouchWeight: head?.crouchWeight ?? head?.airBlend ?? 0,
+    aimSmoothed: head?.aimSmoothed ?? first?.aim ?? 0,
+    landSquash: head?.landSquash ?? 1,
+    scaleY: head?.landSquash ?? 1,
+    spawnEase: head?.spawnEase ?? 1,
+    deathEase: head?.deathEase ?? 1,
   };
   const extras = frame.players.map((p, i) => {
     const pose = anims[i];
@@ -1229,6 +1250,13 @@ function publishFrameProbes(
               ? ("crouch" as const)
               : ("idle" as const),
       weapon: p.weapon,
+      gaitBlend: pose?.gaitBlend ?? 0,
+      airBlend: pose?.airBlend ?? 0,
+      crouchWeight: pose?.crouchWeight ?? pose?.airBlend ?? 0,
+      aimSmoothed: pose?.aimSmoothed ?? p.aim,
+      landSquash: pose?.landSquash ?? 1,
+      spawnEase: pose?.spawnEase ?? 1,
+      deathEase: pose?.deathEase ?? 1,
     };
   });
   publishGameProbes(
@@ -1833,6 +1861,8 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     lastNow = now;
     const animInputs: AnimInput[] = frame.players.map((p) => ({
       vx: p.vx,
+      vy: p.vy,
+      aim: p.aim,
       onGround: p.onGround,
       jetting: p.jetting,
       crouching: p.crouching,
@@ -2139,6 +2169,13 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             swing: anim?.swing ?? 0,
             heightScale: anim?.heightScale ?? 1,
             hurtFlash: anim?.hurtFlash ?? false,
+            gaitBlend: anim?.gaitBlend ?? 0,
+            airBlend: anim?.airBlend ?? 0,
+            crouchWeight: anim?.crouchWeight ?? anim?.airBlend ?? 0,
+            aimSmoothed: anim?.aimSmoothed ?? p.aim,
+            landSquash: anim?.landSquash ?? 1,
+            spawnEase: anim?.spawnEase ?? 1,
+            deathEase: anim?.deathEase ?? 1,
             frame:
               anim !== undefined
                 ? selectSoldierFrame({

@@ -39,3 +39,28 @@ Regeneration: run `npm run verify:presentation`, eyeball the fresh
 frames in `artifacts/` for the same-class-as-reference bar (soldiers,
 themed terrain, glow, particles, full HUD), then copy the four files
 over these names and confirm `npm run verify:benchmark` stays green.
+
+## Theme cohesion captures (#205)
+
+One committed 1920x1080 capture per map under `docs/benchmark/themes/`
+(the single `themes/` exception to the zero-image rule alongside the
+references above). Each frame is a settled mid-match capture proving
+the map still renders its own cohesion at review time:
+
+| capture | map entry | guard it proves |
+|---|---|---|
+| `docs/benchmark/themes/kilima.png` | `?bots=1&tier=normal&map=kilima` | dusk savanna (sun disc, acacias, birds) at 1920x1080, >50KB |
+| `docs/benchmark/themes/dune.png` | `?bots=1&tier=normal&map=dune` | golden-hour desert (dune ridges, chimneys) at 1920x1080, >50KB |
+| `docs/benchmark/themes/frostbite.png` | `?bots=1&tier=normal&map=frostbite` | polar night (aurora, antennas, snow) at 1920x1080, >50KB |
+
+Regeneration: run `npm run capture:themes`, eyeball the three frames
+for distinct themed mid-match gameplay (terrain, decor, HUD), then
+confirm `node --test tests/cohesion.test.js` stays green.
+
+Cohesion rule: the rendered layers mirrored at `window.__game`
+(`backdropLayers`) must be a subset of the theme declaration
+(`THEME_BACKDROP_LAYERS` in `packages/client/src/view/theme.ts`). Any
+rendered layer the theme does not declare — e.g. a reintroduced `city`
+silhouette — fails the checklist (`tests/cohesion.test.js`) and the
+live capture gate (`scripts/capture-themes.mjs` via
+`scripts/cohesion-check.mjs`).

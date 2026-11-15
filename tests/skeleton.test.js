@@ -178,11 +178,14 @@ test("presentation verifier pins the exact health probe", () => {
 test("repo ships zero *.png/*.jpg images (docs/benchmark/*.png excepted)", () => {
   const root = path.join(__dirname, "..");
   const hits = [];
-  // Allowlisted exception (#161): committed benchmark references live
-  // only under docs/benchmark/; every other image still fails the walk.
+  // Allowlisted exception (#161, #205): committed benchmark references
+  // live under docs/benchmark/ (plus the per-map themes/ captures);
+  // every other image still fails the walk.
   const isBenchmarkRef = (rel) =>
-    rel === path.join("docs", "benchmark", path.basename(rel)) &&
-    rel.toLowerCase().endsWith(".png");
+    rel.toLowerCase().endsWith(".png") &&
+    (rel === path.join("docs", "benchmark", path.basename(rel)) ||
+      rel ===
+        path.join("docs", "benchmark", "themes", path.basename(rel)));
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.name === "node_modules" || entry.name === ".git" || entry.name === "artifacts") {

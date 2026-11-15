@@ -435,6 +435,20 @@ let padlabels: PadlabelsHandles = buildPadlabels(document);
 /** Cached canvas CSS rect: refreshAimOrigin runs every frame, so the
  * layout read is cached and only refreshed on resize (plus once). */
 let cachedRect: { left: number; top: number; width: number; height: number } | null = null;
+/**
+ * Cached name-tag visibility: frame() runs at 60 Hz, so the persisted
+ * flag is read once at boot (plus on toggle/match-start) instead of
+ * hitting synchronous storage on every frame.
+ */
+let cachedShowNameTags = true;
+/** Re-read the persisted name-tag flag into the frame-loop cache. */
+function refreshShowNameTags(): void {
+  try {
+    cachedShowNameTags = loadShowNameTags(storage);
+  } catch {
+    // Storage unreadable: keep the previous cached value.
+  }
+}
 let renderer: Renderer | null = null;
 /** Letterbox-fit the canvas/stage to the window, refresh the density. */
 function applyResponsiveSize(): void {
@@ -902,7 +916,9 @@ function frame(now: number): void {
   // animation frame (change-guarded in the binder) so mag and grenade
   // deltas land within a frame, well inside the 500ms probe budget.
   // Floating name tags (issue #153): reconciled every animation frame
-  // from the live player rows, gated by the persisted setting.
+  // from the live player rows, gated by the cached setting flag
+  // (issue #184: refreshed on toggle/match-start, never read from
+  // storage here so the 60 Hz loop stays storage-free).
   if (local !== undefined) {
     updateAmmo(
       {
@@ -925,7 +941,7 @@ function frame(now: number): void {
       camera,
       canvasW: LOGICAL_W,
       canvasH: LOGICAL_H,
-      show: loadShowNameTags(storage),
+      show: cachedShowNameTags,
     });
     // Floating pad labels (issue #154): reconciled every animation
     // frame from the live pickup rows (change-guarded in the binder)
@@ -1107,6 +1123,10 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   window.__scraplineWorld = world;
   hud = buildHud(document);
   nametags = buildNametags(document);
+  // Backstop (issue #184): pick up a mid-session external write to the
+  // persisted name-tag flag at match start; steady-state frames use the
+  // cache without touching storage.
+  refreshShowNameTags();
   padlabels = buildPadlabels(document);
   if (hud.endScreen !== null) {
     hud.endScreen.style.display = "none";
@@ -1171,6 +1191,10 @@ const setupBinder = bindSetup(document, storage, (config: SetupConfig) => {
   startMatch(config);
 });
 const settingsBinder = bindSettings(document, storage);
+// Seed the frame-loop name-tag cache once at boot (issue #184): the
+// persisted default/ON fallback is captured here, before the first
+// frame() — the 60 Hz loop below never touches storage itself.
+refreshShowNameTags();
 // Animated menu art scene plus the Quick Play summary chip (issue
 // #155): owns the #menu-scene hover loop and repaints the chip from
 // the live setup (stepper readout, pressed buttons, URL, storage)
@@ -1218,6 +1242,16 @@ if (qualityButton instanceof HTMLButtonElement) {
   });
 }
 const volumeSlider = document.getElementById("volume");
+// The name-tags button owns storage + label (bindSettings); refresh the
+// frame-loop cache after every toggle (issue #184). This listener is
+// attached after bindSettings, so the binder-owned toggle (which
+// persists synchronously) has already run and the next frame sees it.
+const nametagsButton = document.getElementById("btn-nametags");
+if (nametagsButton instanceof HTMLButtonElement) {
+  nametagsButton.addEventListener("click", () => {
+    refreshShowNameTags();
+  });
+}
 if (volumeSlider instanceof HTMLInputElement) {
   volumeSlider.addEventListener("input", () => {
     setVolume(parseVolume(volumeSlider.value));

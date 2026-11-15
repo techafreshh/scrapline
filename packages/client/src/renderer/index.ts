@@ -95,6 +95,7 @@ import type { TileTheme } from "../view/theme";
 import {
   countOccludedTiles,
   decorationsForMapSeeded,
+  decorSeedFor,
   isDecorOccluded,
   paintDecor2D,
   paintDecorPixi,
@@ -240,31 +241,8 @@ export interface StateLike {
   readonly projectiles: readonly Projectile[];
   readonly pickups: readonly Pickup[];
   readonly props: readonly Prop[];
-  /** Match seed (World.state compatible); absent/non-finite reads default. */
+  /** Match seed (World.state compatible); absent reads the per-theme default; present seeds coerce exactly like the core sampler. */
   readonly seed?: number;
-}
-
-/**
- * Stable per-theme decor seed for states without one (headless draws).
- * Keeps the default render deterministic per arena without a World.
- */
-const DEFAULT_DECOR_SEEDS: Record<string, number> = {
-  kilima: 123,
-  dune: 20240,
-  frostbite: 4242,
-};
-
-/**
- * Match seed for the decor stream, read tolerantly off the passed state
- * (World.state carries `seed`); falls back to the per-theme default so
- * seedless draws still paint deterministic scatter.
- */
-function decorSeedFor(state: StateLike, themeName: string): number {
-  const raw = (state as { seed?: unknown }).seed;
-  if (typeof raw === "number" && Number.isFinite(raw)) {
-    return Math.floor(raw);
-  }
-  return DEFAULT_DECOR_SEEDS[themeName] ?? 0;
 }
 
 /** FNV-1a hex digest over a string (stable scatter identity for probes). */
@@ -2184,7 +2162,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     // Seeded decor resolution: the match World seed threads the scatter
     // stream, so the same seed paints the same rects; the seedless
     // fallback keeps headless draws deterministic per arena.
-    const matchSeed = decorSeedFor(state, themeName);
+    const matchSeed = decorSeedFor(state.seed, themeName);
     const decorKey = `${themeName}:${matchSeed}`;
     if (decorCacheKey !== decorKey) {
       decorCache = decorationsForMapSeeded(themeName, matchSeed);

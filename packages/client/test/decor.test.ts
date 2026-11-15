@@ -9,6 +9,7 @@ import {
   DECOR_Z,
   countOccludedTiles,
   decorPaintFor,
+  decorSeedFor,
   decorationsForMap,
   decorationsForMapSeeded,
   paintDecor2D,
@@ -213,6 +214,27 @@ describe("map decorations", () => {
       expect(paint.accentHex).toBeGreaterThan(0);
       expect(paint.accentCss).toMatch(/^#/);
       expect(paint.fillCss).not.toBe("#64748b");
+    }
+  });
+
+  it("resolves the decor seed exactly like the core sampler with a per-theme absent default", () => {
+    expect(decorSeedFor("123", "kilima")).toBe(123);
+    expect(decorSeedFor(123, "kilima")).toBe(123);
+    expect(decorSeedFor(123.9, "kilima")).toBe(123);
+    expect(decorSeedFor(undefined, "kilima")).toBe(123);
+    expect(decorSeedFor(undefined, "dune")).toBe(20240);
+    expect(decorSeedFor(undefined, "frostbite")).toBe(4242);
+    expect(decorSeedFor(undefined, "bogus")).toBe(0);
+    expect(decorSeedFor("abc", "kilima")).toBe(0);
+    expect(decorSeedFor(NaN, "kilima")).toBe(0);
+  });
+
+  it("paints string-seed decor byte-identical to the same numeric seed", () => {
+    for (const name of ["kilima", "dune", "frostbite"]) {
+      const fromString = decorationsForMapSeeded(name, decorSeedFor("123", name));
+      const fromNumber = decorationsForMapSeeded(name, 123);
+      expect(JSON.stringify(fromString)).toBe(JSON.stringify(fromNumber));
+      expect(fromString).toEqual(fromNumber);
     }
   });
 

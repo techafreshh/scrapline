@@ -3,11 +3,13 @@
 import { describe, expect, it } from "vitest";
 import {
   THEMES,
+  THEME_BACKDROP_LAYERS,
   getCurrentTheme,
   hexToRgb,
   isThemeName,
   luminanceOfHex,
   setCurrentTheme,
+  themeBackdropLayers,
   themeFor,
 } from "../src/view/theme";
 
@@ -104,5 +106,40 @@ describe("tile themes", () => {
     expect(getCurrentTheme()).toBe("frostbite");
     expect(setCurrentTheme("bogus")).toBe("kilima");
     setCurrentTheme("kilima");
+  });
+
+  it("declares theme-correct backdrop layers with a kilima fallback", () => {
+    expect(themeBackdropLayers("kilima")).toEqual([
+      "sky",
+      "sun-disc",
+      "far-savanna",
+      "acacia",
+      "haze",
+      "birds",
+    ]);
+    expect(themeBackdropLayers("dune")).toContain("dune-ridge");
+    expect(themeBackdropLayers("dune")).toContain("chimney");
+    expect(themeBackdropLayers("frostbite")).toContain("aurora");
+    expect(themeBackdropLayers("frostbite")).toContain("antenna");
+    expect(themeBackdropLayers("DUNE")).toEqual(themeBackdropLayers("dune"));
+    expect(themeBackdropLayers(" frostbite ")).toEqual(
+      themeBackdropLayers("frostbite"),
+    );
+    expect(themeBackdropLayers("bogus")).toEqual(
+      themeBackdropLayers("kilima"),
+    );
+    expect(themeBackdropLayers(undefined)).toEqual(
+      themeBackdropLayers("kilima"),
+    );
+    const first = themeBackdropLayers("dune");
+    const second = themeBackdropLayers("dune");
+    expect(first).not.toBe(second);
+    expect(first).toEqual(second);
+    expect(first).not.toBe(THEME_BACKDROP_LAYERS.dune);
+    first.push("city");
+    expect(themeBackdropLayers("dune")).not.toContain("city");
+    for (const layers of Object.values(THEME_BACKDROP_LAYERS)) {
+      expect(layers).not.toContain("city");
+    }
   });
 });

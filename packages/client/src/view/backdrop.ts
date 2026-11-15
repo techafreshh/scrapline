@@ -8,6 +8,7 @@ import {
   hexToRgb,
   luminanceOfHex,
   skyGradeFor,
+  themeBackdropLayers,
   type ThemeName,
 } from "./theme";
 import { skyCoversViewport, skyColorAt } from "./background";
@@ -118,6 +119,15 @@ export function backdropPaletteFor(name: unknown): BackdropPalette {
  */
 export function backdropThemeFor(name: unknown): ThemeName {
   return skyGradeFor(name).name;
+}
+
+/**
+ * Declared backdrop layer ids for a theme name (tolerant, kilima fallback).
+ * Returns a fresh copy so callers cannot mutate the registry. No theme
+ * ever contains `city` (city silhouettes were removed from every set).
+ */
+export function backdropLayersFor(name: unknown): string[] {
+  return themeBackdropLayers(backdropThemeFor(name));
 }
 
 /**
@@ -261,6 +271,301 @@ function paintRidgePixi(
   }
 }
 
+/** Dusk-sun disc fill (kilima ornament, distinct from the palette haze). */
+export const KILIMA_SUN_HEX = 0xd9a441;
+/** Antenna beacon fill (frostbite ornament, doorway-light red read). */
+export const FROST_BEACON_HEX = 0xef4444;
+/** Snow speck fill (frostbite ornament). */
+export const FROST_SNOW_HEX = 0xdff2ff;
+/** CSS twin of the kilima sun-disc fill (2D backend). */
+export const KILIMA_SUN_CSS = "#d9a441";
+/** CSS twin of the frostbite beacon fill (2D backend). */
+export const FROST_BEACON_CSS = "#ef4444";
+/** CSS twin of the frostbite snow fill (2D backend). */
+export const FROST_SNOW_CSS = "#dff2ff";
+
+/** Pack one hex + alpha into an rgba() CSS string (2D alpha-band twin). */
+function rgbaCss(hex: number, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/**
+ * Wrap a phase-positioned ornament x into [0, canvasWidth) under the layer
+ * parallax offset, so discrete silhouettes scroll seamlessly and
+ * deterministically with the camera (no wall-clock, no randomness).
+ */
+function ornamentX(
+  phase: number,
+  offset: number,
+  canvasWidth: number,
+): number {
+  if (!(canvasWidth > 0)) {
+    return 0;
+  }
+  const raw = phase * canvasWidth - offset;
+  return ((raw % canvasWidth) + canvasWidth) % canvasWidth;
+}
+
+/**
+ * Dusk-savanna sun disc in Pixi: stacked rect rows forming a stepped disc
+ * around a fixed viewport fraction (sky-anchored, no parallax). Uses
+ * rect/fill ops only so the graphics stub contract holds.
+ */
+function paintSunDiscPixi(
+  graphics: BackdropPixiGraphics,
+  canvasWidth: number,
+  canvasHeight: number,
+): void {
+  const cx = canvasWidth * 0.68;
+  const cy = canvasHeight * 0.36;
+  const r = Math.max(8, canvasHeight * 0.07);
+  const rows = 5;
+  const rowH = (2 * r) / rows;
+  for (let i = 0; i < rows; i += 1) {
+    const dy = (i - (rows - 1) / 2) * rowH;
+    const half = Math.sqrt(Math.max(0, r * r - dy * dy));
+    if (!(half > 0)) {
+      continue;
+    }
+    graphics.rect(cx - half, cy + dy - rowH / 2, half * 2, rowH + 1);
+    graphics.fill(KILIMA_SUN_HEX);
+  }
+}
+
+/**
+ * Acacia silhouettes in Pixi: trunk rect plus flat-canopy rects keyed by
+ * the ridge hash, scrolling with the mid layer. All peaks stay far below
+ * the top-strip reserve.
+ */
+function paintAcaciasPixi(
+  graphics: BackdropPixiGraphics,
+  canvasWidth: number,
+  canvasHeight: number,
+  midOffset: number,
+  seed: number,
+  midHex: number,
+  midBaseY: number,
+): void {
+  for (let i = 0; i < 3; i += 1) {
+    const phase = ridgeHash(seed + 7, i * 3 + 1);
+    const x = ornamentX(phase, midOffset, canvasWidth);
+    const groundY =
+      midBaseY - ridgeHash(seed + 7, i * 5 + 2) * canvasHeight * 0.06;
+    const trunkW = Math.max(3, canvasWidth * 0.006);
+    const trunkH = canvasHeight * 0.07;
+    graphics.rect(x - trunkW / 2, groundY - trunkH, trunkW, trunkH + 1);
+    graphics.fill(midHex);
+    const canopyW =
+      canvasWidth * 0.05 +
+      ridgeHash(seed + 7, i * 7 + 3) * canvasWidth * 0.03;
+    const canopyH = Math.max(3, canvasHeight * 0.022);
+    graphics.rect(
+      x - canopyW / 2,
+      groundY - trunkH - canopyH,
+      canopyW,
+      canopyH + 1,
+    );
+    graphics.fill(midHex);
+    graphics.rect(
+      x - canopyW / 4,
+      groundY - trunkH - canopyH * 2,
+      canopyW / 2,
+      canopyH,
+    );
+    graphics.fill(midHex);
+  }
+}
+
+/** Crossing-bird ticks in Pixi: paired 2px rects at hash sky positions. */
+function paintBirdsPixi(
+  graphics: BackdropPixiGraphics,
+  canvasWidth: number,
+  canvasHeight: number,
+  midOffset: number,
+  seed: number,
+  midHex: number,
+): void {
+  for (let i = 0; i < 5; i += 1) {
+    const x = ornamentX(ridgeHash(seed + 13, i * 2 + 1), midOffset, canvasWidth);
+    const y = canvasHeight * (0.28 + ridgeHash(seed + 13, i * 2 + 2) * 0.1);
+    graphics.rect(x, y, 5, 2);
+    graphics.fill(midHex);
+    graphics.rect(x + 5, y - 2, 5, 2);
+    graphics.fill(midHex);
+  }
+}
+
+/**
+ * Refinery chimney stacks in Pixi: vertical rects with a cap plus a short
+ * haze plume (alpha object fill, so the haze-band probe still matches the
+ * full-width haze rect first). No city-block rectangles.
+ */
+function paintChimneysPixi(
+  graphics: BackdropPixiGraphics,
+  canvasWidth: number,
+  canvasHeight: number,
+  midOffset: number,
+  seed: number,
+  midHex: number,
+  hazeHex: number,
+  midBaseY: number,
+): void {
+  for (let i = 0; i < 3; i += 1) {
+    const x = ornamentX(ridgeHash(seed + 21, i * 3 + 1), midOffset, canvasWidth);
+    const w = Math.max(8, canvasWidth * 0.014);
+    const h = canvasHeight * 0.13;
+    graphics.rect(x, midBaseY - h, w, h + 1);
+    graphics.fill(midHex);
+    graphics.rect(x - 2, midBaseY - h - 3, w + 4, 3);
+    graphics.fill(midHex);
+    graphics.rect(x + w * 0.2, midBaseY - h - 8, w * 1.6, 4);
+    graphics.fill({ color: hazeHex, alpha: 0.55 });
+  }
+}
+
+/**
+ * Polar-night aurora in Pixi: full-width alpha rect bands above the haze
+ * top (alternating haze/sky fills, rect/fill ops only).
+ */
+function paintAuroraPixi(
+  graphics: BackdropPixiGraphics,
+  canvasWidth: number,
+  canvasHeight: number,
+  theme: ThemeName,
+  hazeHex: number,
+): void {
+  const topHex = skyGradeFor(theme).topHex;
+  const bands = [0.24, 0.34, 0.44];
+  for (let i = 0; i < bands.length; i += 1) {
+    graphics.rect(0, canvasHeight * bands[i], canvasWidth, canvasHeight * 0.05);
+    graphics.fill(
+      i % 2 === 0
+        ? { color: hazeHex, alpha: 0.35 }
+        : { color: topHex, alpha: 0.3 },
+    );
+  }
+}
+
+/**
+ * Antenna masts in Pixi: vertical rect plus two crossbars and a beacon
+ * rect (rect-only mirror of the antenna-mast decor idiom, no circles).
+ */
+function paintAntennasPixi(
+  graphics: BackdropPixiGraphics,
+  canvasWidth: number,
+  canvasHeight: number,
+  midOffset: number,
+  seed: number,
+  midHex: number,
+  midBaseY: number,
+): void {
+  for (let i = 0; i < 2; i += 1) {
+    const x = ornamentX(ridgeHash(seed + 41, i * 3 + 1), midOffset, canvasWidth);
+    const mastW = Math.max(3, canvasWidth * 0.005);
+    const mastH = canvasHeight * 0.11;
+    const baseY =
+      midBaseY - ridgeHash(seed + 41, i * 3 + 2) * canvasHeight * 0.04;
+    graphics.rect(x, baseY - mastH, mastW, mastH + 1);
+    graphics.fill(midHex);
+    graphics.rect(x - mastW * 2, baseY - mastH * 0.7, mastW * 5, 2);
+    graphics.fill(midHex);
+    graphics.rect(x - mastW * 1.5, baseY - mastH * 0.45, mastW * 4, 2);
+    graphics.fill(midHex);
+    graphics.rect(x - 1, baseY - mastH - 4, mastW + 2, 3);
+    graphics.fill(FROST_BEACON_HEX);
+  }
+}
+
+/** Deterministic snow speck rects in Pixi (static layout, no clock). */
+function paintSnowPixi(
+  graphics: BackdropPixiGraphics,
+  canvasWidth: number,
+  canvasHeight: number,
+  midOffset: number,
+  seed: number,
+): void {
+  for (let i = 0; i < 24; i += 1) {
+    const x = ornamentX(ridgeHash(seed + 53, i * 2 + 1), midOffset, canvasWidth);
+    const y = canvasHeight * (0.2 + ridgeHash(seed + 53, i * 2 + 2) * 0.45);
+    graphics.rect(x, y, 2, 2);
+    graphics.fill(FROST_SNOW_HEX);
+  }
+}
+
+/**
+ * Per-theme silhouette ornaments in Pixi, painted after the ridgelines and
+ * before the haze band so haze overlaps the ornament bases. Palettes,
+ * factors, periods, and haze geometry are untouched.
+ */
+function paintThemeOrnamentsPixi(
+  graphics: BackdropPixiGraphics,
+  theme: ThemeName,
+  palette: BackdropPalette,
+  canvasWidth: number,
+  canvasHeight: number,
+  farOffset: number,
+  midOffset: number,
+  farBaseY: number,
+  midBaseY: number,
+): void {
+  if (theme === "kilima") {
+    paintSunDiscPixi(graphics, canvasWidth, canvasHeight);
+    paintAcaciasPixi(
+      graphics,
+      canvasWidth,
+      canvasHeight,
+      midOffset,
+      palette.seed,
+      palette.midHex,
+      midBaseY,
+    );
+    paintBirdsPixi(
+      graphics,
+      canvasWidth,
+      canvasHeight,
+      midOffset,
+      palette.seed,
+      palette.midHex,
+    );
+  } else if (theme === "dune") {
+    // Second far ridgeline under a shifted seed: rolling dune swells.
+    paintRidgePixi(
+      graphics,
+      canvasWidth,
+      farBaseY - canvasHeight * 0.02,
+      canvasHeight,
+      farOffset,
+      FAR_PERIOD,
+      palette.seed + 31,
+      true,
+      palette.farHex,
+    );
+    paintChimneysPixi(
+      graphics,
+      canvasWidth,
+      canvasHeight,
+      midOffset,
+      palette.seed,
+      palette.midHex,
+      palette.hazeHex,
+      midBaseY,
+    );
+  } else {
+    paintAuroraPixi(graphics, canvasWidth, canvasHeight, theme, palette.hazeHex);
+    paintAntennasPixi(
+      graphics,
+      canvasWidth,
+      canvasHeight,
+      midOffset,
+      palette.seed,
+      palette.midHex,
+      midBaseY,
+    );
+    paintSnowPixi(graphics, canvasWidth, canvasHeight, midOffset, palette.seed);
+  }
+}
+
 /**
  * Paint the full-canvas parallax backdrop in Pixi: top sky-preserve
  * strip, far ridgeline (FAR_PARALLAX), mid ridgeline plus treeline teeth
@@ -309,6 +614,17 @@ export function paintBackdropPixi(
     palette.seed,
     false,
     palette.midHex,
+  );
+  paintThemeOrnamentsPixi(
+    graphics,
+    theme,
+    palette,
+    canvasWidth,
+    canvasHeight,
+    farOffset,
+    midOffset,
+    farBaseY,
+    midBaseY,
   );
   graphics.rect(
     0,
@@ -390,6 +706,295 @@ function paintRidge2D(
 }
 
 /**
+ * Dusk-savanna sun disc on a 2D canvas (mirrors the Pixi twin).
+ * Restores fillStyle afterwards.
+ */
+function paintSunDisc2D(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+): void {
+  const prev = ctx.fillStyle;
+  try {
+    ctx.fillStyle = KILIMA_SUN_CSS;
+    const cx = canvasWidth * 0.68;
+    const cy = canvasHeight * 0.36;
+    const r = Math.max(8, canvasHeight * 0.07);
+    const rows = 5;
+    const rowH = (2 * r) / rows;
+    for (let i = 0; i < rows; i += 1) {
+      const dy = (i - (rows - 1) / 2) * rowH;
+      const half = Math.sqrt(Math.max(0, r * r - dy * dy));
+      if (!(half > 0)) {
+        continue;
+      }
+      ctx.fillRect(cx - half, cy + dy - rowH / 2, half * 2, rowH + 1);
+    }
+  } finally {
+    ctx.fillStyle = prev;
+  }
+}
+
+/** Acacia silhouettes on a 2D canvas (mirrors the Pixi twin). */
+function paintAcacias2D(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  midOffset: number,
+  seed: number,
+  midCss: string,
+  midBaseY: number,
+): void {
+  const prev = ctx.fillStyle;
+  try {
+    ctx.fillStyle = midCss;
+    for (let i = 0; i < 3; i += 1) {
+      const phase = ridgeHash(seed + 7, i * 3 + 1);
+      const x = ornamentX(phase, midOffset, canvasWidth);
+      const groundY =
+        midBaseY - ridgeHash(seed + 7, i * 5 + 2) * canvasHeight * 0.06;
+      const trunkW = Math.max(3, canvasWidth * 0.006);
+      const trunkH = canvasHeight * 0.07;
+      ctx.fillRect(x - trunkW / 2, groundY - trunkH, trunkW, trunkH + 1);
+      const canopyW =
+        canvasWidth * 0.05 +
+        ridgeHash(seed + 7, i * 7 + 3) * canvasWidth * 0.03;
+      const canopyH = Math.max(3, canvasHeight * 0.022);
+      ctx.fillRect(
+        x - canopyW / 2,
+        groundY - trunkH - canopyH,
+        canopyW,
+        canopyH + 1,
+      );
+      ctx.fillRect(
+        x - canopyW / 4,
+        groundY - trunkH - canopyH * 2,
+        canopyW / 2,
+        canopyH,
+      );
+    }
+  } finally {
+    ctx.fillStyle = prev;
+  }
+}
+
+/** Crossing-bird ticks on a 2D canvas (mirrors the Pixi twin). */
+function paintBirds2D(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  midOffset: number,
+  seed: number,
+  midCss: string,
+): void {
+  const prev = ctx.fillStyle;
+  try {
+    ctx.fillStyle = midCss;
+    for (let i = 0; i < 5; i += 1) {
+      const x = ornamentX(
+        ridgeHash(seed + 13, i * 2 + 1),
+        midOffset,
+        canvasWidth,
+      );
+      const y = canvasHeight * (0.28 + ridgeHash(seed + 13, i * 2 + 2) * 0.1);
+      ctx.fillRect(x, y, 5, 2);
+      ctx.fillRect(x + 5, y - 2, 5, 2);
+    }
+  } finally {
+    ctx.fillStyle = prev;
+  }
+}
+
+/** Refinery chimney stacks on a 2D canvas (mirrors the Pixi twin). */
+function paintChimneys2D(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  midOffset: number,
+  seed: number,
+  midCss: string,
+  hazeHex: number,
+  midBaseY: number,
+): void {
+  const prev = ctx.fillStyle;
+  try {
+    for (let i = 0; i < 3; i += 1) {
+      const x = ornamentX(
+        ridgeHash(seed + 21, i * 3 + 1),
+        midOffset,
+        canvasWidth,
+      );
+      const w = Math.max(8, canvasWidth * 0.014);
+      const h = canvasHeight * 0.13;
+      ctx.fillStyle = midCss;
+      ctx.fillRect(x, midBaseY - h, w, h + 1);
+      ctx.fillRect(x - 2, midBaseY - h - 3, w + 4, 3);
+      ctx.fillStyle = rgbaCss(hazeHex, 0.55);
+      ctx.fillRect(x + w * 0.2, midBaseY - h - 8, w * 1.6, 4);
+    }
+  } finally {
+    ctx.fillStyle = prev;
+  }
+}
+
+/** Polar-night aurora bands on a 2D canvas (mirrors the Pixi twin). */
+function paintAurora2D(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  theme: ThemeName,
+  hazeHex: number,
+): void {
+  const prev = ctx.fillStyle;
+  try {
+    const topHex = skyGradeFor(theme).topHex;
+    const bands = [0.24, 0.34, 0.44];
+    for (let i = 0; i < bands.length; i += 1) {
+      ctx.fillStyle =
+        i % 2 === 0 ? rgbaCss(hazeHex, 0.35) : rgbaCss(topHex, 0.3);
+      ctx.fillRect(
+        0,
+        canvasHeight * bands[i],
+        canvasWidth,
+        canvasHeight * 0.05,
+      );
+    }
+  } finally {
+    ctx.fillStyle = prev;
+  }
+}
+
+/** Antenna masts on a 2D canvas (mirrors the Pixi twin). */
+function paintAntennas2D(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  midOffset: number,
+  seed: number,
+  midCss: string,
+  midBaseY: number,
+): void {
+  const prev = ctx.fillStyle;
+  try {
+    for (let i = 0; i < 2; i += 1) {
+      const x = ornamentX(
+        ridgeHash(seed + 41, i * 3 + 1),
+        midOffset,
+        canvasWidth,
+      );
+      const mastW = Math.max(3, canvasWidth * 0.005);
+      const mastH = canvasHeight * 0.11;
+      const baseY =
+        midBaseY - ridgeHash(seed + 41, i * 3 + 2) * canvasHeight * 0.04;
+      ctx.fillStyle = midCss;
+      ctx.fillRect(x, baseY - mastH, mastW, mastH + 1);
+      ctx.fillRect(x - mastW * 2, baseY - mastH * 0.7, mastW * 5, 2);
+      ctx.fillRect(x - mastW * 1.5, baseY - mastH * 0.45, mastW * 4, 2);
+      ctx.fillStyle = FROST_BEACON_CSS;
+      ctx.fillRect(x - 1, baseY - mastH - 4, mastW + 2, 3);
+    }
+  } finally {
+    ctx.fillStyle = prev;
+  }
+}
+
+/** Deterministic snow specks on a 2D canvas (mirrors the Pixi twin). */
+function paintSnow2D(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  midOffset: number,
+  seed: number,
+): void {
+  const prev = ctx.fillStyle;
+  try {
+    ctx.fillStyle = FROST_SNOW_CSS;
+    for (let i = 0; i < 24; i += 1) {
+      const x = ornamentX(
+        ridgeHash(seed + 53, i * 2 + 1),
+        midOffset,
+        canvasWidth,
+      );
+      const y = canvasHeight * (0.2 + ridgeHash(seed + 53, i * 2 + 2) * 0.45);
+      ctx.fillRect(x, y, 2, 2);
+    }
+  } finally {
+    ctx.fillStyle = prev;
+  }
+}
+
+/**
+ * Per-theme silhouette ornaments on a 2D canvas, painted after the
+ * ridgelines and before the haze band (mirrors the Pixi twin).
+ */
+function paintThemeOrnaments2D(
+  ctx: CanvasRenderingContext2D,
+  theme: ThemeName,
+  palette: BackdropPalette,
+  canvasWidth: number,
+  canvasHeight: number,
+  farOffset: number,
+  midOffset: number,
+  farBaseY: number,
+  midBaseY: number,
+): void {
+  if (theme === "kilima") {
+    paintSunDisc2D(ctx, canvasWidth, canvasHeight);
+    paintAcacias2D(
+      ctx,
+      canvasWidth,
+      canvasHeight,
+      midOffset,
+      palette.seed,
+      palette.midCss,
+      midBaseY,
+    );
+    paintBirds2D(
+      ctx,
+      canvasWidth,
+      canvasHeight,
+      midOffset,
+      palette.seed,
+      palette.midCss,
+    );
+  } else if (theme === "dune") {
+    paintRidge2D(
+      ctx,
+      canvasWidth,
+      farBaseY - canvasHeight * 0.02,
+      canvasHeight,
+      farOffset,
+      FAR_PERIOD,
+      palette.seed + 31,
+      true,
+      palette.farCss,
+    );
+    paintChimneys2D(
+      ctx,
+      canvasWidth,
+      canvasHeight,
+      midOffset,
+      palette.seed,
+      palette.midCss,
+      palette.hazeHex,
+      midBaseY,
+    );
+  } else {
+    paintAurora2D(ctx, canvasWidth, canvasHeight, theme, palette.hazeHex);
+    paintAntennas2D(
+      ctx,
+      canvasWidth,
+      canvasHeight,
+      midOffset,
+      palette.seed,
+      palette.midCss,
+      midBaseY,
+    );
+    paintSnow2D(ctx, canvasWidth, canvasHeight, midOffset, palette.seed);
+  }
+}
+
+/**
  * Paint the full-canvas parallax backdrop on a 2D canvas (mirrors
  * paintBackdropPixi). No-op on non-finite dims; restores fillStyle.
  */
@@ -433,6 +1038,17 @@ export function paintBackdrop2D(
     palette.seed,
     false,
     palette.midCss,
+  );
+  paintThemeOrnaments2D(
+    ctx,
+    theme,
+    palette,
+    canvasWidth,
+    canvasHeight,
+    farOffset,
+    midOffset,
+    farBaseY,
+    midBaseY,
   );
   const prev = ctx.fillStyle;
   try {

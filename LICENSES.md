@@ -31,6 +31,13 @@ dedicated to the public domain. No external packs are vendored.
 
 ## Pack: Scrapline CC0 arena sprites
 
+Parallax backdrop sets for kilima (dusk savanna), dune (golden-hour
+ desert), and frostbite (polar night) are authored in-house as CC0 vector
+ shapes painted in code (no external image or font files): sun disc,
+ acacia silhouettes, and bird ticks on kilima; dune-ridge swells and
+ refinery chimneys on dune; aurora bands, antenna masts, and snow on
+ frostbite.
+
 - Author: Scrapline contributors
 - License: CC0-1.0 (public domain dedication; no attribution required)
 - Files:

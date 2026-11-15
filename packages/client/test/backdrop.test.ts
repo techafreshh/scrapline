@@ -2,20 +2,31 @@
 // luminance profile, painter coverage, and per-theme distinctness.
 // Mirrors background.test.ts stub style without touching the DOM or Pixi.
 import { afterEach, describe, expect, it } from "vitest";
-import { luminanceOfHex, skyGradeFor } from "../src/view/theme";
+import {
+  luminanceOfHex,
+  skyGradeFor,
+  THEME_BACKDROP_LAYERS,
+} from "../src/view/theme";
 import { skyTopRgb } from "../src/view/background";
 import {
   BACKDROP_PALETTES,
   BACKDROP_SLICE_W,
+  backdropLayersFor,
   backdropOffsetX,
   backdropPaletteFor,
   backdropShiftX,
   backdropThemeFor,
   FAR_PARALLAX,
   FAR_PERIOD,
+  FROST_BEACON_CSS,
+  FROST_BEACON_HEX,
+  FROST_SNOW_CSS,
+  FROST_SNOW_HEX,
   HAZE_HEIGHT_FRACTION,
   HAZE_LIFT,
   HAZE_TOP_FRACTION,
+  KILIMA_SUN_CSS,
+  KILIMA_SUN_HEX,
   MID_PARALLAX,
   MID_PERIOD,
   TOP_RESERVE_FRACTION,
@@ -162,6 +173,72 @@ describe("theme resolution", () => {
   });
 });
 
+describe("backdrop layer registry", () => {
+  it("declares the exact per-theme layer ids", () => {
+    expect(backdropLayersFor("kilima")).toEqual([
+      "sky",
+      "sun-disc",
+      "far-savanna",
+      "acacia",
+      "haze",
+      "birds",
+    ]);
+    expect(backdropLayersFor("dune")).toEqual([
+      "sky",
+      "dune-ridge",
+      "chimney",
+      "haze",
+    ]);
+    expect(backdropLayersFor("frostbite")).toEqual([
+      "sky",
+      "aurora",
+      "far-ridge",
+      "antenna",
+      "snow",
+      "haze",
+    ]);
+  });
+
+  it("contains the probe ids per map and never city", () => {
+    expect(backdropLayersFor("kilima")).toContain("acacia");
+    expect(backdropLayersFor("kilima")).toContain("sun-disc");
+    expect(backdropLayersFor("dune")).toContain("dune-ridge");
+    expect(backdropLayersFor("dune")).toContain("chimney");
+    expect(backdropLayersFor("frostbite")).toContain("aurora");
+    expect(backdropLayersFor("frostbite")).toContain("antenna");
+    for (const name of ["kilima", "dune", "frostbite", "bogus", undefined]) {
+      expect(backdropLayersFor(name)).not.toContain("city");
+    }
+  });
+
+  it("resolves tolerantly with a kilima fallback and fresh copies", () => {
+    expect(backdropLayersFor("DUNE")).toEqual(backdropLayersFor("dune"));
+    expect(backdropLayersFor(" frostbite ")).toEqual(
+      backdropLayersFor("frostbite"),
+    );
+    expect(backdropLayersFor("bogus")).toEqual(backdropLayersFor("kilima"));
+    expect(backdropLayersFor(undefined)).toEqual(backdropLayersFor("kilima"));
+    const first = backdropLayersFor("dune");
+    const second = backdropLayersFor("dune");
+    expect(first).not.toBe(second);
+    expect(first).toEqual(second);
+    first.push("city");
+    expect(backdropLayersFor("dune")).not.toContain("city");
+  });
+
+  it("matches the theme-declared registry", () => {
+    expect(backdropLayersFor("kilima")).toEqual([
+      ...THEME_BACKDROP_LAYERS.kilima,
+    ]);
+    expect(backdropLayersFor("dune")).toEqual([
+      ...THEME_BACKDROP_LAYERS.dune,
+    ]);
+    expect(backdropLayersFor("frostbite")).toEqual([
+      ...THEME_BACKDROP_LAYERS.frostbite,
+    ]);
+  });
+});
+
 describe("backdrop painters", () => {
   it("paints a full-width haze band at 62-72% height", () => {
     for (const name of ["kilima", "dune", "frostbite"] as const) {
@@ -290,5 +367,100 @@ describe("backdrop painters", () => {
     paintBackdrop2D(stub.ctx, 0, 0, 0, 360, "kilima");
     paintBackdrop2D(stub.ctx, 0, 0, 640, Number.NaN, "kilima");
     expect(stub.rects).toHaveLength(0);
+  });
+});
+
+describe("theme silhouette ornaments", () => {
+  it("paints a kilima sun disc and acacias (absent on other themes)", () => {
+    const kilima = stubGraphics();
+    paintBackdropPixi(kilima, 0, 320, 640, 360, "kilima");
+    expect(kilima.fills).toContain(KILIMA_SUN_HEX);
+    const dune = stubGraphics();
+    paintBackdropPixi(dune, 0, 320, 640, 360, "dune");
+    expect(dune.fills).not.toContain(KILIMA_SUN_HEX);
+    const frostbite = stubGraphics();
+    paintBackdropPixi(frostbite, 0, 320, 640, 360, "frostbite");
+    expect(frostbite.fills).not.toContain(KILIMA_SUN_HEX);
+    // 2D twin paints the same sun fill.
+    const kilima2D = stubCtx();
+    paintBackdrop2D(kilima2D.ctx, 0, 320, 640, 360, "kilima");
+    expect(kilima2D.styles).toContain(KILIMA_SUN_CSS);
+  });
+
+  it("paints dune chimneys with haze plumes and no city blocks", () => {
+    const dune = stubGraphics();
+    paintBackdropPixi(dune, 0, 320, 640, 360, "dune");
+    const plumes = dune.fills.filter(
+      (fill): fill is { color?: number; alpha?: number } =>
+        typeof fill === "object" &&
+        (fill as { color?: number }).color ===
+          BACKDROP_PALETTES.dune.hazeHex,
+    );
+    expect(plumes).toHaveLength(3);
+    // The extra dune swell ridgeline adds far columns over the base ridge.
+    const kilima = stubGraphics();
+    paintBackdropPixi(kilima, 0, 320, 640, 360, "kilima");
+    const duneFar = dune.rects.filter(
+      (rect, i) => dune.fills[i] === BACKDROP_PALETTES.dune.farHex,
+    );
+    const kilimaFar = kilima.rects.filter(
+      (rect, i) => kilima.fills[i] === BACKDROP_PALETTES.kilima.farHex,
+    );
+    expect(duneFar.length).toBeGreaterThan(kilimaFar.length);
+  });
+
+  it("paints frostbite aurora bands, antenna beacons, and snow", () => {
+    const frostbite = stubGraphics();
+    paintBackdropPixi(frostbite, 0, 320, 640, 360, "frostbite");
+    const bands = frostbite.fills.filter((fill) => typeof fill === "object");
+    expect(bands).toHaveLength(3);
+    expect(frostbite.fills).toContain(FROST_BEACON_HEX);
+    expect(frostbite.fills).toContain(FROST_SNOW_HEX);
+    const kilima = stubGraphics();
+    paintBackdropPixi(kilima, 0, 320, 640, 360, "kilima");
+    expect(kilima.fills).not.toContain(FROST_BEACON_HEX);
+    expect(kilima.fills).not.toContain(FROST_SNOW_HEX);
+    expect(kilima.fills.filter((fill) => typeof fill === "object")).toHaveLength(
+      0,
+    );
+    // 2D twin paints the same beacon and snow fills.
+    const frostbite2D = stubCtx();
+    paintBackdrop2D(frostbite2D.ctx, 0, 320, 640, 360, "frostbite");
+    expect(frostbite2D.styles).toContain(FROST_BEACON_CSS);
+    expect(frostbite2D.styles).toContain(FROST_SNOW_CSS);
+  });
+
+  it("keeps Pixi+2D rect parity and haze fills per theme", () => {
+    for (const name of ["kilima", "dune", "frostbite"] as const) {
+      const pixi = stubGraphics();
+      paintBackdropPixi(pixi, 120, 320, 640, 360, name);
+      const two = stubCtx();
+      paintBackdrop2D(two.ctx, 120, 320, 640, 360, name);
+      expect(two.rects).toEqual(pixi.rects);
+      expect(pixi.fills).toContain(BACKDROP_PALETTES[name].hazeHex);
+      expect(two.styles).toContain(BACKDROP_PALETTES[name].hazeCss);
+    }
+  });
+
+  it("keeps every silhouette below the top-strip reserve", () => {
+    for (const name of ["kilima", "dune", "frostbite"] as const) {
+      const graphics = stubGraphics();
+      paintBackdropPixi(graphics, 0, 320, 640, 360, name);
+      const palette = BACKDROP_PALETTES[name];
+      const reserve = 360 * TOP_RESERVE_FRACTION;
+      const silhouettes = new Set<number>([
+        palette.farHex,
+        palette.midHex,
+        KILIMA_SUN_HEX,
+        FROST_BEACON_HEX,
+        FROST_SNOW_HEX,
+      ]);
+      for (let i = 0; i < graphics.rects.length; i += 1) {
+        const fill = graphics.fills[i];
+        if (typeof fill === "object" || silhouettes.has(fill as number)) {
+          expect(graphics.rects[i].y).toBeGreaterThanOrEqual(reserve - 1);
+        }
+      }
+    }
   });
 });

@@ -106,6 +106,7 @@ import {
   VIGNETTE_ALPHA,
 } from "../view/background";
 import {
+  backdropLayersFor,
   backdropOffsetX,
   FAR_PARALLAX,
   FAR_PERIOD,
@@ -1959,6 +1960,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     // for the 200px-move acceptance: far 40px, mid 100px).
     const backdropFarX = backdropOffsetX(cam.x, FAR_PARALLAX, FAR_PERIOD);
     const backdropMidX = backdropOffsetX(cam.x, MID_PARALLAX, MID_PERIOD);
+    const backdropLayers = backdropLayersFor(themeName);
     if (typeof window !== "undefined") {
       try {
         const game = (window as unknown as Record<string, unknown>)["__game"] as
@@ -1991,6 +1993,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             skyCoversViewport: skyCoversViewport(logicalW, logicalH),
             backdropFarX,
             backdropMidX,
+            backdropLayers,
             backdropFarFactor: FAR_PARALLAX,
             backdropMidFactor: MID_PARALLAX,
             fps: Math.round(fpsEma * 10) / 10,
@@ -2018,6 +2021,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         cameraY: cam.y,
         backdropFarX,
         backdropMidX,
+        backdropLayers,
         backdropFarFactor: FAR_PARALLAX,
         backdropMidFactor: MID_PARALLAX,
         fps: Math.round(fpsEma * 10) / 10,

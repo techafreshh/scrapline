@@ -595,19 +595,35 @@ function handleMessage(socket: net.Socket, state: ConnState, text: string): void
     // for a re-hello on the same session.
     if (rec["t"] === "leave") {
       const room = rooms.get(known.room);
+      const sid = session as string;
       if (room !== undefined) {
-        latestInputs.delete(session as string);
+        latestInputs.delete(sid);
         if (!room.backfill) {
           room.roster.delete(known.pid);
         }
         broadcastLeave(room, known.pid, known.name, socket);
       }
+      // Sever the owner binding so post-leave frames from this socket hit
+      // the input ownership gate and cannot re-arm the slot; the session
+      // entry survives so the same socket may resume via re-join.
+      if (sessionOwners.get(sid) === socket) {
+        sessionOwners.delete(sid);
+      }
+      state.helloSessions.delete(sid);
       return;
     }
     // Honest-mode input frame: finite moveX/aim, buttons masked to 10
     // bits, stored per session with no reply (unknown session already
-    // closed 4002 above). Non-finite fields fall back to neutral.
+    // closed 4002 above). Only the live owner may latch an input: frames
+    // from any other socket holding the session id are silently ignored
+    // so hijacked writes never drive the world player and post-leave
+    // frames from a severed socket cannot re-arm the slot. Non-finite
+    // fields fall back to neutral.
     if (rec["t"] === "input") {
+      const sid = session as string;
+      if (sessionOwners.get(sid) !== socket) {
+        return;
+      }
       const moveX =
         typeof rec["moveX"] === "number" && Number.isFinite(rec["moveX"])
           ? (rec["moveX"] as number)
@@ -621,7 +637,7 @@ function handleMessage(socket: net.Socket, state: ConnState, text: string): void
         typeof rawButtons === "number" && Number.isFinite(rawButtons)
           ? Math.floor(rawButtons) & 0x3ff
           : 0;
-      latestInputs.set(session as string, { moveX, aim, buttons });
+      latestInputs.set(sid, { moveX, aim, buttons });
       return;
     }
     sendClose(socket, state, 4002, "bad message");
@@ -827,6 +843,9 @@ function attachSocket(socket: net.Socket, head: Buffer): void {
       }
       // The session survives a transport drop (re-hello resumes the
       // same slot); only the input is reset to neutral immediately.
+      // This delete is the single sufficient reset: the input-branch
+      // ownership gate (and leave severing above) keeps non-owned frames
+      // from ever latching, so sessions entries stay resumable.
     }
     state.helloSessions.clear();
     for (const room of state.memberOf) {

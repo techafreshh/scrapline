@@ -90,6 +90,13 @@ test("GET / wires the manifest link and the safe worker registration", async () 
   assert.match(root.text, /continuing online-only/);
 });
 
+test("GET /icons/icon.svg returns 200 SVG for the manifest icon", async () => {
+  const icon = await get("/icons/icon.svg");
+  assert.equal(icon.status, 200);
+  assert.match(icon.contentType, /image\/svg\+xml/);
+  assert.match(icon.text, /<svg/);
+});
+
 test("HEAD /sw.js returns 200 with a JavaScript content-type", async () => {
   const res = await fetch(base + "/sw.js", { method: "HEAD" });
   assert.equal(res.status, 200);

@@ -4,6 +4,7 @@
 // GET /sw.js -> staged worker (same fallback chain),
 // GET /manifest.webmanifest -> staged manifest (same fallback chain),
 // GET /assets/* -> staged assets (same fallback chain),
+// GET /icons/* -> staged PWA icons (same fallback chain, plus public/ source),
 // GET /health and GET /api/health -> {"ok":true,"status":"ok"}, GET /healthz -> {"ok":true}. Everything else is a 404.
 const http = require("node:http");
 const fs = require("node:fs");
@@ -180,6 +181,30 @@ const server = http.createServer((req, res) => {
       const assetsBase = path.join(base, "assets");
       const file = path.join(assetsBase, rel);
       if (file !== assetsBase && !file.startsWith(assetsBase + path.sep)) {
+        send(req, res, 404, "text/plain; charset=utf-8", "not found");
+        return;
+      }
+      const body = tryRead(file);
+      if (body !== null) {
+        send(req, res, 200, contentTypeFor(file), body);
+        return;
+      }
+    }
+    send(req, res, 404, "text/plain; charset=utf-8", "not found");
+    return;
+  }
+  if (readable && url.pathname.startsWith("/icons/")) {
+    const rel = path.normalize(url.pathname.slice("/icons/".length));
+    // Same staged-first chain as /assets/*, plus the public/ source so
+    // dev-without-build resolves the manifest icon (issue #159).
+    const dirs = [
+      path.join(ROOT_DIST, "icons"),
+      path.join(DIST, "icons"),
+      path.join(ROOT, "packages", "client", "public", "icons"),
+    ];
+    for (const iconsBase of dirs) {
+      const file = path.join(iconsBase, rel);
+      if (file !== iconsBase && !file.startsWith(iconsBase + path.sep)) {
         send(req, res, 404, "text/plain; charset=utf-8", "not found");
         return;
       }

@@ -16,6 +16,7 @@ const WARM_URLS = [
   "main.js",
   "manifest.webmanifest",
   "assets/atlas.json",
+  "icons/icon.svg",
 ];
 
 /**

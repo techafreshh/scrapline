@@ -143,6 +143,7 @@ describe("sw.js source", () => {
     expect(source).toMatch(/scrapline-v\d+/);
     expect(source).toContain("main.js");
     expect(source).toContain("manifest.webmanifest");
+    expect(source).toContain("icons/icon.svg");
   });
 
   it("serves same-origin GETs cache-first with a navigate fallback", () => {

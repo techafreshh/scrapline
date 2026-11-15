@@ -37,9 +37,37 @@ test("docs/benchmark/themes/ holds one >50KB PNG per map", () => {
   }
 });
 
-test("kilima capture is exactly 1920x1080", () => {
-  const buf = fs.readFileSync(path.join(THEMES_DIR, "kilima.png"));
-  assert.deepEqual(compare.pngInfoBytes(buf), { width: 1920, height: 1080 });
+test("every theme capture is exactly 1920x1080", () => {
+  for (const theme of THEME_NAMES) {
+    const buf = fs.readFileSync(path.join(THEMES_DIR, `${theme}.png`));
+    assert.deepEqual(
+      compare.pngInfoBytes(buf),
+      { width: 1920, height: 1080 },
+      `${theme}.png must be exactly 1920x1080`,
+    );
+  }
+});
+
+test("every theme pair differs by more than 5% of pixels", () => {
+  const decoded = new Map(
+    THEME_NAMES.map((theme) => [
+      theme,
+      compare.decodePngRgbFile(path.join(THEMES_DIR, `${theme}.png`)),
+    ]),
+  );
+  for (let i = 0; i < THEME_NAMES.length; i += 1) {
+    for (let j = i + 1; j < THEME_NAMES.length; j += 1) {
+      const pair = `${THEME_NAMES[i]}-vs-${THEME_NAMES[j]}`;
+      const delta = compare.histogramDelta(
+        decoded.get(THEME_NAMES[i]),
+        decoded.get(THEME_NAMES[j]),
+      );
+      assert.ok(
+        delta > 0.05,
+        `${pair} pixel delta ${(delta * 100).toFixed(2)}% is below the 5% theme floor`,
+      );
+    }
+  }
 });
 
 test("declared layers pass the rendered-subset-of-declared gate", () => {

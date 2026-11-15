@@ -64,3 +64,39 @@ rendered layer the theme does not declare — e.g. a reintroduced `city`
 silhouette — fails the checklist (`tests/cohesion.test.js`) and the
 live capture gate (`scripts/capture-themes.mjs` via
 `scripts/cohesion-check.mjs`).
+
+## Milestone closeout (#219)
+
+Single green proof that every milestone leg stays green together:
+
+- `npm test` — full suite including `tests/milestone-closeout.test.js`
+  (theme-capture inventory, menu live-DOM ids, built-bundle mirrors,
+  WebAudio/quality/fps-mirror/codec/netcode source-shape pins, and the
+  test-inventory pin) plus `tests/cohesion.test.js` (all three theme
+  captures at exactly 1920x1080, every pair > 5 % histogram-distinct).
+  Budget: whole suite green in under 120 s.
+- `npm run probe:online` — headless two-client smoke
+  (`scripts/probes/online-two-client.mjs`): one snapshot carrying both
+  pids within 2 s, bogus-session 4002, malformed close, double-join
+  error with a still-usable socket, 2 MB payload closing 1009.
+- `npm run probe:online:tabs` — browser two-tab leg
+  (`scripts/probes/online-two-tab.mjs`, reference runner only,
+  skip-green without Chromium): two 1920x1080 tabs click `#play-online`,
+  share one room with a remote row and a growing snapshot feed within
+  2 s, hold 10 s of connected/remote/growing feed with
+  `interpDelayMs === 100`, then sample `__game.fps` for 60 s.
+- `npm run capture:themes` — regenerates the three captures under
+  `docs/benchmark/themes/` (`scripts/capture-themes.mjs`).
+- `npm run verify:presentation` — regenerates the `artifacts/` captures
+  and `verify.json` (`scripts/verify-presentation.mjs`).
+
+Regeneration protocol: run `npm run capture:themes`, eyeball the three
+fresh frames for distinct themed mid-match gameplay (terrain, decor,
+HUD), copy them over the committed captures, then confirm
+`node --test tests/cohesion.test.js` and `npm run verify:benchmark`
+stay green.
+
+Fps rule: quality `high` (the default), frostbite entry, 60 s sampled at
+500 ms from `window.__game.fps` — the mean must read >= 50 while every
+sample sees a live ambient bed (`ambientCount > 0`, frostbite snowfall),
+plus the kilima spot-check (`ambientBirdCount > 0` within 5 s).

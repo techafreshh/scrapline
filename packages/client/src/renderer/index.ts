@@ -92,9 +92,9 @@ import {
 } from "../view/tiles";
 import { setCurrentTheme } from "../view/theme";
 import type { TileTheme } from "../view/theme";
-import { decorationsFor } from "../maps";
 import {
   countOccludedTiles,
+  decorationsForMapSeeded,
   isDecorOccluded,
   paintDecor2D,
   paintDecorPixi,
@@ -240,6 +240,41 @@ export interface StateLike {
   readonly projectiles: readonly Projectile[];
   readonly pickups: readonly Pickup[];
   readonly props: readonly Prop[];
+  /** Match seed (World.state compatible); absent/non-finite reads default. */
+  readonly seed?: number;
+}
+
+/**
+ * Stable per-theme decor seed for states without one (headless draws).
+ * Keeps the default render deterministic per arena without a World.
+ */
+const DEFAULT_DECOR_SEEDS: Record<string, number> = {
+  kilima: 123,
+  dune: 20240,
+  frostbite: 4242,
+};
+
+/**
+ * Match seed for the decor stream, read tolerantly off the passed state
+ * (World.state carries `seed`); falls back to the per-theme default so
+ * seedless draws still paint deterministic scatter.
+ */
+function decorSeedFor(state: StateLike, themeName: string): number {
+  const raw = (state as { seed?: unknown }).seed;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.floor(raw);
+  }
+  return DEFAULT_DECOR_SEEDS[themeName] ?? 0;
+}
+
+/** FNV-1a hex digest over a string (stable scatter identity for probes). */
+function fnv1aHex(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
 }
 
 /** Player box for one frame. */
@@ -1947,6 +1982,12 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   // Rising-edge latch for step-on activation: retriggers only on the
   // first overlapping draw, so standing on a pad still recovers.
   let wasOnBouncePad = false;
+  // Seeded decor cache: the scatter stream is deterministic per
+  // (theme, seed), so the combined static+scatter array (and its hash)
+  // is resolved once per key instead of once per frame.
+  let decorCacheKey = "";
+  let decorCache: Decoration[] = [];
+  let decorCacheHash = "";
 
   function trackDraw(
     state: StateLike,
@@ -2138,7 +2179,21 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       viewW: ambientView.w,
       viewH: ambientView.h,
     });
-    const allDecors = decorationsFor(themeName) ?? [];
+    // Seeded decor resolution: the match World seed threads the scatter
+    // stream, so the same seed paints the same rects; the seedless
+    // fallback keeps headless draws deterministic per arena.
+    const matchSeed = decorSeedFor(state, themeName);
+    const decorKey = `${themeName}:${matchSeed}`;
+    if (decorCacheKey !== decorKey) {
+      decorCache = decorationsForMapSeeded(themeName, matchSeed);
+      decorCacheKey = decorKey;
+      try {
+        decorCacheHash = fnv1aHex(JSON.stringify(decorCache));
+      } catch {
+        decorCacheHash = "";
+      }
+    }
+    const allDecors = decorCache;
     const tileMapForDecor =
       map !== undefined &&
       map !== null &&
@@ -2217,6 +2272,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             pickupCount: frame.pickups.length,
             decorationCount: allDecors.length,
             occludedTiles: occluded,
+            decorSeed: matchSeed,
+            decorHash: decorCacheHash,
+            decorations: allDecors,
             lightCount: lights.length,
             skyTop: skyTopRgb(themeName),
             vignetteAlpha: VIGNETTE_ALPHA,

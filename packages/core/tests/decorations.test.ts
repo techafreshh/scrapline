@@ -2,9 +2,10 @@
 // map, and zero overlap with `#` solid tiles on the real arena rows.
 import { describe, expect, it } from "vitest";
 import { TILE_SIZE, parseMapSymbols } from "../src/map";
-import { decorations as kilimaDecorations } from "../src/maps/kilima";
-import { decorations as duneDecorations } from "../src/maps/dune";
-import { decorations as frostbiteDecorations } from "../src/maps/frostbite";
+import { decorations as kilimaDecorations, decorationsWithScatter as kilimaWithScatter } from "../src/maps/kilima";
+import { decorations as duneDecorations, decorationsWithScatter as duneWithScatter } from "../src/maps/dune";
+import { decorations as frostbiteDecorations, decorationsWithScatter as frostbiteWithScatter } from "../src/maps/frostbite";
+import { generateScatterDecorations, scatterKindsFor } from "../src/maps/scatter";
 
 interface Decoration {
   kind: string;
@@ -70,6 +71,97 @@ describe("map decorations", () => {
       const roundTrip = JSON.parse(JSON.stringify(decors)) as unknown;
       expect(roundTrip).toEqual(decors);
       expect(JSON.stringify(decors)).toBe(JSON.stringify(decors));
+    }
+  });
+
+  it("seed=123 kilima scatter is byte-identical across two generations", () => {
+    const kilimaKey = Object.keys(mapModules).find((key) => key.endsWith("/kilima.txt")) as string;
+    const rows = rowsOf(kilimaKey);
+    const first = generateScatterDecorations("kilima", rows, 123);
+    const second = generateScatterDecorations("kilima", rows, 123);
+    expect(JSON.parse(JSON.stringify(first))).toEqual(first);
+    expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+    expect(first.length).toBeGreaterThan(0);
+  });
+
+  it("scatter keeps 15-200 decorations per map across probe seeds", () => {
+    for (const key of Object.keys(mapModules).sort()) {
+      const base = key.split("/").pop()?.replace(/\.txt$/, "") ?? "";
+      const rows = rowsOf(key);
+      for (const seed of [123, 0, 1, 999]) {
+        const scatter = generateScatterDecorations(base, rows, seed);
+        expect(
+          scatter.length,
+          `${base} seed=${seed} count ${scatter.length}`,
+        ).toBeGreaterThanOrEqual(15);
+        expect(
+          scatter.length,
+          `${base} seed=${seed} count ${scatter.length}`,
+        ).toBeLessThanOrEqual(200);
+      }
+    }
+  });
+
+  it("zero scatter rects intersect `#` solids on the real rows", () => {
+    for (const key of Object.keys(mapModules).sort()) {
+      const base = key.split("/").pop()?.replace(/\.txt$/, "") ?? "";
+      const rows = rowsOf(key);
+      const symbols = parseMapSymbols(rows);
+      for (const seed of [123, 0, 999]) {
+        const scatter = generateScatterDecorations(base, rows, seed);
+        for (const decor of scatter) {
+          expect(
+            intersectsSolid(decor, (tx, ty) => symbols.map.isSolidTile(tx, ty)),
+            `${base} seed=${seed} ${decor.kind}@${decor.x},${decor.y} overlaps solid`,
+          ).toBe(false);
+          expect(decor.w).toBeGreaterThanOrEqual(8);
+          expect(decor.w).toBeLessThanOrEqual(28);
+          expect(decor.h).toBeGreaterThanOrEqual(8);
+          expect(decor.h).toBeLessThanOrEqual(28);
+        }
+      }
+    }
+  });
+
+  it("scatter output is sorted by (kind, x, y) with per-map kind pools", () => {
+    expect(scatterKindsFor("kilima")).toEqual(["grass-tuft", "rock", "valve", "antenna"]);
+    expect(scatterKindsFor("dune")).toEqual(["rock", "valve", "antenna"]);
+    expect(scatterKindsFor("frostbite")).toEqual(["rock", "valve", "antenna"]);
+    expect(scatterKindsFor("bogus")).toEqual(scatterKindsFor("kilima"));
+    for (const key of Object.keys(mapModules).sort()) {
+      const base = key.split("/").pop()?.replace(/\.txt$/, "") ?? "";
+      const pool = scatterKindsFor(base);
+      const scatter = generateScatterDecorations(base, rowsOf(key), 123);
+      for (let i = 1; i < scatter.length; i += 1) {
+        const prev = scatter[i - 1] as Decoration;
+        const cur = scatter[i] as Decoration;
+        const order =
+          prev.kind < cur.kind ? -1 : prev.kind > cur.kind ? 1 : prev.x - cur.x || prev.y - cur.y;
+        expect(order, `${base} scatter out of (kind, x, y) order at ${i}`).toBeLessThanOrEqual(0);
+      }
+      for (const decor of scatter) {
+        expect(pool).toContain(decor.kind);
+      }
+    }
+  });
+
+  it("decorationsWithScatter keeps the static array untouched and additive", () => {
+    const byMap = {
+      kilima: { static: kilimaDecorations, withScatter: kilimaWithScatter },
+      dune: { static: duneDecorations, withScatter: duneWithScatter },
+      frostbite: { static: frostbiteDecorations, withScatter: frostbiteWithScatter },
+    } as const;
+    for (const key of Object.keys(mapModules).sort()) {
+      const base = (key.split("/").pop()?.replace(/\.txt$/, "") ?? "") as keyof typeof byMap;
+      const rows = rowsOf(key);
+      const before = JSON.stringify(byMap[base].static);
+      const combined = byMap[base].withScatter(rows, 123);
+      expect(JSON.stringify(byMap[base].static)).toBe(before);
+      expect(combined.length).toBeGreaterThanOrEqual(15);
+      expect(combined.length).toBeLessThanOrEqual(203);
+      expect(combined.slice(0, byMap[base].static.length)).toEqual([...byMap[base].static]);
+      const again = byMap[base].withScatter(rows, 123);
+      expect(JSON.stringify(combined)).toBe(JSON.stringify(again));
     }
   });
 

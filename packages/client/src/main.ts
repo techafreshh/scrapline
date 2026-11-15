@@ -1077,6 +1077,31 @@ let deaths: number[] = [];
 /** Display name of the local player's most recent killer; cleared on respawn. */
 let lastLocalKiller: string | null = null;
 
+/**
+ * Optional `?seed=` override for the match seed: a finite int query value
+ * wins so harnesses can reload a deterministic scatter layout; absent or
+ * corrupt values fall back to the random match seed below.
+ */
+function matchSeedFromUrl(): number | null {
+  try {
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    if (typeof search !== "string" || search.length < 2) {
+      return null;
+    }
+    const raw = new URLSearchParams(search).get("seed");
+    if (raw === null || raw.trim() === "") {
+      return null;
+    }
+    const parsed = Math.floor(Number(raw));
+    if (!Number.isFinite(parsed)) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 /** Hide the menu, build the offline World plus tiered bots, start. */
 function startMatch(config: SetupConfig, options?: { persist?: boolean }): void {
   // Gesture unlock: the AudioContext is created/resumed here, never at
@@ -1099,16 +1124,18 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
     // Headless/shorn theme store: the renderer falls back to __game.theme.
   }
   window.__game = seedGame("playing", parsed.bots + 1, parsed.map);
+  const seed = matchSeedFromUrl() ?? Math.floor(Math.random() * SEED_RANGE);
   try {
     const query = setupSearchParams(parsed);
-    window.history.replaceState(null, "", `${window.location.pathname}?${query}`);
+    // The seed rides the URL so a reload replays the same match seed
+    // (and the same scatter layout) instead of rolling a fresh one.
+    window.history.replaceState(null, "", `${window.location.pathname}?${query}&seed=${seed}`);
   } catch {
     // Non-http hosts (file://): the mirror still carries the config.
   }
   if (options?.persist !== false) {
     saveSetup(browserStorage(), parsed);
   }
-  const seed = Math.floor(Math.random() * SEED_RANGE);
   // Seeded enemy identity plus the local persisted pick: merged, never
   // replacing window.__game, so tick/state probes survive the publish.
   const enemyCosmetics = enemyCosmeticsFor(seed, parsed.bots);

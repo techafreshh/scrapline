@@ -4,23 +4,28 @@
 // assertions, no padding, no DOM needed).
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_MUSIC_VOLUME,
   DEFAULT_QUALITY,
   DEFAULT_SHOW_NAME_TAGS,
   DEFAULT_VOLUME,
   FULLSCREEN_KEY,
+  SETTINGS_MUSIC_VOLUME_KEY,
   SETTINGS_QUALITY_KEY,
   SETTINGS_VOLUME_KEY,
   SHOW_NAMETAGS_KEY,
   bindSettings,
   loadFullscreen,
+  loadMusicVolume,
   loadQuality,
   loadShowNameTags,
   loadVolume,
   parseFullscreen,
+  parseMusicVolume,
   parseQuality,
   parseShowNameTags,
   parseVolume,
   saveFullscreen,
+  saveMusicVolume,
   saveQuality,
   saveShowNameTags,
   saveVolume,
@@ -662,5 +667,116 @@ describe("nametags binder", () => {
     expect(storage.getItem(SHOW_NAMETAGS_KEY)).toBe("0");
     await expect(toggleShowNameTags(doc, storage)).resolves.toBe(true);
     expect(storage.getItem(SHOW_NAMETAGS_KEY)).toBe("1");
+  });
+});
+
+describe("parseMusicVolume", () => {
+  it("falls back to 0.7 on missing or non-numeric input", () => {
+    expect(parseMusicVolume(undefined)).toBe(DEFAULT_MUSIC_VOLUME);
+    expect(parseMusicVolume(null)).toBe(DEFAULT_MUSIC_VOLUME);
+    expect(parseMusicVolume("")).toBe(DEFAULT_MUSIC_VOLUME);
+    expect(parseMusicVolume("banana")).toBe(DEFAULT_MUSIC_VOLUME);
+    expect(parseMusicVolume(Number.NaN)).toBe(DEFAULT_MUSIC_VOLUME);
+    expect(parseMusicVolume(true)).toBe(DEFAULT_MUSIC_VOLUME);
+    expect(parseMusicVolume({})).toBe(DEFAULT_MUSIC_VOLUME);
+  });
+
+  it("accepts numbers and numeric strings in range", () => {
+    expect(parseMusicVolume(0.5)).toBe(0.5);
+    expect(parseMusicVolume("0.5")).toBe(0.5);
+    expect(parseMusicVolume(0)).toBe(0);
+    expect(parseMusicVolume(0.7)).toBe(0.7);
+    expect(parseMusicVolume(1)).toBe(1);
+    expect(parseMusicVolume(" 0.25 ")).toBe(0.25);
+  });
+
+  it("clamps out-of-range values into 0-1", () => {
+    expect(parseMusicVolume(-0.5)).toBe(0);
+    expect(parseMusicVolume(2)).toBe(1);
+    expect(parseMusicVolume("-3")).toBe(0);
+    expect(parseMusicVolume("99")).toBe(1);
+  });
+});
+
+describe("loadMusicVolume/saveMusicVolume", () => {
+  it("returns 0.7 when storage is empty or absent", () => {
+    expect(DEFAULT_MUSIC_VOLUME).toBe(0.7);
+    expect(loadMusicVolume(fakeStorage())).toBe(0.7);
+    expect(loadMusicVolume(null)).toBe(0.7);
+    expect(loadMusicVolume(undefined)).toBe(0.7);
+  });
+
+  it("round-trips 0.5 as the plain string \"0.5\"", () => {
+    const storage = fakeStorage();
+    saveMusicVolume(storage, 0.5);
+    expect(storage.getItem(SETTINGS_MUSIC_VOLUME_KEY)).toBe("0.5");
+    expect(loadMusicVolume(storage)).toBe(0.5);
+  });
+
+  it("persists zero as \"0.0\" and reloads it as muted", () => {
+    const storage = fakeStorage();
+    saveMusicVolume(storage, 0);
+    expect(storage.getItem(SETTINGS_MUSIC_VOLUME_KEY)).toBe("0.0");
+    expect(loadMusicVolume(storage)).toBe(0);
+  });
+
+  it("persists one as \"1.0\"", () => {
+    const storage = fakeStorage();
+    saveMusicVolume(storage, 1);
+    expect(storage.getItem(SETTINGS_MUSIC_VOLUME_KEY)).toBe("1.0");
+    expect(loadMusicVolume(storage)).toBe(1);
+  });
+
+  it("falls back to 0.7 on corrupt stored values", () => {
+    expect(
+      loadMusicVolume(fakeStorage({ [SETTINGS_MUSIC_VOLUME_KEY]: "loud" })),
+    ).toBe(0.7);
+    expect(loadMusicVolume(fakeStorage({ [SETTINGS_MUSIC_VOLUME_KEY]: "" }))).toBe(
+      0.7,
+    );
+  });
+
+  it("is a no-op when storage is absent", () => {
+    expect(() => saveMusicVolume(null, 0.5)).not.toThrow();
+    expect(() => saveMusicVolume(undefined, 0.5)).not.toThrow();
+  });
+});
+
+describe("music binder", () => {
+  it("defaults to 0.7 and no-ops when elements are missing", () => {
+    const binder = bindSettings(fakeDoc({}), fakeStorage());
+    expect(binder.music).toBe(0.7);
+    expect(() => binder.show()).not.toThrow();
+    expect(() => binder.hide()).not.toThrow();
+  });
+
+  it("prefills the music slider from storage and persists slider input", () => {
+    const storage = fakeStorage({ [SETTINGS_MUSIC_VOLUME_KEY]: "0.5" });
+    const slider = fakeSlider("0.7");
+    const binder = bindSettings(
+      fakeDoc({ "music-volume": slider }),
+      storage,
+    );
+    expect(binder.music).toBe(0.5);
+    expect(slider.value).toBe("0.5");
+    slider.value = "0.25";
+    slider.fire("input");
+    expect(binder.music).toBe(0.25);
+    expect(storage.getItem(SETTINGS_MUSIC_VOLUME_KEY)).toBe("0.25");
+  });
+
+  it("re-prefills the music slider on show()", () => {
+    const storage = fakeStorage();
+    const slider = fakeSlider("0.7");
+    const overlay = { style: { display: "none" } };
+    const binder = bindSettings(
+      fakeDoc({ "music-volume": slider, settings: overlay }),
+      storage,
+    );
+    expect(slider.value).toBe("0.7");
+    storage.setItem(SETTINGS_MUSIC_VOLUME_KEY, "0.3");
+    binder.show();
+    expect(binder.music).toBe(0.3);
+    expect(slider.value).toBe("0.3");
   });
 });

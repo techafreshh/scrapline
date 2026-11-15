@@ -59,6 +59,16 @@ export function getAudioContext(): AudioContext | null {
   return ctx;
 }
 
+/**
+ * The shared master gain feeding the analyser tap, or null before the
+ * first gesture. The generative soundtrack (music.ts) routes its music
+ * bus through this node so the master slider, analyser tap, and the
+ * single-context autoplay contract keep working.
+ */
+export function getMasterGain(): GainNode | null {
+  return master;
+}
+
 /** Current master volume in [0, 1]. */
 export function getVolume(): number {
   return currentVolume;

@@ -55,7 +55,8 @@ const DECORATIONS: Record<MapName, Decoration[]> = {
 
 /**
  * Decorations for an arena name (case-insensitive, whitespace-tolerant);
- * null when unknown. Returns a copy so callers cannot mutate the cache.
+ * null when unknown. Returns a fresh array with fresh rects per element
+ * so callers cannot mutate the cache.
  */
 export function decorationsFor(name: unknown): Decoration[] | null {
   if (typeof name !== "string") {
@@ -65,15 +66,16 @@ export function decorationsFor(name: unknown): Decoration[] | null {
   if (!isMapName(key)) {
     return null;
   }
-  return DECORATIONS[key].slice();
+  return DECORATIONS[key].map((d) => ({ ...d }));
 }
 
 /**
  * Static rects plus deterministic micro-scatter for an arena name
  * (case-insensitive, whitespace-tolerant); null when unknown. The scatter
  * half draws from the seeded core sampler over the arena rows, so the same
- * seed always yields byte-identical output. Returns a fresh array (and
- * fresh scatter rects) so callers cannot mutate the cache. Non-finite seeds
+ * seed always yields byte-identical output. Returns a fresh array with
+ * fresh rects per element (the scatter half is already fresh from the
+ * seeded sampler) so callers cannot mutate the cache. Non-finite seeds
  * fall back to 0 exactly like the core sampler.
  */
 export function decorationsForSeeded(name: unknown, seed: unknown): Decoration[] | null {
@@ -86,7 +88,7 @@ export function decorationsForSeeded(name: unknown, seed: unknown): Decoration[]
   }
   const rows = ROWS[key];
   const scatter = generateScatterDecorations(key, rows, seed);
-  return [...DECORATIONS[key], ...scatter];
+  return [...DECORATIONS[key].map((d) => ({ ...d })), ...scatter];
 }
 
 /**

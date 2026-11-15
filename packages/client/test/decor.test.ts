@@ -113,6 +113,17 @@ describe("map decorations", () => {
     expect(decorationsFor("bogus")).toBeNull();
   });
 
+  it("isolates returned rects so element mutation never leaks into the registry", () => {
+    const first = decorationsFor("kilima") ?? [];
+    const snapshot = first.map((d) => ({ ...d }));
+    expect(first[0]).not.toBe((decorationsFor("kilima") ?? [])[0]);
+    first[0].x = 9999;
+    first[0].kind = "mutated";
+    const second = decorationsFor("kilima") ?? [];
+    expect(second).toEqual(snapshot);
+    expect(second[0]).not.toBe(first[0]);
+  });
+
   it("counts zero occluded tiles against the real arena rows", () => {
     for (const name of ["kilima", "dune", "frostbite"]) {
       const rows = mapRowsFor(name) ?? [];
@@ -166,6 +177,13 @@ describe("map decorations", () => {
       // Mutating one call never leaks into the next (fresh scatter rects).
       (first ?? []).push({ kind: "rock", x: 0, y: 0, w: 8, h: 8 });
       expect(decorationsForSeeded(name, 123)).toEqual(second);
+      // Mutating a static-prefix rect never leaks either (fresh static rects).
+      // Snapshot by value: `second` shares static element references pre-fix,
+      // so comparing against it after element mutation would be vacuous.
+      const snapshot = JSON.parse(JSON.stringify(second));
+      (first ?? [])[0].x = 9999;
+      (first ?? [])[0].kind = "mutated";
+      expect(decorationsForSeeded(name, 123)).toEqual(snapshot);
     }
     expect(decorationsForSeeded("bogus", 123)).toBeNull();
     expect(decorationsForSeeded("kilima", 123)).not.toEqual(decorationsForSeeded("kilima", 999));

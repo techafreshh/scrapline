@@ -135,6 +135,18 @@ test("built atlas.json parses with all frames present on disk", () => {
   }
 });
 
+test("soldier-* atlas frames share one uniform 26x58 box", () => {
+  const raw = fs.readFileSync(path.join(CLIENT_DIST_ASSETS, "atlas.json"), "utf8");
+  const index = JSON.parse(raw);
+  const keys = Object.keys(index.frames).filter((key) => key.startsWith("soldier-"));
+  assert.ok(keys.length >= 1, "expected at least one soldier-* atlas frame");
+  for (const key of keys) {
+    const frame = index.frames[key];
+    assert.equal(frame.w, 26, `${key} width must be 26`);
+    assert.equal(frame.h, 58, `${key} height must be 58`);
+  }
+});
+
 test("summed dist assets stay within the 6 MB budget", () => {
   const bytes = sizeBytes(CLIENT_DIST_ASSETS);
   assert.ok(

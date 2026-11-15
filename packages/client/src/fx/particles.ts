@@ -46,6 +46,10 @@ export const EXPLOSION_DEBRIS_TTL = 40;
 export const JET_PER_FRAME = 3;
 /** Jet-exhaust life in draws (500ms trail). */
 export const JET_TTL = 30;
+/** Jet smoke wisps per low-fuel gate hit (single gray puff). */
+export const JET_SMOKE_COUNT = 1;
+/** Jet smoke wisp life in draws (800ms, lingers past the 1s probe window). */
+export const JET_SMOKE_TTL = 48;
 /** Death-burst particles per kill detail (matches BURST_PER_KILL). */
 export const DEATH_COUNT = 12;
 /** Death-burst life in draws (~400ms). */
@@ -274,6 +278,31 @@ export function spawnJetExhaust(out: Particle[], x: number, y: number): void {
       grav: 0.015,
     });
   }
+  capParticles(out);
+}
+
+/**
+ * Spawn a low-fuel smoke wisp at the exhaust point: JET_SMOKE_COUNT gray
+ * slow-rising puff reusing the explosion smoke palette (disjoint from the
+ * orange flame palette so probes can count smoke vs flame). Call only
+ * when jetSmokeGateFor passes so full-fuel flight stays clean. Pure:
+ * no DOM, no clock, no randomness.
+ */
+export function spawnJetSmoke(out: Particle[], x: number, y: number): void {
+  const slot = out.length % SMOKE_HEX.length;
+  out.push({
+    x: x + (slot - 1) * 0.75,
+    y,
+    vx: (slot - 1) * 0.15,
+    vy: -0.7 - (slot % 2) * 0.2,
+    ttl: JET_SMOKE_TTL,
+    life: JET_SMOKE_TTL,
+    size: 2.5 + (slot % 2) * 0.5,
+    color: SMOKE_HEX[slot % SMOKE_HEX.length] ?? 0xd1d5db,
+    css: SMOKE_CSS[slot % SMOKE_CSS.length] ?? "#d1d5db",
+    drag: 0.99,
+    grav: -0.005,
+  });
   capParticles(out);
 }
 

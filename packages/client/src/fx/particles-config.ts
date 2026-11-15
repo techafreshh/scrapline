@@ -166,7 +166,13 @@ export const EXPLOSION_EMITTER_CONFIG: EmitterConfigV3 = {
   ],
 };
 
-/** Jet exhaust trail: continuous emission while thrusting. */
+/**
+ * Jet exhaust trail: continuous emission while thrusting. The orange
+ * head (fde047 -> f97316) carries the flame body; the trailing gray
+ * stop documents the low-fuel smoke wisps the pooled path (spawnJetSmoke)
+ * paints at fuelRatio < 0.25, so the Pixi twin reads consistently when
+ * the tail fades. Caps and the silent initial state are untouched.
+ */
 export const JET_EMITTER_CONFIG: EmitterConfigV3 = {
   lifetime: { min: 0.35, max: 0.55 },
   frequency: 0.016,
@@ -186,7 +192,8 @@ export const JET_EMITTER_CONFIG: EmitterConfigV3 = {
         color: {
           list: [
             { value: "fde047", time: 0 },
-            { value: "f97316", time: 1 },
+            { value: "f97316", time: 0.6 },
+            { value: "9ca3af", time: 1 },
           ],
         },
       },

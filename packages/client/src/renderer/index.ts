@@ -6,6 +6,7 @@
 // capped event flashes, and the window.__scraplineDebug mirror.
 
 import {
+  JETPACK_FUEL_MAX,
   PLAYER_CROUCH_HEIGHT,
   PLAYER_HEIGHT,
   PLAYER_WIDTH,
@@ -31,6 +32,7 @@ import {
   spawnExplosion,
   spawnImpact,
   spawnJetExhaust,
+  spawnJetSmoke,
   spawnMuzzleFlash,
   spawnPickupSparkle,
   updateParticles,
@@ -244,6 +246,8 @@ export interface FramePlayer {
   jetting: boolean;
   /** True while spawn protection is active. */
   protected: boolean;
+  /** Jetpack fuel fraction in [0, 1] (missing/non-finite sim fuel reads full). */
+  fuelRatio: number;
   /** Horizontal velocity in world px/s (drives the run-cycle phase). */
   vx: number;
   /** Vertical velocity in world px/s (drives the air blend). */
@@ -375,6 +379,11 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
       const cx = p.x + w / 2;
       const cy = p.y + h / 2;
       const hurtRaw = (p as { hurtAt?: unknown }).hurtAt;
+      const fuelRaw = (p as { fuel?: unknown }).fuel;
+      const fuelRatio =
+        typeof fuelRaw === "number" && Number.isFinite(fuelRaw)
+          ? Math.min(1, Math.max(0, fuelRaw / JETPACK_FUEL_MAX))
+          : 1;
       const weapon: WeaponId =
         (p as { weapon?: unknown }).weapon === undefined
           ? "pistol"
@@ -390,6 +399,7 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
         onGround: p.onGround,
         jetting: p.jetting === true,
         protected: (p.protectionTicks ?? 0) > 0,
+        fuelRatio,
         vx: p.vx ?? 0,
         vy: p.vy ?? 0,
         crouching: p.crouching === true,
@@ -915,15 +925,19 @@ function paintFramePixi(
     }
     const blink = blinkAlpha(frame.tick, p.protected);
     const cx = px(p.x + p.w / 2);
-    const scale = flameScale(frame.tick, p.index);
-    const flame = flameAlpha(frame.tick, p.index) * blink;
+    const scale = flameScale(frame.tick, p.index, p.fuelRatio);
+    const flame = flameAlpha(frame.tick, p.index, p.fuelRatio) * blink;
+    const boost = jetCoreBoostFor(p.vy);
     const feetY = py(p.y + p.h);
     const outer = 5 * scale * cam.scale;
     graphics.circle(cx, feetY + outer + 2, outer);
     graphics.fill({ color: 0xf97316, alpha: flame });
-    const inner = outer * 0.55;
+    const inner = outer * 0.55 * boost;
     graphics.circle(cx, feetY + outer + 2, inner);
-    graphics.fill({ color: 0xfde047, alpha: flame });
+    graphics.fill({
+      color: jetCoreHexFor(boost),
+      alpha: Math.min(1, flame + Math.max(0, boost - 1) * 0.5),
+    });
   }
   for (const flash of flashes) {
     graphics.circle(px(flash.x), py(flash.y), flashRadius(flash.kind, flash.ttl));
@@ -1348,17 +1362,20 @@ function paintFrame2D(
     // Jet flame flicker below the feet while thrusting.
     if (p.alive && p.jetting) {
       const cx = px(p.x + p.w / 2);
-      const scale = flameScale(frame.tick, p.index);
-      ctx.globalAlpha = blink * flameAlpha(frame.tick, p.index);
+      const scale = flameScale(frame.tick, p.index, p.fuelRatio);
+      const flame = flameAlpha(frame.tick, p.index, p.fuelRatio) * blink;
+      const boost = jetCoreBoostFor(p.vy);
+      ctx.globalAlpha = flame;
       const feetY = py(p.y + p.h);
       const outer = 5 * scale * cam.scale;
       ctx.fillStyle = "#f97316";
       ctx.beginPath();
       ctx.arc(cx, feetY + outer + 2, outer, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#fde047";
+      ctx.fillStyle = jetCoreCssFor(boost);
+      ctx.globalAlpha = Math.min(1, flame + Math.max(0, boost - 1) * 0.5);
       ctx.beginPath();
-      ctx.arc(cx, feetY + outer + 2, outer * 0.55, 0, Math.PI * 2);
+      ctx.arc(cx, feetY + outer + 2, outer * 0.55 * boost, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
@@ -1536,21 +1553,89 @@ export const GUN_SILHOUETTE_FRACTION = 0.55;
 /**
  * Jet-flame flicker scale for a tick/player. Integer-hash noise in
  * [FLAME_SCALE_MIN, FLAME_SCALE_MAX]; the +61 mod-100 step keeps any
- * 3 consecutive ticks non-constant. Pure: no DOM, no clock.
+ * 3 consecutive ticks non-constant. The optional fuelRatio narrows the
+ * band toward the midpoint and dims slightly at low fuel (full fuel
+ * reads exactly the legacy band). Pure: no DOM, no clock.
  */
-export function flameScale(tick: number, index: number): number {
+export function flameScale(tick: number, index: number, fuelRatio = 1): number {
   const h = (Math.imul(tick, 2654435761) + Math.imul(index + 1, 40503)) >>> 0;
-  return FLAME_SCALE_MIN + ((h % 100) / 100) * (FLAME_SCALE_MAX - FLAME_SCALE_MIN);
+  const base = FLAME_SCALE_MIN + ((h % 100) / 100) * (FLAME_SCALE_MAX - FLAME_SCALE_MIN);
+  const fr = Number.isFinite(fuelRatio) ? Math.min(1, Math.max(0, fuelRatio)) : 1;
+  const mid = (FLAME_SCALE_MIN + FLAME_SCALE_MAX) / 2;
+  return (mid + (base - mid) * (0.5 + 0.5 * fr)) * (0.9 + 0.1 * fr);
 }
 
 /**
  * Jet-flame flicker opacity for a tick/player. Integer-hash noise in
  * [FLAME_ALPHA_MIN, FLAME_ALPHA_MAX]; the +19 mod-100 step keeps any
- * 3 consecutive ticks non-constant. Pure: no DOM, no clock.
+ * 3 consecutive ticks non-constant. The optional fuelRatio narrows the
+ * band toward the midpoint and dims slightly at low fuel (full fuel
+ * reads exactly the legacy band). Pure: no DOM, no clock.
  */
-export function flameAlpha(tick: number, index: number): number {
+export function flameAlpha(tick: number, index: number, fuelRatio = 1): number {
   const h = (Math.imul(tick, 2246822519) + Math.imul(index + 1, 32661)) >>> 0;
-  return FLAME_ALPHA_MIN + ((h % 100) / 100) * (FLAME_ALPHA_MAX - FLAME_ALPHA_MIN);
+  const base = FLAME_ALPHA_MIN + ((h % 100) / 100) * (FLAME_ALPHA_MAX - FLAME_ALPHA_MIN);
+  const fr = Number.isFinite(fuelRatio) ? Math.min(1, Math.max(0, fuelRatio)) : 1;
+  const mid = (FLAME_ALPHA_MIN + FLAME_ALPHA_MAX) / 2;
+  return (mid + (base - mid) * (0.5 + 0.5 * fr)) * (0.9 + 0.1 * fr);
+}
+
+/**
+ * Fast-ascent core boost in [1, 1.4]: 1 at vy >= 0 (hover/fall) rising
+ * linearly to 1.4 at vy <= -800. Takes the raw vy, never clamped to the
+ * sim JETPACK_MAX_UP, so injected probe speeds still brighten. Pure:
+ * no DOM, no clock.
+ */
+export function jetCoreBoostFor(vy: number): number {
+  if (!Number.isFinite(vy) || vy >= 0) {
+    return 1;
+  }
+  return 1 + Math.min(1, -vy / 800) * 0.4;
+}
+
+/**
+ * Low-fuel smoke gate: true ~every 8th tick only while fuelRatio < 0.25
+ * (integer-hash gating, deterministic per tick/index). Full tanks emit
+ * nothing; non-finite readings are treated as full. Pure: no DOM, no
+ * clock, no randomness.
+ */
+export function jetSmokeGateFor(fuelRatio: number, tick: number, index: number): boolean {
+  if (!Number.isFinite(fuelRatio) || fuelRatio >= 0.25) {
+    return false;
+  }
+  const h = (Math.imul(tick, 2654435761) + Math.imul(index + 1, 40503)) >>> 0;
+  return h % 8 === 0;
+}
+
+/**
+ * Inner-flame core paint for a boost: warm yellow at hover, near-white
+ * past 1.2x, full white at the 1.35x afterburner band. Pure.
+ */
+export function jetCoreHexFor(boost: number): number {
+  if (!Number.isFinite(boost)) {
+    return 0xfde047;
+  }
+  if (boost >= 1.35) {
+    return 0xffffff;
+  }
+  if (boost > 1.2) {
+    return 0xfff7cc;
+  }
+  return 0xfde047;
+}
+
+/** Canvas2D twin of jetCoreHexFor. */
+export function jetCoreCssFor(boost: number): string {
+  if (!Number.isFinite(boost)) {
+    return "#fde047";
+  }
+  if (boost >= 1.35) {
+    return "#ffffff";
+  }
+  if (boost > 1.2) {
+    return "#fff7cc";
+  }
+  return "#fde047";
 }
 
 /**
@@ -1970,6 +2055,11 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     for (const p of frame.players) {
       if (p.alive && p.jetting) {
         spawnJetExhaust(particles, p.x + p.w / 2, p.y + p.h + 1);
+        // Low-fuel sputter: gray wisps only while the tank runs dry, so
+        // full-fuel flight keeps a clean orange trail.
+        if (jetSmokeGateFor(p.fuelRatio, frame.tick, p.index)) {
+          spawnJetSmoke(particles, p.x + p.w / 2, p.y + p.h + 1);
+        }
       }
     }
     for (const detail of damages ?? []) {
@@ -2157,13 +2247,18 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             h: p.h,
             jetting: p.jetting,
             protected: p.protected,
+            fuelRatio: p.fuelRatio,
             alpha:
               blinkAlpha(frame.tick, p.protected) * (anim?.spawnAlpha ?? 1),
             color: playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
             colorCss: playerPaintCss(p.index, p.alive, victimFlash.has(p.index)),
             flame:
               p.jetting && p.alive
-                ? { scale: flameScale(frame.tick, p.index), alpha: flameAlpha(frame.tick, p.index) }
+                ? {
+                    scale: flameScale(frame.tick, p.index, p.fuelRatio),
+                    alpha: flameAlpha(frame.tick, p.index, p.fuelRatio),
+                    boost: jetCoreBoostFor(p.vy),
+                  }
                 : null,
             legPhase: anim?.legPhase ?? 0,
             swing: anim?.swing ?? 0,

@@ -69,10 +69,20 @@ import {
   applyMouseMove,
   createKeyState,
   stateAim,
-  stateButtons,
-  stateMoveX,
   toInput,
+  type InputMirror,
 } from "./input";
+import {
+  createGamepadState,
+  createGamepadTracker,
+  mergeGamepad,
+  readGamepad,
+  trackConnected,
+  trackSwap,
+  type GamepadLike,
+  type GamepadState,
+} from "./gamepad";
+import { buildToast, showToast, type ToastHandles } from "./ui/toast";
 import { createRenderer, type Renderer } from "./renderer/index";
 import { loadAtlas } from "./atlas";
 import { DISPLAY_FONT_FAMILY, publishFonts } from "./ui/fonts";
@@ -172,13 +182,75 @@ const keys = createKeyState();
 /** Aim origin in canvas CSS pixels (canvas center before match start). */
 const aimOrigin = { x: LOGICAL_W / 2, y: LOGICAL_H / 2 };
 
+/** Live gamepad edge tracker: the connect toast fires once per plug-in. */
+const padTracker = createGamepadTracker();
+/** Live toast handles, grabbed once at boot like the HUD binders. */
+const toastHandles: ToastHandles = buildToast(document);
+
+/**
+ * Fresh pad snapshot from the Gamepad API: resolved anew on every
+ * call (never cached) so late-installed virtual-gamepad mocks are
+ * seen; first connected pad wins. Never throws.
+ */
+function readLiveGamepad(): GamepadState {
+  try {
+    const nav = globalThis.navigator as unknown as
+      | { getGamepads?: unknown }
+      | undefined;
+    const get = nav?.getGamepads;
+    if (typeof get !== "function") {
+      return createGamepadState();
+    }
+    const pads = (get as () => unknown).call(nav) as
+      | readonly unknown[]
+      | null
+      | undefined;
+    if (pads === null || pads === undefined) {
+      return createGamepadState();
+    }
+    for (const candidate of pads) {
+      if (
+        candidate !== null &&
+        typeof candidate === "object" &&
+        (candidate as GamepadLike).connected === true
+      ) {
+        return readGamepad(candidate as GamepadLike);
+      }
+    }
+  } catch {
+    // Gamepad API unavailable: keyboard/mouse stand alone.
+  }
+  return createGamepadState();
+}
+
+/** Quantized local intent: keyboard/mouse merged under the live pad. */
+function localInput(): InputMirror {
+  const pad = readLiveGamepad();
+  const merged = mergeGamepad(keys, pad);
+  return toInput({
+    moveX: merged.moveX,
+    aim: stateAim(keys, aimOrigin.x, aimOrigin.y),
+    buttons: merged.buttons,
+  });
+}
+
+/**
+ * Poll the Gamepad API for fresh connect edges (plus the D-pad swap
+ * edge for the future inventory slice) and toast once per plug-in.
+ */
+function checkGamepadToast(): void {
+  const pad = readLiveGamepad();
+  if (trackConnected(padTracker, pad.connected)) {
+    showToast(toastHandles);
+  }
+  // D-pad swap edge debounced in the tracker for the future inventory
+  // slice; the single-slot core performs no sim mutation on this edge.
+  trackSwap(padTracker, pad.swapPressed, performance.now());
+}
+
 /** Recompute the quantized input mirror from the live key/mouse state. */
 function refreshInput(): void {
-  window.__scraplineInput = toInput({
-    moveX: stateMoveX(keys),
-    aim: stateAim(keys, aimOrigin.x, aimOrigin.y),
-    buttons: stateButtons(keys),
-  });
+  window.__scraplineInput = localInput();
 }
 
 /** Key identity: `code` when present, else the `key` spelling. */
@@ -246,6 +318,25 @@ window.addEventListener("blur", () => {
   Object.assign(keys, fresh);
   refreshInput();
 });
+
+// Gamepad auto-detect: the hot-plug events funnel into the same
+// edge-guarded toast path as the per-frame poll, so real hardware
+// toasts even between frames; disconnects re-arm the edge.
+window.addEventListener("gamepadconnected", () => {
+  if (trackConnected(padTracker, true)) {
+    showToast(toastHandles);
+  }
+});
+window.addEventListener("gamepaddisconnected", () => {
+  trackConnected(padTracker, false);
+});
+// Backstop poll for throttled-frame surfaces (background tabs): the
+// edge guard keeps it to one toast per plug-in. Never gates boot.
+try {
+  window.setInterval(checkGamepadToast, 250);
+} catch {
+  // Shorn timers: the frame loop above still polls every frame.
+}
 
 canvas.addEventListener("contextmenu", (e: MouseEvent) => {
   e.preventDefault();
@@ -498,11 +589,7 @@ function stepOnce(): string[] {
   if (world === null) {
     return [];
   }
-  const local = toInput({
-    moveX: stateMoveX(keys),
-    aim: stateAim(keys, aimOrigin.x, aimOrigin.y),
-    buttons: stateButtons(keys),
-  });
+  const local = localInput();
   window.__scraplineInput = local;
   // Bots replan at 12 Hz (every REPLAN_TICKS sim ticks); between replans
   // the cached inputs carry the match (ffa-full.test.ts pattern).
@@ -694,6 +781,9 @@ function frame(now: number): void {
   if (!running || world === null) {
     return;
   }
+  // Gamepad auto-detect: polled every animation frame so a late-plugged
+  // (or virtual) controller toasts within a frame of arrival.
+  checkGamepadToast();
   const dt = Math.min(MAX_FRAME_DT, Math.max(0, (now - last) / 1000));
   last = now;
   accumulator += dt;

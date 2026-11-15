@@ -343,6 +343,34 @@
       #killfeed .kill-entry.fade {
         opacity: 0;
       }
+      /* Controller-connect toast (issue #158): bottom-center above
+        the canvas, same 0.5s opacity fade idiom as the killfeed. */
+      #toast {
+        position: absolute;
+        left: 50%;
+        bottom: 64px;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: center;
+        z-index: 6;
+        pointer-events: none;
+        font-size: 13px;
+        color: #f8fafc;
+        text-shadow: 0 1px 2px #000;
+      }
+      #toast .toast-entry {
+        background: rgba(11, 16, 32, 0.92);
+        border: 1px solid #7df9ff;
+        border-radius: 6px;
+        padding: 6px 14px;
+        white-space: nowrap;
+        transition: opacity 0.5s ease-out;
+      }
+      #toast .toast-entry.fade {
+        opacity: 0;
+      }
       #killfeed .kill-entry.flash {
         border-color: #7df9ff;
         background: rgba(22, 33, 58, 0.95);
@@ -737,6 +765,7 @@
             <tr><td>Reload</td><td>R</td></tr>
             <tr><td>Crouch</td><td>S or down arrow</td></tr>
             <tr><td>Zoom camera</td><td>Z</td></tr>
+            <tr><td>Gamepad: move / hop-jet / fire / grenade / reload / swap</td><td>Left stick / A / RT / LT / X / D-pad left-right</td></tr>
           </tbody>
         </table>
         <button id="howto-close">Close</button>
@@ -762,6 +791,7 @@
       </div>
       <div id="crosshair"></div>
       <div id="killfeed"></div>
+      <div id="toast" aria-live="polite"></div>
       <div id="nametags"></div>
       <div id="padlabels"></div>
       <div id="respawn" style="display: none"></div>

@@ -131,6 +131,12 @@ declare global {
       shockwaveCount?: number;
       /** Hurt-pulse strength in [0, 1] (150ms window, high only). */
       hurtPulse?: number;
+      /** Live ambient mote count (snowfall on frostbite, 0 on low). */
+      ambientCount?: number;
+      /** Live ambient bird count (kilima crossing pair, 0 on low). */
+      ambientBirdCount?: number;
+      /** Ambient bed theme (arena name: kilima | dune | frostbite). */
+      ambientTheme?: string;
       /** Defensive lights/decoration handling (always true after paint). */
       lightsRespected: boolean;
       /** True when the sky band covers the full canvas. */
@@ -319,6 +325,14 @@ declare global {
       lightCount?: number;
       /** Hurt-pulse strength (high quality while a hurt flash is live). */
       hurtPulse?: number;
+      /** Live ambient mote count (snowfall on frostbite, 0 on low). */
+      ambientCount?: number;
+      /** Live ambient bird count (kilima crossing pair, 0 on low). */
+      ambientBirdCount?: number;
+      /** Ambient bed theme (arena name: kilima | dune | frostbite). */
+      ambientTheme?: string;
+      /** Live bird noses in backing-store px (mid-band crossing probe). */
+      ambientBirds?: { x: number; y: number }[];
       /** Far parallax screen offset in backing-store px (0.2x). */
       backdropFarX?: number;
       /** Mid parallax screen offset in backing-store px (0.5x). */

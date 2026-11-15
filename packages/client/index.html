@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Scrapline</title>
     <link rel="icon" href="/favicon.ico" type="image/svg+xml" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#0b1020" />
     <link
       rel="preload"
       href="./assets/fonts/orbitron-700.woff2"
@@ -816,5 +818,42 @@
       If the canvas above stays black, JavaScript is disabled.
     </p>
     <script type="module" src="/src/main.ts"></script>
+    <script>
+      // Offline-first PWA registration (issue #159): cache the built
+      // bundle for play-vs-bots after one online load. Deferred to
+      // window load, guarded by the serviceWorker surface check, and
+      // warn-only on failure — private mode or an unsupported browser
+      // keeps booting online-only. No top-level await, no throw paths.
+      window.addEventListener("load", function () {
+        try {
+          var nav = window.navigator;
+          if (
+            !nav ||
+            !("serviceWorker" in nav) ||
+            !nav.serviceWorker ||
+            typeof nav.serviceWorker.register !== "function"
+          ) {
+            return;
+          }
+          var url = "sw.js";
+          try {
+            url = new URL("sw.js", document.baseURI).toString();
+          } catch (resolveErr) {
+            // Non-URL baseURI (file:// edge): the relative URL still resolves.
+          }
+          nav.serviceWorker.register(url).catch(function (err) {
+            console.warn(
+              "scrapline: service worker unavailable, continuing online-only",
+              err,
+            );
+          });
+        } catch (err) {
+          console.warn(
+            "scrapline: service worker unavailable, continuing online-only",
+            err,
+          );
+        }
+      });
+    </script>
   </body>
 </html>

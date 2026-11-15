@@ -212,7 +212,8 @@
       #quick-play,
       #settings-open,
       #howto-open,
-      #challenges-open {
+      #challenges-open,
+      #locker-open {
         font-size: 16px;
         padding: 10px 22px;
         border: 1px solid #7df9ff;
@@ -225,7 +226,8 @@
       #quick-play:hover,
       #settings-open:hover,
       #howto-open:hover,
-      #challenges-open:hover {
+      #challenges-open:hover,
+      #locker-open:hover {
         background: #16213a;
       }
       #quick-play {
@@ -303,6 +305,77 @@
       }
       .challenge-row .challenge-reward {
         color: #a5f3fc;
+      }
+      /* Cosmetics locker (issue #212): gated grid on the
+        quick-play-chip idiom, hidden until #locker-open toggles it.
+        Locked rows keep the literal LOCKED readout for probes. */
+      #locker-panel {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: stretch;
+        min-width: 280px;
+        max-height: 38vh;
+        overflow-y: auto;
+      }
+      #locker-title {
+        font-size: 13px;
+        letter-spacing: 0.6px;
+        color: #7df9ff;
+        text-align: center;
+      }
+      #locker-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .locker-item {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+        font-size: 12px;
+        color: #f8fafc;
+        background: rgba(8, 20, 36, 0.85);
+        border: 1px solid rgba(125, 249, 255, 0.45);
+        border-radius: 8px;
+        padding: 6px 10px;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+      .locker-item[data-locked="true"] {
+        opacity: 0.75;
+      }
+      .locker-item[data-selected="true"] {
+        border-color: #a3e635;
+        color: #a3e635;
+      }
+      .locker-item .locker-label {
+        font-weight: bold;
+        letter-spacing: 0.4px;
+      }
+      .locker-item .locker-combo {
+        color: #a5f3fc;
+      }
+      .locker-item .locker-lock {
+        font-weight: bold;
+        letter-spacing: 0.4px;
+      }
+      #locker-preview {
+        width: 96px;
+        height: 96px;
+        align-self: center;
+        border: 1px solid rgba(125, 249, 255, 0.45);
+        border-radius: 8px;
+        background: #0b1020;
+      }
+      #locker-status {
+        font-size: 12px;
+        letter-spacing: 0.4px;
+        color: #a5f3fc;
+        text-align: center;
       }
       #hud {
         position: absolute;
@@ -792,12 +865,28 @@
         <button id="settings-open">Settings</button>
         <button id="howto-open">How to Play</button>
         <button id="challenges-open">Challenges</button>
+        <button id="locker-open">Locker</button>
         <div id="menu-tip" aria-live="polite">Grab a shield pickup to survive an extra hit.</div>
         <div id="challenges-panel" style="display: none">
           <span id="challenges-title">Daily Challenges</span>
           <div class="challenge-row" data-challenge="rifle-5" data-done="false"><span class="challenge-label">Score 5 rifle kills</span><span class="challenge-progress">0/5</span><span class="challenge-reward">30 XP</span></div>
           <div class="challenge-row" data-challenge="grenade-2" data-done="false"><span class="challenge-label">Score 2 grenade kills</span><span class="challenge-progress">0/2</span><span class="challenge-reward">30 XP</span></div>
           <div class="challenge-row" data-challenge="win-dune-1" data-done="false"><span class="challenge-label">Win a match on dune</span><span class="challenge-progress">0/1</span><span class="challenge-reward">50 XP</span></div>
+        </div>
+        <div id="locker-panel" style="display: none">
+          <span id="locker-title">Cosmetics Locker</span>
+          <div id="locker-grid">
+            <button class="locker-item" data-locker="recruit-cyan" data-locked="false" data-palette="#00E5FF" data-helmet="cap" data-visor="slit" data-level="1" aria-pressed="false" type="button"><span class="locker-label">Recruit Cyan</span><span class="locker-combo">cap slit #00E5FF</span><span class="locker-lock">Lv 1</span></button>
+            <button class="locker-item" data-locker="street-ember" data-locked="false" data-palette="#FF6B35" data-helmet="beret" data-visor="slit" data-level="1" aria-pressed="false" type="button"><span class="locker-label">Street Ember</span><span class="locker-combo">beret slit #FF6B35</span><span class="locker-lock">Lv 1</span></button>
+            <button class="locker-item" data-locker="ranger-lime" data-locked="true" data-palette="#A3E635" data-helmet="hood" data-visor="round" data-level="2" aria-pressed="false" type="button"><span class="locker-label">Ranger Lime</span><span class="locker-combo">LOCKED · Lv 2</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="violet-ops" data-locked="true" data-palette="#C084FC" data-helmet="bandana" data-visor="shade" data-level="2" data-require="rifle-5" aria-pressed="false" type="button"><span class="locker-label">Violet Ops</span><span class="locker-combo">LOCKED · Lv 2</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="ember-ops" data-locked="true" data-palette="#FF6B35" data-helmet="beret" data-visor="round" data-level="3" aria-pressed="false" type="button"><span class="locker-label">Ember Ops</span><span class="locker-combo">LOCKED · Lv 3</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="frost-hood" data-locked="true" data-palette="#00E5FF" data-helmet="hood" data-visor="shade" data-level="3" data-require="grenade-2" aria-pressed="false" type="button"><span class="locker-label">Frost Hood</span><span class="locker-combo">LOCKED · Lv 3</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="dune-veteran" data-locked="true" data-palette="#A3E635" data-helmet="bandana" data-visor="round" data-level="4" aria-pressed="false" type="button"><span class="locker-label">Dune Veteran</span><span class="locker-combo">LOCKED · Lv 4</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="elite-spectre" data-locked="true" data-palette="#C084FC" data-helmet="cap" data-visor="shade" data-level="5" data-require="win-dune-1" aria-pressed="false" type="button"><span class="locker-label">Elite Spectre</span><span class="locker-combo">LOCKED · Lv 5</span><span class="locker-lock">LOCKED</span></button>
+          </div>
+          <canvas id="locker-preview" width="96" height="96" data-helmet="cap" data-visor="slit" data-palette="#00E5FF" data-equipped="recruit-cyan"></canvas>
+          <span id="locker-status" data-equipped="recruit-cyan">Equipped Recruit Cyan #00E5FF</span>
         </div>
       </div>
       <div id="setup" style="display: none">

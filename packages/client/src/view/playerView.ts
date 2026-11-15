@@ -6,6 +6,7 @@
 import type { WeaponId } from "../../../core/src/weapons";
 import {
   selectSoldierFrame,
+  soldierAccentFor,
   soldierLegOffsetBlended,
   weaponDef,
   type SoldierFrameId,
@@ -440,7 +441,10 @@ export function publishGameProbes(
     spawnEase: anim?.spawnEase ?? 1,
     deathEase: anim?.deathEase ?? 1,
     spritePartCount: PART_NAMES.length,
-    localPlayerColor: LOCAL_CSS,
+    // Locker accent rides the menu/match soldier: the local probe
+    // color follows the equipped palette (team cyan when unset) so
+    // the in-match helmet assertion reads the locker pick.
+    localPlayerColor: soldierAccentFor(0),
     firstEnemyColor: teamCss(1),
     playerBounds: {
       w: CHARACTER_W,

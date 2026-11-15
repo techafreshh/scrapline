@@ -66,11 +66,16 @@ function parseVisor(value: unknown): VisorId {
 /** Resolve a palette hex tolerantly; unknown values fall back to cyan. */
 function parsePalette(value: unknown): string {
   if (typeof value === "string") {
-    const key = value.trim().toUpperCase();
+    const key = value.trim();
     for (const entry of PALETTE_LIST) {
-      if (entry.toUpperCase() === key) {
+      if (entry.toUpperCase() === key.toUpperCase()) {
         return entry;
       }
+    }
+    // Locker palettes ride any valid #RRGGBB verbatim (the profile
+    // palette idiom) so equipped picks survive the legacy sync.
+    if (/^#[0-9a-fA-F]{6}$/.test(key)) {
+      return key;
     }
   }
   return DEFAULT_COSMETICS.palette;

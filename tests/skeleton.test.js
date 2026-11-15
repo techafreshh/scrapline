@@ -78,6 +78,8 @@ test("GET /api/health returns 200 JSON containing status ok", async () => {
   assert.match(health.contentType, /application\/json/);
   assert.match(health.text, /"status":"ok"/);
   assert.match(health.text, /"ok":true/);
+  assert.match(health.text, /"rooms":/);
+  assert.ok(Number(JSON.parse(health.text).rooms) >= 0, "rooms must be a non-negative number");
 });
 
 test("GET /health returns 200 JSON containing status ok", async () => {
@@ -86,6 +88,8 @@ test("GET /health returns 200 JSON containing status ok", async () => {
   assert.match(health.contentType, /application\/json/);
   assert.match(health.text, /"status":"ok"/);
   assert.match(health.text, /"ok":true/);
+  assert.match(health.text, /"rooms":/);
+  assert.ok(Number(JSON.parse(health.text).rooms) >= 0, "rooms must be a non-negative number");
 });
 
 test("GET /api/health answers on every loopback (localhost and ::1)", async () => {

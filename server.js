@@ -5,7 +5,7 @@
 // GET /manifest.webmanifest -> staged manifest (same fallback chain),
 // GET /assets/* -> staged assets (same fallback chain),
 // GET /icons/* -> staged PWA icons (same fallback chain, plus public/ source),
-// GET /health and GET /api/health -> {"ok":true,"status":"ok"}, GET /healthz -> {"ok":true}. Everything else is a 404.
+// GET /health and GET /api/health -> {"ok":true,"status":"ok","rooms":0} (rooms stub for F1/F5), GET /healthz -> {"ok":true}. Everything else is a 404.
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -103,7 +103,7 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", "http://localhost");
   const readable = req.method === "GET" || req.method === "HEAD";
   if (readable && (url.pathname === "/health" || url.pathname === "/api/health")) {
-    send(req, res, 200, "application/json", '{"ok":true,"status":"ok"}');
+    send(req, res, 200, "application/json", '{"ok":true,"status":"ok","rooms":0}');
     return;
   }
   if (readable && url.pathname === "/healthz") {

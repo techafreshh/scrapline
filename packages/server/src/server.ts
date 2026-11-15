@@ -191,15 +191,29 @@ function frameText(text: string): Buffer {
   return Buffer.concat([header, payload]);
 }
 
-/** Unmasked server close frame carrying a 2-byte status code. */
+/** Unmasked server close frame carrying a 2-byte status code plus reason. */
 function frameClose(code: number, reason = ""): Buffer {
   const body = Buffer.from(reason, "utf8");
   const payload = Buffer.alloc(2 + body.length);
   payload.writeUInt16BE(code, 0);
   body.copy(payload, 2);
-  const header = Buffer.alloc(2);
-  header[0] = 0x88;
-  header[1] = payload.length;
+  const len = payload.length;
+  let header: Buffer;
+  if (len < 126) {
+    header = Buffer.alloc(2);
+    header[0] = 0x88;
+    header[1] = len;
+  } else if (len < 65536) {
+    header = Buffer.alloc(4);
+    header[0] = 0x88;
+    header[1] = 126;
+    header.writeUInt16BE(len, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x88;
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(len), 2);
+  }
   return Buffer.concat([header, payload]);
 }
 

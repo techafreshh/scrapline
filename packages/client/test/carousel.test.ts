@@ -3,7 +3,8 @@
 // docs. Fake-doc/fake-storage style mirroring setup.test.ts and
 // menu-scene.test.ts (no jsdom).
 import { describe, expect, it } from "vitest";
-import { THEMES } from "../src/view/theme";
+import { THEMES, themeFor } from "../src/view/theme";
+import { tilePaintFor } from "../src/view/tiles";
 import { MAP_LIST, loadSetup, saveSetup, type SetupStorage } from "../src/setup";
 import {
   CAROUSEL_ID,
@@ -409,6 +410,22 @@ describe("paintMapThumbnail", () => {
     paintMapThumbnail(bad, "kilima", 0, THUMB_H);
     paintMapThumbnail(null, "kilima", THUMB_W, THUMB_H);
     expect(bad.ops).toHaveLength(0);
+  });
+
+  it("paints one-way planks and bounce pads in the hazard fill, never the legacy fills", () => {
+    for (const name of MAP_LIST) {
+      const ctx = makeRecordingContext();
+      paintMapThumbnail(ctx, name, THUMB_W, THUMB_H);
+      const theme = themeFor(name);
+      const onewayCss = tilePaintFor("oneway", theme).baseCss;
+      const bounceCss = tilePaintFor("bounce", theme).baseCss;
+      expect(onewayCss).toBe(THEMES[name].hazardCss);
+      expect(bounceCss).toBe(THEMES[name].hazardCss);
+      expect(ctx.ops.some((op) => op.style === onewayCss)).toBe(true);
+      expect(ctx.ops.some((op) => op.style === bounceCss)).toBe(true);
+      expect(ctx.ops.some((op) => op.style === THEMES[name].oneWay)).toBe(false);
+      expect(ctx.ops.some((op) => op.style === THEMES[name].bounce)).toBe(false);
+    }
   });
 });
 

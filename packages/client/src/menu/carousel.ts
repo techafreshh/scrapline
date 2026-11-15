@@ -12,7 +12,7 @@
 import { TileMap } from "../../../core/src/map";
 import { mapRowsFor } from "../maps";
 import { skyGradeFor, themeFor } from "../view/theme";
-import { tileKindAt } from "../view/tiles";
+import { tileKindAt, tilePaintFor } from "../view/tiles";
 import {
   DEFAULT_SETUP,
   MAP_LIST,
@@ -107,8 +107,8 @@ export function carouselConfigFor(
 /**
  * Paint a headless map thumbnail: sky fill from the theme sky grade,
  * then one scaled rect per non-empty tile (solids in the theme base,
- * one-way planks and bounce pads in their theme fills, backwalls in
- * the dimmed quad). Unknown maps fall back to kilima; non-finite
+ * one-way planks and bounce pads in the tilePaintFor hazard-base fill,
+ * backwalls in the dimmed quad). Unknown maps fall back to kilima; non-finite
  * dims are no-ops. Deterministic: no RNG, clock, DOM, or Pixi.
  */
 export function paintMapThumbnail(
@@ -170,7 +170,7 @@ export function paintMapThumbnail(
             32 * sy,
           );
         } else if (kind === "oneway") {
-          target.fillStyle = theme.oneWay;
+          target.fillStyle = tilePaintFor("oneway", theme).baseCss;
           target.fillRect(
             tx * 32 * sx,
             (ty * 32 + 24) * sy,
@@ -178,7 +178,7 @@ export function paintMapThumbnail(
             8 * sy,
           );
         } else {
-          target.fillStyle = theme.bounce;
+          target.fillStyle = tilePaintFor("bounce", theme).baseCss;
           target.fillRect(
             tx * 32 * sx,
             (ty * 32 + 24) * sy,

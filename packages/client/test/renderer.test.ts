@@ -1,9 +1,11 @@
 // Renderer view-model tests: describeFrame stays pure (no browser needed)
 // and reports correct player boxes, arena dims, and empty-state safety.
 import { describe, expect, it } from "vitest";
+import { TileMap, TILE_SIZE } from "../../core/src/map";
 import { World } from "../../core/src/world";
-import { TILE_SIZE } from "../../core/src/map";
 import { BARREL_LENGTH, barrelEndpoint, describeFrame } from "../src/renderer/index";
+import { collectTileLayers } from "../src/view/tiles";
+import { createCamera as createTileCamera } from "../src/renderer/camera";
 import {
   cameraTarget,
   createCamera,
@@ -137,5 +139,24 @@ describe("barrelEndpoint", () => {
       enemy.barrel.y - (enemy.y + enemy.h / 2),
     );
     expect(length).toBeCloseTo(BARREL_LENGTH, 10);
+  });
+});
+
+describe("terrain edge blending", () => {
+  it("merges two adjacent solids with no internal edge", () => {
+    const map = new TileMap(["##", ".."]);
+    const cam = createTileCamera(map.widthPixels, map.heightPixels);
+    const layers = collectTileLayers(map, cam, 640, 360, map.widthPixels, map.heightPixels);
+    expect(layers.solids).toHaveLength(2);
+    const left = layers.solids.find((cell) => cell.tx === 0 && cell.ty === 0);
+    const right = layers.solids.find((cell) => cell.tx === 1 && cell.ty === 0);
+    expect(left?.exposed).toBeDefined();
+    expect(right?.exposed).toBeDefined();
+    // Shared join exposes no edge on either side: zero-seam probe.
+    expect(left?.exposed?.right).toBe(false);
+    expect(right?.exposed?.left).toBe(false);
+    // Top row stays sky-exposed so the highlight cap keeps painting.
+    expect(left?.exposed?.top).toBe(true);
+    expect(right?.exposed?.top).toBe(true);
   });
 });

@@ -71,8 +71,10 @@ import {
   ONEWAY_Z,
   SOLID_TILE_H,
   SOLID_Z,
+  capMarksFor,
   collectTileLayers,
   resolveTileTheme,
+  type ExposedEdges,
   type TileCell,
   type TileLayers,
 } from "../view/tiles";
@@ -608,7 +610,9 @@ function paintTilesPixi(
     graphics.rect(px(cell.tx * TILE_SIZE), py(cell.ty * TILE_SIZE), tileSize + 1, tileSize + 1);
     graphics.fill(theme.backwallHex);
   }
-  // Solid tiles: base + depth tint + edge shading + 2px top highlight.
+  // Solid tiles: full-bleed base first so shared joins overpaint the
+  // seam, then edge/depth/highlight only on exposed sides (internal
+  // joins keep pure base fill). Cap marks stamp the exposed top band.
   const highlightH = HIGHLIGHT_PX * scale;
   const edgeW = Math.max(1, 1 * scale);
   const depthH = Math.max(1, 4 * scale);
@@ -617,16 +621,39 @@ function paintTilesPixi(
     const y = py(cell.ty * TILE_SIZE);
     graphics.rect(x, y, tileSize + 1, tileSize + 1);
     graphics.fill(theme.baseHex);
-    graphics.rect(x, y + tileSize + 1 - depthH, tileSize + 1, depthH);
-    graphics.fill(theme.depthHex);
-    graphics.rect(x, y, edgeW, tileSize + 1);
-    graphics.fill(theme.edgeHex);
-    graphics.rect(x + tileSize + 1 - edgeW, y, edgeW, tileSize + 1);
-    graphics.fill(theme.edgeHex);
-    graphics.rect(x, y + tileSize + 1 - edgeW, tileSize + 1, edgeW);
-    graphics.fill(theme.edgeHex);
-    graphics.rect(x, y, tileSize + 1, highlightH);
-    graphics.fill(theme.highlightHex);
+    const exposed: ExposedEdges = cell.exposed ?? {
+      top: true,
+      bottom: true,
+      left: true,
+      right: true,
+    };
+    if (exposed.left) {
+      graphics.rect(x, y, edgeW, tileSize + 1);
+      graphics.fill(theme.edgeHex);
+    }
+    if (exposed.right) {
+      graphics.rect(x + tileSize + 1 - edgeW, y, edgeW, tileSize + 1);
+      graphics.fill(theme.edgeHex);
+    }
+    if (exposed.bottom) {
+      graphics.rect(x, y + tileSize + 1 - depthH, tileSize + 1, depthH);
+      graphics.fill(theme.depthHex);
+      graphics.rect(x, y + tileSize + 1 - edgeW, tileSize + 1, edgeW);
+      graphics.fill(theme.edgeHex);
+    }
+    if (exposed.top) {
+      graphics.rect(x, y, tileSize + 1, highlightH);
+      graphics.fill(theme.highlightHex);
+      for (const mark of capMarksFor(theme)) {
+        graphics.rect(
+          x + mark.dx * scale,
+          y + mark.dy * scale,
+          Math.max(1, mark.w * scale),
+          Math.max(1, mark.h * scale),
+        );
+        graphics.fill(mark.hex);
+      }
+    }
   }
   // One-way planks: hazard-striped 8px strips at the tile top — the
   // theme hazard base with alternating dark vertical bands, so every
@@ -695,14 +722,39 @@ function paintTiles2D(
     const y = py(cell.ty * TILE_SIZE);
     ctx.fillStyle = theme.base;
     ctx.fillRect(x, y, tileSize + 1, tileSize + 1);
-    ctx.fillStyle = theme.depth;
-    ctx.fillRect(x, y + tileSize + 1 - depthH, tileSize + 1, depthH);
-    ctx.fillStyle = theme.edge;
-    ctx.fillRect(x, y, edgeW, tileSize + 1);
-    ctx.fillRect(x + tileSize + 1 - edgeW, y, edgeW, tileSize + 1);
-    ctx.fillRect(x, y + tileSize + 1 - edgeW, tileSize + 1, edgeW);
-    ctx.fillStyle = theme.highlight;
-    ctx.fillRect(x, y, tileSize + 1, highlightH);
+    const exposed: ExposedEdges = cell.exposed ?? {
+      top: true,
+      bottom: true,
+      left: true,
+      right: true,
+    };
+    if (exposed.left) {
+      ctx.fillStyle = theme.edge;
+      ctx.fillRect(x, y, edgeW, tileSize + 1);
+    }
+    if (exposed.right) {
+      ctx.fillStyle = theme.edge;
+      ctx.fillRect(x + tileSize + 1 - edgeW, y, edgeW, tileSize + 1);
+    }
+    if (exposed.bottom) {
+      ctx.fillStyle = theme.depth;
+      ctx.fillRect(x, y + tileSize + 1 - depthH, tileSize + 1, depthH);
+      ctx.fillStyle = theme.edge;
+      ctx.fillRect(x, y + tileSize + 1 - edgeW, tileSize + 1, edgeW);
+    }
+    if (exposed.top) {
+      ctx.fillStyle = theme.highlight;
+      ctx.fillRect(x, y, tileSize + 1, highlightH);
+      for (const mark of capMarksFor(theme)) {
+        ctx.fillStyle = mark.css;
+        ctx.fillRect(
+          x + mark.dx * scale,
+          y + mark.dy * scale,
+          Math.max(1, mark.w * scale),
+          Math.max(1, mark.h * scale),
+        );
+      }
+    }
   }
   const plankH = ONEWAY_PLANK_H * scale;
   const plankBands = 8;

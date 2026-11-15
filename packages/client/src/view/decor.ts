@@ -109,6 +109,15 @@ export function decorationsForMapSeeded(name: unknown, seed: unknown): Decoratio
 }
 
 /**
+ * Probe-safe snapshot of a decoration list: a fresh array of fresh element
+ * objects, so harness writes into the published `__game.decorations` copy
+ * can never reach the renderer's per-(theme, seed) `decorCache`.
+ */
+export function snapshotDecorations(decors: readonly Decoration[]): Decoration[] {
+  return decors.map((d) => ({ ...d }));
+}
+
+/**
  * True when a decoration rect touches any solid tile. Ranges are
  * exclusive on the bottom/right edge, matching tile collision math.
  * Null maps and empty rects never occlude.

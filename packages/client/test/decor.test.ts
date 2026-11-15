@@ -13,6 +13,7 @@ import {
   decorationsForMapSeeded,
   paintDecor2D,
   paintDecorPixi,
+  snapshotDecorations,
   visibleDecorations,
 } from "../src/view/decor";
 
@@ -195,6 +196,25 @@ describe("map decorations", () => {
       expect(paint.accentCss).toMatch(/^#/);
       expect(paint.fillCss).not.toBe("#64748b");
     }
+  });
+
+  it("snapshots decorations with array and element isolation", () => {
+    const source = decorationsForMapSeeded("kilima", 123);
+    const pristine = decorationsForMapSeeded("kilima", 123);
+    const snapshot = snapshotDecorations(source);
+    expect(snapshot).not.toBe(source);
+    expect(snapshot).toEqual(source);
+    const second = snapshotDecorations(source);
+    expect(second).not.toBe(snapshot);
+    expect(second[0]).not.toBe(snapshot[0]);
+    // Harness-style writes land on the throwaway: array push plus
+    // element-field mutation leave the source pristine.
+    snapshot.push({ kind: "rock", x: 0, y: 0, w: 8, h: 8 });
+    snapshot[0].x = -9999;
+    snapshot[0].kind = "poisoned";
+    expect(source).toHaveLength(pristine.length);
+    expect(source).toEqual(pristine);
+    expect(source).toEqual(decorationsForMapSeeded("kilima", 123));
   });
 
   it("paints every scatter kind on both backends without throwing", () => {

@@ -117,6 +117,12 @@ declare global {
       solidTileH: number;
       /** Total decorations on the active map (>=3 per map). */
       decorationCount: number;
+      /** Probe copy of the decoration rects (fresh snapshot per frame). */
+      decorations?: { kind: string; x: number; y: number; w: number; h: number }[];
+      /** Seed threading the per-theme decoration scatter. */
+      decorSeed?: number;
+      /** Hash of the pristine decoration cache (probe integrity). */
+      decorHash?: string;
       /** Total static light pools painted this frame (quality-capped). */
       lightCount: number;
       /** Decoration rects intersecting solid collision (always 0). */

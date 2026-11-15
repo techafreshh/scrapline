@@ -90,13 +90,19 @@ self.addEventListener("fetch", (event) => {
   }
   // Navigations go network-first so a fresh deploy lands when online,
   // falling back to the cached page (or index.html) when offline.
+  // The network attempt is independent of CacheStorage: a blocked
+  // cache must never discard a good live response.
   if (request.mode === "navigate") {
     event.respondWith(
       (async () => {
         try {
           const fresh = await fetch(request);
-          const cache = await caches.open(CACHE);
-          await safePut(cache, new Request("./"), fresh);
+          try {
+            const cache = await caches.open(CACHE);
+            await safePut(cache, new Request("./"), fresh);
+          } catch {
+            // CacheStorage unavailable: still serve the live response.
+          }
           return fresh;
         } catch {
           try {
@@ -118,27 +124,41 @@ self.addEventListener("fetch", (event) => {
   }
   // Static same-origin GETs are cache-first: the hashed bundle chunks
   // are content-addressed, so a cache hit is always the right bytes;
-  // misses populate the cache for the next offline load.
+  // misses populate the cache for the next offline load. CacheStorage
+  // access is best-effort: when `caches.open()` rejects (private mode)
+  // the request still falls through to the network.
   event.respondWith(
     (async () => {
+      let cache = null;
       try {
-        const cache = await caches.open(CACHE);
-        const hit = await cache.match(request);
-        if (hit) {
-          return hit;
+        cache = await caches.open(CACHE);
+      } catch {
+        // CacheStorage unavailable: keep null and fall through to network.
+      }
+      if (cache) {
+        try {
+          const hit = await cache.match(request);
+          if (hit) {
+            return hit;
+          }
+        } catch {
+          // Cache lookup failed: fall through to network.
         }
-        const fresh = await fetch(request);
-        // Only cache successful basic responses; opaque/error bodies
-        // would poison the offline bundle.
-        if (fresh && fresh.ok && fresh.type === "basic") {
-          await safePut(cache, request, fresh);
-        }
-        return fresh;
+      }
+      let fresh;
+      try {
+        fresh = await fetch(request);
       } catch {
         // Network failed and nothing cached: surface the failure rather
         // than synthesizing a body the game cannot use.
         return Response.error();
       }
+      // Only cache successful basic responses; opaque/error bodies
+      // would poison the offline bundle.
+      if (cache && fresh && fresh.ok && fresh.type === "basic") {
+        await safePut(cache, request, fresh);
+      }
+      return fresh;
     })(),
   );
 });

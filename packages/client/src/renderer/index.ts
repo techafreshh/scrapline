@@ -146,7 +146,6 @@ import {
   CROUCH_SQUASH,
   VISOR_CSS,
   characterParts,
-  teamCss,
 } from "../view/character";
 import type { WeaponId } from "../../../core/src/weapons";
 import {
@@ -1611,7 +1610,9 @@ export function playerPaintCss(index: number, alive: boolean, flashed: boolean):
   if (flashed) {
     return VICTIM_TINT_CSS;
   }
-  return !alive ? "#475569" : teamCss(index);
+  // Locker accent rides through soldierAccentFor so the equipped
+  // palette tints the local soldier (enemies keep team colors).
+  return !alive ? "#475569" : soldierAccentFor(index);
 }
 
 /** Jet-flame flicker scale band (multiplies the base flame radius). */

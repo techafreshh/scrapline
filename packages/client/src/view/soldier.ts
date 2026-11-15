@@ -153,12 +153,76 @@ export function soldierMuzzleTip(
 
 /** Team CSS accent for a player index (palette swap of #00E5FF). */
 export function soldierAccentFor(index: number): string {
+  if (index === 0 && localAccentCss !== null) {
+    return localAccentCss;
+  }
   return teamCss(index);
 }
 
 /** Team Pixi-hex accent for a player index. */
 export function soldierAccentHex(index: number): number {
+  if (index === 0 && localAccentHex !== null) {
+    return localAccentHex;
+  }
   return teamColor(index);
+}
+
+/** Equipped locker palette for the local player (CSS, null when unset). */
+let localAccentCss: string | null = null;
+/** Equipped locker palette for the local player (Pixi hex, null when unset). */
+let localAccentHex: number | null = null;
+
+/** True for a verbatim #RRGGBB hex string (any palette, not just listed). */
+function isHexPalette(value: unknown): value is string {
+  if (typeof value !== "string" || value.length !== 7 || value[0] !== "#") {
+    return false;
+  }
+  for (let i = 1; i < 7; i += 1) {
+    const code = value.charCodeAt(i);
+    const hex =
+      (code >= 48 && code <= 57) || (code >= 65 && code <= 70) || (code >= 97 && code <= 102);
+    if (!hex) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Equip the local-player soldier accent from a locker palette: any valid
+ * #RRGGBB overrides index 0 (enemies keep their team colors), garbage
+ * clears back to the team cyan. Never throws.
+ */
+export function setLocalAccent(css: unknown): void {
+  try {
+    if (isHexPalette(typeof css === "string" ? css.trim() : css)) {
+      const key = (css as string).trim();
+      localAccentCss = key.toUpperCase() === key.toLowerCase() ? key : key;
+      // Preserve the authored casing for probe equality (upper/lower
+      // both compare case-insensitively) while normalizing the hex.
+      localAccentCss = key;
+      localAccentHex = Number.parseInt(key.slice(1), 16);
+      return;
+    }
+    // Bare 6-digit hex without the hash (harness shorthand) also equips.
+    if (typeof css === "string" && /^[0-9a-fA-F]{6}$/.test(css.trim())) {
+      const key = `#${css.trim()}`;
+      localAccentCss = key;
+      localAccentHex = Number.parseInt(key.slice(1), 16);
+      return;
+    }
+    localAccentCss = null;
+    localAccentHex = null;
+  } catch {
+    localAccentCss = null;
+    localAccentHex = null;
+  }
+}
+
+/** Clear the local-player accent back to the team cyan. Never throws. */
+export function clearLocalAccent(): void {
+  localAccentCss = null;
+  localAccentHex = null;
 }
 
 /**

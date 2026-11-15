@@ -62,7 +62,15 @@ import {
   DEFAULT_COSMETICS,
   enemyCosmeticsFor,
   loadCosmetics,
+  saveCosmetics,
 } from "./cosmetics";
+import {
+  DEFAULT_LOCKER_ID,
+  bindLocker,
+  loadLockerSelection,
+  lockerItemFor,
+} from "./meta/locker";
+import { setLocalAccent } from "./view/soldier";
 import { bindSettings, loadQuality, loadShowNameTags, parseVolume } from "./settings";
 import { bindMenuScene } from "./menu/scene";
 import { bindCarousel } from "./menu/carousel";
@@ -1279,8 +1287,31 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   }
   // Seeded enemy identity plus the local persisted pick: merged, never
   // replacing window.__game, so tick/state probes survive the publish.
+  // Cosmetics locker (issue #212): the equipped locker row owns the
+  // local soldier accent (helmet tint); the legacy cosmetics pick is
+  // the fallback when no locker row resolves. The accent override is
+  // applied before the first draw so both backends tint identically.
   const enemyCosmetics = enemyCosmeticsFor(seed, parsed.bots);
-  const playerCosmetics = loadCosmetics(browserStorage());
+  let playerCosmetics = loadCosmetics(browserStorage());
+  try {
+    const lockerId = loadLockerSelection(browserStorage());
+    const lockerItem = lockerItemFor(lockerId) ?? lockerItemFor(DEFAULT_LOCKER_ID);
+    if (lockerItem !== undefined) {
+      setLocalAccent(lockerItem.palette);
+      playerCosmetics = {
+        helmet: lockerItem.helmet as typeof playerCosmetics.helmet,
+        visor: lockerItem.visor as typeof playerCosmetics.visor,
+        palette: lockerItem.palette,
+      };
+      try {
+        saveCosmetics(browserStorage(), playerCosmetics);
+      } catch {
+        // Legacy sync best-effort: the __game mirror below still lands.
+      }
+    }
+  } catch {
+    // Locker unreadable: the legacy cosmetics pick stands.
+  }
   Object.assign(window.__game, { enemyCosmetics, playerCosmetics });
   const rows = mapRowsFor(parsed.map);
   const match = rows !== null ? new World({ seed, map: rows }) : new World({ seed });
@@ -1417,6 +1448,25 @@ try {
   void bindChallenges(document, storage);
 } catch {
   // Challenges optional: the static skeleton still lists the rows.
+}
+// Cosmetics locker (issue #212): level/challenge-gated grid with the
+// setup-reused preview; equips persist to `scrapline.cosmetic` and own
+// the local soldier accent at the next match start. Never gates boot.
+try {
+  const locker = bindLocker(document, storage);
+  void locker;
+  // Apply the stored pick before the first draw so a reloaded equip
+  // tints the opening match without waiting for a locker click.
+  try {
+    const item = lockerItemFor(loadLockerSelection(storage));
+    if (item !== undefined) {
+      setLocalAccent(item.palette);
+    }
+  } catch {
+    // Accent seeding best-effort: startMatch re-applies it anyway.
+  }
+} catch {
+  // Locker optional: the static skeleton still lists the rows.
 }
 // The F key and the Settings button share one persisted toggle path.
 fullscreenToggle = () => {

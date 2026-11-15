@@ -9,7 +9,9 @@ import {
   BARREL_LENGTH,
   barrelEndpoint,
   describeFrame,
+  pushFlashes,
   spawnShots,
+  type Flash,
   type Frame,
   type Muzzle,
   type Tracer,
@@ -232,6 +234,46 @@ describe("tracer-muzzle coincidence", () => {
       expect(tracer.x1).toBe(muzzles[0].x);
       expect(tracer.y1).toBe(muzzles[0].y);
     }
+  });
+
+  it("shot event flashes land on the barrel tip and the spawnShots muzzle", () => {
+    for (const weapon of ["pistol", "rifle", "sniper"] as const) {
+      const { frame, details } = fireOnce(weapon);
+      const flashes: Flash[] = [];
+      pushFlashes(flashes, frame, ["shot"]);
+      expect(flashes).toHaveLength(1);
+      const tip = (frame.players[0] as Frame["players"][number]).barrel;
+      expect(flashes[0].kind).toBe("shot");
+      expect(flashes[0].x).toBe(tip.x);
+      expect(flashes[0].y).toBe(tip.y);
+      const tracers: Tracer[] = [];
+      const muzzles: Muzzle[] = [];
+      spawnShots(tracers, muzzles, frame, details);
+      expect(muzzles).toHaveLength(1);
+      expect(flashes[0].x).toBe(muzzles[0].x);
+      expect(flashes[0].y).toBe(muzzles[0].y);
+    }
+  });
+
+  it("dead-player shot flashes fall back to the body center", () => {
+    const { frame } = fireOnce("rifle");
+    const local = frame.players[0];
+    local.alive = false;
+    const flashes: Flash[] = [];
+    pushFlashes(flashes, frame, ["shot"]);
+    expect(flashes).toHaveLength(1);
+    expect(flashes[0].x).toBe(local.x + local.w / 2);
+    expect(flashes[0].y).toBe(local.y + local.h / 2);
+  });
+
+  it("bounce event flashes stay on the body-center anchor", () => {
+    const { frame } = fireOnce("rifle");
+    const local = frame.players[0];
+    const flashes: Flash[] = [];
+    pushFlashes(flashes, frame, ["bounce"]);
+    expect(flashes).toHaveLength(1);
+    expect(flashes[0].x).toBe(local.x + local.w / 2);
+    expect(flashes[0].y).toBe(local.y + local.h / 2);
   });
 });
 

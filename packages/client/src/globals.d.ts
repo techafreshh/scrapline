@@ -127,6 +127,8 @@ declare global {
       backdropFarFactor?: number;
       /** Mid parallax factor (0.5). */
       backdropMidFactor?: number;
+      /** Declared parallax layer ids for the active theme (probe list). */
+      backdropLayers?: string[];
       /** Renderer fps exponential moving average (one decimal). */
       fps: number;
     };
@@ -293,6 +295,8 @@ declare global {
       backdropFarFactor?: number;
       /** Mid parallax factor (0.5). */
       backdropMidFactor?: number;
+      /** Declared parallax layer ids for the active theme (probe list). */
+      backdropLayers?: string[];
     };
   }
 }

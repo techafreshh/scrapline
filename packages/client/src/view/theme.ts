@@ -250,6 +250,38 @@ export function themeFor(name: unknown): TileTheme {
   return { ...THEMES.kilima };
 }
 
+/**
+ * Declared parallax backdrop layer ids per theme (probe-visible contract).
+ * kilima renders dusk savanna (sun disc, acacias, birds); dune renders
+ * golden-hour desert (dune ridges, chimneys); frostbite renders polar
+ * night (aurora, antennas, snow). No theme ever contains `city`.
+ */
+export const THEME_BACKDROP_LAYERS: Record<ThemeName, readonly string[]> = {
+  kilima: ["sky", "sun-disc", "far-savanna", "acacia", "haze", "birds"],
+  dune: ["sky", "dune-ridge", "chimney", "haze"],
+  frostbite: ["sky", "aurora", "far-ridge", "antenna", "snow", "haze"],
+};
+
+/**
+ * Declared backdrop layers for a theme name (tolerant, falls back to kilima).
+ * Returns a fresh copy so callers cannot mutate the registry.
+ */
+export function themeBackdropLayers(name: unknown): string[] {
+  if (typeof name === "string") {
+    const key = name.trim().toLowerCase();
+    if (key === "dune") {
+      return [...THEME_BACKDROP_LAYERS.dune];
+    }
+    if (key === "frostbite") {
+      return [...THEME_BACKDROP_LAYERS.frostbite];
+    }
+    if (key === "kilima") {
+      return [...THEME_BACKDROP_LAYERS.kilima];
+    }
+  }
+  return [...THEME_BACKDROP_LAYERS.kilima];
+}
+
 /** Split a Pixi hex into 8-bit channels. */
 export function hexToRgb(hex: number): { r: number; g: number; b: number } {
   return {

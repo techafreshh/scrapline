@@ -177,33 +177,37 @@ describe("buildFeedEntry", () => {
 });
 
 describe("pushFeed structured entries", () => {
-  it("renders killer span, weapon img, victim span in order with colors", () => {
+  it("renders killer span, weapon img, separator, victim span in order with colors", () => {
     const doc = makeDoc();
     const { handles, feed } = makeFeed(doc);
     const entry: FeedModel = buildFeedEntry("Raptor", "You", "smg", 1, 0);
     pushFeed(handles, entry);
     expect(feed.children).toHaveLength(1);
     const node = feed.children[0] as FakeEl;
-    expect(node.children).toHaveLength(3);
-    const [killer, icon, victim] = node.children as [FakeEl, FakeEl, FakeEl];
+    // The separator span keeps the structured textContent on the shared
+    // `Killer ▸ Victim` line (issue #217: online equals offline).
+    expect(node.children).toHaveLength(4);
+    const [killer, icon, sep, victim] = node.children as [FakeEl, FakeEl, FakeEl, FakeEl];
     expect(killer.getAttribute("class")).toBe("killer");
     expect(killer.textContent).toBe("Raptor");
     expect(killer.style["color"]).toBe(ENEMY_A_CSS);
     expect(icon.tag).toBe("img");
     expect(icon.getAttribute("class")).toBe("kill-weapon");
     expect(icon.getAttribute("src")).toBe("./assets/weapon-hornet.svg");
+    expect(sep.getAttribute("class")).toBe("kill-sep");
+    expect(sep.textContent).toContain("\u25B8");
     expect(victim.getAttribute("class")).toBe("victim");
     expect(victim.textContent).toBe("You");
     expect(victim.style["color"]).toBe(LOCAL_CSS);
   });
 
-  it("keeps the legacy flat line for icon-less killer blows", () => {
+  it("keeps the flat `Killer ▸ Victim` line for icon-less killer blows", () => {
     const doc = makeDoc();
     const { handles, feed } = makeFeed(doc);
     pushFeed(handles, buildFeedEntry("Raptor", "You", null, 1, 0));
     const node = feed.children[0] as FakeEl;
     expect(node.children).toHaveLength(0);
-    expect(node.textContent).toBe("Raptor killed You");
+    expect(node.textContent).toBe("Raptor \u25B8 You");
   });
 
   it("renders unattributed deaths as `X died` with no icon", () => {
@@ -259,10 +263,10 @@ describe("pushFeed cap", () => {
     }
     expect(feed.children).toHaveLength(5);
     expect((feed.children[0] as FakeEl).textContent).toBe(
-      "Raptor2 killed You",
+      "Raptor2 \u25B8 You",
     );
     expect((feed.children[4] as FakeEl).textContent).toBe(
-      "Raptor6 killed You",
+      "Raptor6 \u25B8 You",
     );
   });
 });

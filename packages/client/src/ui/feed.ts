@@ -15,6 +15,19 @@ export const KILLFEED_FADE_MS = 500;
 /** Max visible feed entries (matches the legacy 5-entry cap). */
 export const KILLFEED_MAX_ENTRIES = 5;
 
+/**
+ * Killfeed separator (issue #217): online and offline feeds share this
+ * exact `Killer ▸ Victim` shape, so the online string equals the offline
+ * format by construction. Both the flat fallback line and the
+ * structured killer/icon/victim entry carry it.
+ */
+export const KILL_SEPARATOR = "\u25B8";
+
+/** One killfeed line: `Killer ▸ Victim` (identical online and offline). */
+export function formatKillLine(killer: string, victim: string): string {
+  return `${killer} ${KILL_SEPARATOR} ${victim}`;
+}
+
 /** Weapon ids with a feed icon card (mirrors the ammo KNOWN_IDS list). */
 const KNOWN_IDS: readonly string[] = [
   "pistol",
@@ -423,7 +436,7 @@ export function pushFeed(
       node,
       entry.suicide || entry.killer === null || entry.killer === ""
         ? `${entry.victim} died`
-        : `${entry.killer} killed ${entry.victim}`,
+        : formatKillLine(entry.killer, entry.victim),
     );
   } else {
     try {
@@ -438,19 +451,27 @@ export function pushFeed(
       writeAttr(icon, "class", "kill-weapon");
       writeAttr(icon, "src", entry.icon as string);
       writeAttr(icon, "alt", "weapon icon");
+      // Separator span: the structured entry's textContent reads the
+      // same `Killer ▸ Victim` line as the flat fallback (probes read
+      // textContent, which concatenates the spans around the icon).
+      const sep = owner.createElement("span");
+      writeAttr(sep, "class", "kill-sep");
+      writeText(sep, ` ${KILL_SEPARATOR} `);
       const victim = owner.createElement("span");
       writeAttr(victim, "class", "victim");
       writeText(victim, entry.victim);
       paintName(victim, entry.victimColor);
-      if (!appendKid(node, killer) || !appendKid(node, icon) || !appendKid(node, victim)) {
+      if (
+        !appendKid(node, killer) ||
+        !appendKid(node, icon) ||
+        !appendKid(node, sep) ||
+        !appendKid(node, victim)
+      ) {
         throw new Error("feed append unsupported");
       }
     } catch {
-      // Builder-less fakes: degrade to the legacy flat text line.
-      writeText(
-        node,
-        `${entry.killer as string} killed ${entry.victim}`,
-      );
+      // Builder-less fakes: degrade to the flat `Killer ▸ Victim` line.
+      writeText(node, formatKillLine(entry.killer as string, entry.victim));
     }
   }
   if (!appendKid(feed, node)) {

@@ -308,7 +308,7 @@ describe("pushKillfeed entry class", () => {
     for (const entry of created) {
       expect(entry.attrs.get("class")).toBe("kill-entry flash");
     }
-    expect(created[6]?.textContent).toBe("Bot 7 killed You");
+    expect(created[6]?.textContent).toBe("Bot 7 \u25B8 You");
   });
 });
 
@@ -381,8 +381,8 @@ describe("pushKillfeed weapon entries", () => {
     pushKillfeed(handles, "Raptor", "You", "smg", 1, 0);
     expect(feed.children).toHaveLength(1);
     const entry = feed.children[0];
-    expect(entry.children).toHaveLength(3);
-    const [killer, icon, victim] = entry.children;
+    expect(entry.children).toHaveLength(4);
+    const [killer, icon, , victim] = entry.children;
     expect(killer.textContent).toBe("Raptor");
     expect(killer.getAttribute("class")).toBe("killer");
     expect(killer.style["color"]).toBe(ENEMY_A_CSS);
@@ -402,12 +402,12 @@ describe("pushKillfeed weapon entries", () => {
     expect(entry.textContent).toBe("You died");
   });
 
-  it("keeps the legacy flat line for weapon-less killer blows", () => {
+  it("keeps the flat `Killer ▸ Victim` line for weapon-less killer blows", () => {
     const { handles, feed } = fakeFeed();
     pushKillfeed(handles, "Raptor", "You");
     const entry = feed.children[0];
     expect(entry.children).toHaveLength(0);
-    expect(entry.textContent).toBe("Raptor killed You");
+    expect(entry.textContent).toBe("Raptor \u25B8 You");
   });
 });
 

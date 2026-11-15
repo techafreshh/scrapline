@@ -107,12 +107,69 @@ interface Room {
   clients: Set<net.Socket>;
   /** Fixed-step counter (snapshot broadcast runs every 3rd step). */
   tick: number;
+  /** Server roster: display name by player id (drives remote nametags). */
+  roster: Map<number, string>;
+  /**
+   * Host backfill: disconnected slots idle on neutral input as bots
+   * instead of dropping their roster name (false drops the name).
+   * Set by the first hello's `backfill` flag, else BACKFILL_DEFAULT.
+   */
+  backfill: boolean;
+  /** Kill events since the last broadcast (drained into snapshots). */
+  pendingKills: OnlineKill[];
+}
+
+/** One kill carried in a snapshot event row (offline feed shape). */
+interface OnlineKill {
+  kind: "kill";
+  /** Killer player id (null for unattributed deaths). */
+  killer: number | null;
+  /** Victim player id. */
+  victim: number;
+  /** Killer display name (null for unattributed deaths). */
+  killerName: string | null;
+  /** Victim display name. */
+  victimName: string;
+  /** Killing weapon id (null when unattributed). */
+  weapon: string | null;
 }
 
 /** Rooms keyed by view map name; sessions minted per hello. */
 const rooms = new Map<string, Room>();
-const sessions = new Map<string, { room: string; pid: number }>();
+const sessions = new Map<string, { room: string; pid: number; name: string }>();
 let nextSession = 1;
+
+/**
+ * Host-backfill default: disconnected slots idle as bots unless the
+ * process opts out with BACKFILL=0 (a hello `backfill:false` also opts
+ * its room out). Never throws; any other value reads enabled.
+ */
+const BACKFILL_DEFAULT = (process.env.BACKFILL ?? "1") !== "0";
+
+/** Max stored display-name length (mirrors the profile 16-char cap). */
+const NAME_MAX = 16;
+
+/**
+ * Normalize an unknown hello name: trimmed, truncated to 16 chars,
+ * falling back when blank or non-string (probes send Alice/Bob).
+ */
+function normalizeName(value: unknown, fallback: string): string {
+  if (typeof value === "string") {
+    const clean = value.trim().slice(0, NAME_MAX);
+    if (clean.length > 0) {
+      return clean;
+    }
+  }
+  return fallback;
+}
+
+/** Roster rows for a room: [{id, name}] in player order. */
+function rosterFor(room: Room): Array<{ id: number; name: string }> {
+  return room.world.players.map((p) => ({
+    id: p.id,
+    name: room.roster.get(p.id) ?? `Player${p.id}`,
+  }));
+}
 
 /** Trimmed view name, defaulting to "dune" when absent or blank. */
 function roomKeyFor(view: unknown): string {
@@ -127,7 +184,16 @@ function getOrCreateRoom(view: string): Room {
   }
   const rows = mapRowsFor(view);
   const world = rows !== null ? new World({ seed: SEED, map: rows }) : new World({ seed: SEED });
-  const room: Room = { view, seed: SEED, world, clients: new Set(), tick: 0 };
+  const room: Room = {
+    view,
+    seed: SEED,
+    world,
+    clients: new Set(),
+    tick: 0,
+    roster: new Map(),
+    backfill: BACKFILL_DEFAULT,
+    pendingKills: [],
+  };
   rooms.set(view, room);
   return room;
 }
@@ -157,10 +223,23 @@ function broadcastSnapshot(room: Room): void {
   if (room.clients.size === 0) {
     return;
   }
+  // Kill rows accumulated since the last broadcast ride along so online
+  // feeds render the identical offline `Killer ▸ Victim` shape; the queue
+  // drains here so rows never repeat or grow unboundedly.
+  const events = room.pendingKills.splice(0);
   const snapshot = {
     t: "snapshot",
     tick: room.world.tick,
-    players: room.world.players.map((p) => playerToSnapshot(p)),
+    players: room.world.players.map((p) => ({
+      ...playerToSnapshot(p),
+      name: room.roster.get(p.id) ?? `Player${p.id}`,
+      // Fuel rides the snapshot so remote exhaust flicker matches the
+      // offline band ( velocities derive client-side from the pair).
+      fuel: p.fuel,
+    })),
+    scores: room.world.scores.slice(),
+    roster: rosterFor(room),
+    events,
   };
   for (const member of room.clients) {
     sendText(member, snapshot);
@@ -173,6 +252,29 @@ setInterval(() => {
     try {
       room.tick += 1;
       room.world.step(inputsForRoom(roomName, room));
+      // Drain sim kill details into the broadcast queue with roster
+      // names resolved now (roster churn later must not rewrite them).
+      try {
+        const kills = room.world.drainKillDetails();
+        for (const kill of kills) {
+          room.pendingKills.push({
+            kind: "kill",
+            killer: kill.killerId,
+            victim: kill.victimId,
+            killerName:
+              kill.killerId === null
+                ? null
+                : (room.roster.get(kill.killerId) ?? `Player${kill.killerId}`),
+            victimName: room.roster.get(kill.victimId) ?? `Player${kill.victimId}`,
+            weapon: kill.weapon ?? null,
+          });
+        }
+        if (room.pendingKills.length > 25) {
+          room.pendingKills.splice(0, room.pendingKills.length - 25);
+        }
+      } catch {
+        // Kill attribution best-effort: the snapshot still broadcasts.
+      }
     } catch (err) {
       console.error(
         `scrapline-server: step failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -208,6 +310,7 @@ function send(
 
 /** Plain-JSON welcome snapshot for a session in a room. */
 function welcomeFor(roomName: string, room: Room, pid: number, session: string): unknown {
+  const member = sessions.get(session);
   return {
     t: "welcome",
     pid,
@@ -218,6 +321,10 @@ function welcomeFor(roomName: string, room: Room, pid: number, session: string):
     view: roomName,
     players: room.world.players.map((p) => ({ ...p })),
     scores: room.world.scores.slice(),
+    // Server roster: every client renders remote nametags from this,
+    // never from a bot-name pool, so Alice sees Bob and vice versa.
+    roster: rosterFor(room),
+    name: member?.name ?? room.roster.get(pid) ?? `Player${pid}`,
   };
 }
 
@@ -299,6 +406,29 @@ interface ConnState {
   fragmented: boolean;
   closed: boolean;
   memberOf: Set<Room>;
+  /** Sessions this socket hellos under (drives leave banners). */
+  helloSessions: Set<string>;
+}
+
+/**
+ * Broadcast a leave banner to every remaining socket in the room.
+ * The literal `Player left` text rides every form (immediate leave
+ * frame plus the next snapshot roster) so observers render the banner
+ * well inside the 1s budget.
+ */
+function broadcastLeave(room: Room, pid: number, name: string, except?: net.Socket): void {
+  const leave = {
+    t: "leave",
+    id: pid,
+    name,
+    room: room.view,
+    reason: "Player left",
+  };
+  for (const other of room.clients) {
+    if (other !== except) {
+      sendText(other, leave);
+    }
+  }
 }
 
 /** Send text, tolerating half-dead sockets. */
@@ -369,7 +499,23 @@ function handleMessage(socket: net.Socket, state: ConnState, text: string): void
       const room = getOrCreateRoom(known.room);
       room.clients.add(socket);
       state.memberOf.add(room);
+      state.helloSessions.add(session as string);
       sendText(socket, welcomeFor(known.room, room, known.pid, session as string));
+      return;
+    }
+    // Graceful leave: the slot idles as a backfill bot (or drops its
+    // roster name when the room opted out) and every remaining socket
+    // gets the `Player left` banner immediately; the socket stays open
+    // for a re-hello on the same session.
+    if (rec["t"] === "leave") {
+      const room = rooms.get(known.room);
+      if (room !== undefined) {
+        latestInputs.delete(session as string);
+        if (!room.backfill) {
+          room.roster.delete(known.pid);
+        }
+        broadcastLeave(room, known.pid, known.name, socket);
+      }
       return;
     }
     // Honest-mode input frame: finite moveX/aim, buttons masked to 10
@@ -403,12 +549,27 @@ function handleMessage(socket: net.Socket, state: ConnState, text: string): void
     }
     const view = roomKeyFor(rec["view"]);
     const room = getOrCreateRoom(view);
+    if (typeof rec["backfill"] === "boolean") {
+      room.backfill = rec["backfill"] as boolean;
+    }
     const player = room.world.addPlayer();
     const session = `s-${nextSession}`;
     nextSession += 1;
-    sessions.set(session, { room: view, pid: player.id });
+    // Server roster: the hello name drives every remote nametag, so
+    // Alice's client renders Bob (and vice versa), never a bot pool.
+    const name = normalizeName(rec["name"], `Player${player.id}`);
+    sessions.set(session, { room: view, pid: player.id, name });
+    room.roster.set(player.id, name);
     room.clients.add(socket);
     state.memberOf.add(room);
+    state.helloSessions.add(session);
+    // Roster join: remaining sockets learn the newcomer before the next
+    // 20 Hz snapshot so nametags appear immediately.
+    for (const other of room.clients) {
+      if (other !== socket) {
+        sendText(other, { t: "join", id: player.id, name, room: view });
+      }
+    }
     sendText(socket, welcomeFor(view, room, player.id, session));
     return;
   }
@@ -540,8 +701,29 @@ function attachSocket(socket: net.Socket, head: Buffer): void {
     fragmented: false,
     closed: false,
     memberOf: new Set(),
+    helloSessions: new Set(),
   };
   const cleanup = (): void => {
+    // Host backfill: the World player stays simulated while the roster
+    // name is reclaimed as a neutral-input bot (room.backfill), so the
+    // match continues and every observer still gets `Player left`.
+    for (const session of state.helloSessions) {
+      const member = sessions.get(session);
+      if (member === undefined) {
+        continue;
+      }
+      const room = rooms.get(member.room);
+      latestInputs.delete(session);
+      if (room !== undefined) {
+        if (!room.backfill) {
+          room.roster.delete(member.pid);
+        }
+        broadcastLeave(room, member.pid, member.name, socket);
+      }
+      // The session survives a transport drop (re-hello resumes the
+      // same slot); only the input is reset to neutral immediately.
+    }
+    state.helloSessions.clear();
     for (const room of state.memberOf) {
       room.clients.delete(socket);
     }

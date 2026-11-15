@@ -64,6 +64,13 @@ export interface SnapshotPlayer {
   hp: number;
   /** Shield points, opaque passthrough (6 bits, 0-63). */
   shield: number;
+  /**
+   * Display name for the JSON snapshot path (server roster nametag).
+   * Never touches the bit-packed wire: encodeSnapshot ignores it and
+   * decodeSnapshot leaves it undefined, so the binary round-trip stays
+   * bit-identical while the honest-mode JSON broadcast carries it.
+   */
+  name?: string;
 }
 
 /** One event record inside a snapshot. */

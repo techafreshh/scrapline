@@ -394,6 +394,61 @@ describe("syncPlayerNode animation posing", () => {
     expect(legs["legL"]?.x).toBe(0);
   });
 
+  it("alternates run-a/run-b for frame-less callers via legPhase", () => {
+    const zero = buildPlayerNode(fakePixi(), 0);
+    syncPlayerNode(zero, {
+      x: 0,
+      y: 0,
+      scale: 2,
+      aim: 0,
+      colorHex: 0x00e5ff,
+      alpha: 1,
+      squash: 1,
+      visible: true,
+      legSwing: 4,
+      legPhase: 0,
+    });
+    const legsA = legPositions(zero);
+    expect(legsA["legL"]?.y).toBe(-4);
+    expect(legsA["legR"]?.y).toBe(4);
+    const pi = buildPlayerNode(fakePixi(), 0);
+    syncPlayerNode(pi, {
+      x: 0,
+      y: 0,
+      scale: 2,
+      aim: 0,
+      colorHex: 0x00e5ff,
+      alpha: 1,
+      squash: 1,
+      visible: true,
+      legSwing: 4,
+      legPhase: Math.PI,
+    });
+    const legsB = legPositions(pi);
+    expect(legsB["legL"]?.y).toBe(4);
+    expect(legsB["legR"]?.y).toBe(-4);
+  });
+
+  it("prefers an explicit frame over the legPhase fallback", () => {
+    const node = buildPlayerNode(fakePixi(), 0);
+    syncPlayerNode(node, {
+      x: 0,
+      y: 0,
+      scale: 2,
+      aim: 0,
+      colorHex: 0x00e5ff,
+      alpha: 1,
+      squash: 1,
+      visible: true,
+      legSwing: 4,
+      legPhase: Math.PI,
+      frame: "run-a",
+    });
+    const legs = legPositions(node);
+    expect(legs["legL"]?.y).toBe(-4);
+    expect(legs["legR"]?.y).toBe(4);
+  });
+
   it("tucks both legs up and toward the center while jetting", () => {
     const node = buildPlayerNode(fakePixi(), 0);
     syncPlayerNode(node, {

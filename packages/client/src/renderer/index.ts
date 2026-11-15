@@ -1112,6 +1112,7 @@ function syncFramePlayers(
       squash: p.h / CHARACTER_H,
       visible: true,
       legSwing: anim?.swing ?? 0,
+      legPhase: anim?.legPhase ?? 0,
       tuck: anim?.tuck ?? false,
       hurtFlash: anim?.hurtFlash ?? false,
       deadPose: anim?.deadPose ?? !p.alive,

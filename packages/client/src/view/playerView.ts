@@ -194,6 +194,8 @@ export interface SyncPose {
   visible: boolean;
   /** Signed leg offset in local px (legL -swing, legR +swing). */
   legSwing?: number;
+  /** Wall-clock run-cycle phase in radians (run-a/b quadrant for frame-less callers; same convention as SoldierPoseInput.legPhase). */
+  legPhase?: number;
   /** Tucked legs while jetting (both up and toward center). */
   tuck?: boolean;
   /** White hurt flash (overrides the team/victim tint). */
@@ -213,7 +215,9 @@ export interface SyncPose {
  * frame-specific soldierLegOffset for the selected frame (run-a/run-b
  * stride in opposition, jet tucks both legs, death splays them), hurt
  * flashes every non-visor child white, and the armR gun is re-drawn at
- * the pose weapon's length when the backend supports clear. Stubs record
+ * the pose weapon's length when the backend supports clear. Frame-less
+ * callers select run-a/run-b from legPhase/legSwing while an explicit
+ * frame bypasses selection. Stubs record
  * nothing pose-specific (their shape is the probe contract).
  */
 export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
@@ -231,7 +235,7 @@ export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
     selectSoldierFrame({
       deadPose: pose.deadPose,
       tuck: pose.tuck,
-      legPhase: 0,
+      legPhase: pose.legPhase ?? 0,
       swing,
     });
   const tint = pose.hurtFlash === true ? 0xffffff : pose.colorHex;

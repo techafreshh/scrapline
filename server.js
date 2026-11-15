@@ -1,6 +1,8 @@
 // Dev server — zero dependencies, node:http/fs/path only.
 // Routes: GET / -> staged root dist (or workspace dist, then source),
 // GET /main.js -> staged bundle (same fallback chain),
+// GET /sw.js -> staged worker (same fallback chain),
+// GET /manifest.webmanifest -> staged manifest (same fallback chain),
 // GET /assets/* -> staged assets (same fallback chain),
 // GET /health and GET /api/health -> {"ok":true,"status":"ok"}, GET /healthz -> {"ok":true}. Everything else is a 404.
 const http = require("node:http");
@@ -46,6 +48,7 @@ const CONTENT_TYPES = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".json": "application/json",
+  ".webmanifest": "application/manifest+json",
   ".map": "application/json",
   ".svg": "image/svg+xml",
   ".png": "image/png",
@@ -139,6 +142,35 @@ const server = http.createServer((req, res) => {
     } catch (err) {
       send(req, res, 500, "text/plain; charset=utf-8", "failed to read main.ts");
     }
+    return;
+  }
+  if (readable && url.pathname === "/sw.js") {
+    // Offline-first worker (issue #159): staged-first chain like /main.js,
+    // falling back to the public/ source so dev-without-build answers 200.
+    const built = tryReadFirst(
+      path.join(ROOT_DIST, "sw.js"),
+      path.join(DIST, "sw.js"),
+      path.join(ROOT, "packages", "client", "public", "sw.js"),
+    );
+    if (built !== null) {
+      send(req, res, 200, "text/javascript; charset=utf-8", built);
+      return;
+    }
+    send(req, res, 404, "text/plain; charset=utf-8", "not found");
+    return;
+  }
+  if (readable && url.pathname === "/manifest.webmanifest") {
+    // PWA manifest (issue #159): same staged-first fallback chain.
+    const built = tryReadFirst(
+      path.join(ROOT_DIST, "manifest.webmanifest"),
+      path.join(DIST, "manifest.webmanifest"),
+      path.join(ROOT, "packages", "client", "public", "manifest.webmanifest"),
+    );
+    if (built !== null) {
+      send(req, res, 200, "application/manifest+json", built);
+      return;
+    }
+    send(req, res, 404, "text/plain; charset=utf-8", "not found");
     return;
   }
   if (readable && url.pathname.startsWith("/assets/")) {

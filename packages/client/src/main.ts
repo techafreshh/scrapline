@@ -85,6 +85,7 @@ import {
 import { buildToast, showToast, type ToastHandles } from "./ui/toast";
 import { createRenderer, type Renderer } from "./renderer/index";
 import { loadAtlas } from "./atlas";
+import { registerServiceWorker } from "./pwa";
 import { DISPLAY_FONT_FAMILY, publishFonts } from "./ui/fonts";
 import {
   applyLetterbox,
@@ -1297,6 +1298,12 @@ applyResponsiveSize();
 // Aim origin in CSS pixels (rect-based) before the first event or frame.
 refreshAimOrigin();
 refreshInput();
+// Offline-first PWA (issue #159): register the service worker behind
+// the loading screen. Fire-and-forget by contract — the helper resolves
+// false (warn-only) instead of rejecting, so boot never blocks on it.
+void registerServiceWorker().catch(() => {
+  // Unreachable by contract (already warned inside); guards the type.
+});
 
 /**
  * Auto-join setup: the walking-skeleton 1-bot kilima default, overridden

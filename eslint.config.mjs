@@ -25,6 +25,17 @@ export default [
     rules: { "no-unused-vars": ["error", { caughtErrors: "none" }] },
   },
   {
+    // The offline-first worker runs in the ServiceWorker scope (self,
+    // caches, clients) with classic-script semantics — no Node, no DOM.
+    files: ["packages/client/public/sw.js"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "script",
+      globals: { ...globals.serviceworker },
+    },
+    rules: { "no-unused-vars": ["error", { caughtErrors: "none" }] },
+  },
+  {
     // scripts/verify-presentation.mjs is ESM (import syntax, node:* only)
     // with plain Node globals, mirroring the CommonJS block above.
     files: ["**/*.mjs"],

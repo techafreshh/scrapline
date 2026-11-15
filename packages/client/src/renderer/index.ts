@@ -265,6 +265,8 @@ export interface FrameProjectile {
 
 /** Pickup marker for one frame. */
 export interface FramePickup {
+  /** Stable sim pickup id (frame-driven keying). */
+  id: number;
   x: number;
   y: number;
   kind: string;
@@ -401,6 +403,7 @@ export function describeFrame(state: StateLike, map?: MapLike | null): Frame {
       ownerId: p.ownerId,
     })),
     pickups: state.pickups.map((p) => ({
+      id: p.id,
       x: p.x,
       y: p.y,
       kind: p.kind,
@@ -2116,6 +2119,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           maxHp: p.maxHp,
         })),
         pickups: frame.pickups.map((p) => ({
+          id: p.id,
           x: p.x,
           y: p.y,
           kind: p.kind,

@@ -67,6 +67,26 @@ describe("describeFrame", () => {
     expect(cells).toBeGreaterThanOrEqual(4);
   });
 
+  it("preserves stable sim pickup ids for frame-driven keying", () => {
+    const world = new World({ seed: 1 });
+    world.addPickup("weapon", 100, 200, "rifle");
+    world.addPickup("health", 300, 200);
+    const y = floorY();
+    world.addPlayer({ x: 100, y });
+    world.step([{}]);
+    const frame = describeFrame(world.state, world.map);
+    expect(frame.pickups.length).toBe(world.state.pickups.length);
+    expect(frame.pickups.length).toBeGreaterThan(0);
+    for (let i = 0; i < frame.pickups.length; i += 1) {
+      expect(frame.pickups[i].id).toBe(world.state.pickups[i].id);
+    }
+    world.step([{}]);
+    const next = describeFrame(world.state, world.map);
+    for (let i = 0; i < next.pickups.length; i += 1) {
+      expect(next.pickups[i].id).toBe(world.state.pickups[i].id);
+    }
+  });
+
   it("is safe on an empty state with default arena dims", () => {
     const frame = describeFrame({
       tick: 0,

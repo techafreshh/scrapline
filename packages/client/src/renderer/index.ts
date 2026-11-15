@@ -98,6 +98,7 @@ import {
   isDecorOccluded,
   paintDecor2D,
   paintDecorPixi,
+  snapshotDecorations,
   visibleDecorations,
   type Decoration,
 } from "../view/decor";
@@ -2275,7 +2276,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             occludedTiles: occluded,
             decorSeed: matchSeed,
             decorHash: decorCacheHash,
-            decorations: allDecors,
+            decorations: snapshotDecorations(allDecors),
             lightCount: lights.length,
             skyTop: skyTopRgb(themeName),
             vignetteAlpha: VIGNETTE_ALPHA,

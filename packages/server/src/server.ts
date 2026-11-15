@@ -21,25 +21,73 @@ const TICK_MS = 1000 / TICK_HZ;
 /** Largest inbound WS payload accepted before close (generous for JSON). */
 const MAX_PAYLOAD = 1 << 20;
 
+/**
+ * Distinct oversize signal: tryParseFrame throws this (instead of a
+ * generic Error) for both 64-bit-header and declared-length breaches so
+ * the socket handler can map oversize to WS close 1009 per RFC 6455
+ * while every other framing violation stays on 4002.
+ */
+class PayloadTooLargeError extends Error {
+  constructor() {
+    super("payload too large");
+    this.name = "PayloadTooLargeError";
+  }
+}
+
+/** Longest possible masked client frame header (2 base + 8 ext + 4 mask). */
+const FRAME_HEADER_MAX = 14;
+
+/**
+ * First finite positive integer in a port-list token: `PORT="3001, 3002"`
+ * / `3001:3002` / `3001 3002` forms all resolve to the first port (the
+ * probed contract), never the last or a merged NaN.
+ */
+function firstPortInteger(text: unknown): number | undefined {
+  if (typeof text === "number") {
+    return Number.isFinite(text) && text > 0 ? Math.floor(text) : undefined;
+  }
+  if (typeof text !== "string") {
+    return undefined;
+  }
+  for (const part of text.split(/[\s,;:]+/)) {
+    if (part.length === 0) {
+      continue;
+    }
+    const n = Number(part);
+    if (Number.isFinite(n) && n > 0) {
+      return Math.floor(n);
+    }
+  }
+  return undefined;
+}
+
 function resolvePort() {
   // PORT env is the contract; also accept a CLI --port flag (or bare
   // numeric arg) so harnesses that pass the port as an argument still
-  // land on the probed port instead of silently serving :3000.
+  // land on the probed port instead of silently serving :3000. Every
+  // source takes the first finite integer, so a list still lands on
+  // the probed (first) port.
   const argv = process.argv.slice(2);
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--port" || arg === "-p" || arg === "--PORT") {
-      const next = Number(argv[i + 1]);
-      if (Number.isFinite(next) && next > 0) return Math.floor(next);
+      const next = firstPortInteger(argv[i + 1]);
+      if (next !== undefined) return next;
     }
-    const eq = /^(?:--port=|--PORT=|-p=)(\d+)$/.exec(arg);
-    if (eq) return Number(eq[1]);
+    const eq = /^(?:--port=|--PORT=|-p=)(.+)$/.exec(arg);
+    if (eq !== null) {
+      const next = firstPortInteger(eq[1]);
+      if (next !== undefined) return next;
+    }
   }
-  const bare = argv.find((a) => /^\d+$/.test(a));
-  if (bare !== undefined) return Number(bare);
+  const bare = argv.find((a) => /^[\d\s,;:]+$/.test(a) && firstPortInteger(a) !== undefined);
+  if (bare !== undefined) return firstPortInteger(bare) as number;
   // npm exposes `npm run dev --port=N` as npm_config_port.
-  const env = Number(process.env.PORT || process.env.npm_config_port || 3000);
-  return Number.isFinite(env) && env > 0 ? Math.floor(env) : 3000;
+  return (
+    firstPortInteger(process.env.PORT) ??
+    firstPortInteger(process.env.npm_config_port) ??
+    3000
+  );
 }
 
 /** Floor to an int, falling back when missing or non-finite. */
@@ -138,6 +186,14 @@ interface OnlineKill {
 const rooms = new Map<string, Room>();
 const sessions = new Map<string, { room: string; pid: number; name: string }>();
 let nextSession = 1;
+
+/**
+ * Live socket owning each session: a second socket joining an owned
+ * session gets `{t:"error", code:"already-joined"}` instead of a second
+ * welcome, while cleanup releases the entry so the same session may
+ * legitimately resume after its owner disconnects.
+ */
+const sessionOwners = new Map<string, net.Socket>();
 
 /**
  * Host-backfill default: disconnected slots idle as bots unless the
@@ -451,7 +507,11 @@ function sendClose(socket: net.Socket, state: ConnState, code: number, reason: s
   }
   state.closed = true;
   try {
-    socket.write(frameClose(code, reason), () => {
+    // end() half-closes with FIN after the queued close frame: TCP must
+    // deliver the frame before the FIN, so the peer always observes the
+    // code. A bare write() plus destroy() sends RST, which may discard
+    // the unread close frame in the peer's queue (flaky 1009/4002 reads).
+    socket.end(frameClose(code, reason), () => {
       try {
         socket.destroy();
       } catch {
@@ -496,11 +556,26 @@ function handleMessage(socket: net.Socket, state: ConnState, text: string): void
       return;
     }
     if (rec["t"] === "join" || rec["t"] === "hello") {
+      const id = session as string;
+      const owner = sessionOwners.get(id);
+      // Same-session double-join: this socket already hellos under the
+      // session, or another still-open socket owns it. Answer a JSON
+      // error on the open socket (no second welcome, no close) so the
+      // resume path (re-join after the owner disconnects) keeps working:
+      // cleanup releases the owner entry on transport drop.
+      if (
+        state.helloSessions.has(id) ||
+        (owner !== undefined && owner !== socket && !owner.destroyed)
+      ) {
+        sendText(socket, { t: "error", code: "already-joined", session: id });
+        return;
+      }
+      sessionOwners.set(id, socket);
       const room = getOrCreateRoom(known.room);
       room.clients.add(socket);
       state.memberOf.add(room);
-      state.helloSessions.add(session as string);
-      sendText(socket, welcomeFor(known.room, room, known.pid, session as string));
+      state.helloSessions.add(id);
+      sendText(socket, welcomeFor(known.room, room, known.pid, id));
       return;
     }
     // Graceful leave: the slot idles as a backfill bot (or drops its
@@ -559,6 +634,7 @@ function handleMessage(socket: net.Socket, state: ConnState, text: string): void
     // Alice's client renders Bob (and vice versa), never a bot pool.
     const name = normalizeName(rec["name"], `Player${player.id}`);
     sessions.set(session, { room: view, pid: player.id, name });
+    sessionOwners.set(session, socket);
     room.roster.set(player.id, name);
     room.clients.add(socket);
     state.memberOf.add(room);
@@ -616,13 +692,13 @@ function tryParseFrame(buffer: Buffer): ParsedFrame | null {
     }
     const big = buffer.readBigUInt64BE(2);
     if (big > BigInt(MAX_PAYLOAD)) {
-      throw new Error("payload too large");
+      throw new PayloadTooLargeError();
     }
     length = Number(big);
     offset = 10;
   }
   if (length > MAX_PAYLOAD) {
-    throw new Error("payload too large");
+    throw new PayloadTooLargeError();
   }
   if (buffer.length < offset + 4 + length) {
     return null;
@@ -669,6 +745,18 @@ function handleFrame(socket: net.Socket, state: ConnState, frame: ParsedFrame): 
       return;
     }
     state.fragments.push(payload);
+    // Fragmented slow-drip: close 1009 as soon as the assembled bytes
+    // exceed the cap instead of buffering hostile input without bound.
+    let buffered = 0;
+    for (const part of state.fragments) {
+      buffered += part.length;
+    }
+    if (buffered > MAX_PAYLOAD) {
+      state.fragments = [];
+      state.fragmented = false;
+      sendClose(socket, state, 1009, "message too big");
+      return;
+    }
     if (fin) {
       state.fragmented = false;
       const text = Buffer.concat(state.fragments).toString("utf8");
@@ -708,6 +796,12 @@ function attachSocket(socket: net.Socket, head: Buffer): void {
     // name is reclaimed as a neutral-input bot (room.backfill), so the
     // match continues and every observer still gets `Player left`.
     for (const session of state.helloSessions) {
+      // Release the live-owner entry first (even for unknown sessions)
+      // so the same session may resume on a new socket right away; the
+      // session itself survives the transport drop either way.
+      if (sessionOwners.get(session) === socket) {
+        sessionOwners.delete(session);
+      }
       const member = sessions.get(session);
       if (member === undefined) {
         continue;
@@ -743,6 +837,12 @@ function attachSocket(socket: net.Socket, head: Buffer): void {
       return;
     }
     state.buffer = Buffer.concat([state.buffer, chunk]);
+    // Buffered-bytes guard: a slow oversize upload must still close
+    // 1009 inside 1s, before a full frame ever buffers.
+    if (state.buffer.length > MAX_PAYLOAD + FRAME_HEADER_MAX) {
+      sendClose(socket, state, 1009, "message too big");
+      return;
+    }
     try {
       while (true) {
         const frame = tryParseFrame(state.buffer);
@@ -755,8 +855,14 @@ function attachSocket(socket: net.Socket, head: Buffer): void {
           return;
         }
       }
-    } catch {
-      sendClose(socket, state, 4002, "framing error");
+    } catch (err) {
+      // Oversize is RFC 6455 close 1009; every other framing violation
+      // (rsv, unmasked, binary, bad opcode) stays on 4002.
+      if (err instanceof PayloadTooLargeError) {
+        sendClose(socket, state, 1009, "message too big");
+      } else {
+        sendClose(socket, state, 4002, "framing error");
+      }
     }
   });
   if (head.length > 0) {

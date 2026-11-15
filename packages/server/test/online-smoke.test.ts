@@ -121,6 +121,22 @@ function maskedRaw(text: string): Buffer {
   return out;
 }
 
+/** Drip-feed one masked frame in 64KB slices so a loaded runner never
+ *  needs a single 2MB burst write; same wire bytes, same declared length,
+ *  so the server's buffered-bytes 1009 still fires mid-stream. Stops
+ *  early once the server closes mid-stream (WsClient swallows later
+ *  socket errors). */
+async function sendChunked(client: WsClient, frame: Buffer): Promise<void> {
+  const SLICE = 64 * 1024;
+  for (let offset = 0; offset < frame.length; offset += SLICE) {
+    if (client.socket.destroyed) {
+      break;
+    }
+    client.socket.write(frame.subarray(offset, offset + SLICE));
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}
+
 type Inbound = { t: "text"; text: string } | { t: "close"; code: number };
 
 /** Raw WS client speaking masked frames over node:net. */
@@ -388,16 +404,16 @@ describe("online two-client smoke", () => {
     expect(snapshot["t"]).toBe("snapshot");
   });
 
-  // The per-test timeout plus retry absorb a one-off scheduling stall
-  // on loaded runners (the 5s vitest default otherwise races the 5s
-  // frame wait); a genuine hang still fails every attempt. The strict
-  // 1s close stays enforced by scripts/probes/online-two-client.mjs
-  // (also CI-gated) against an idle server.
-  it("2MB payload closes with code 1009", { timeout: 30000, retry: 2 }, async () => {
+  // Strict 1s timing is enforced by scripts/probes/online-two-client.mjs
+  // (also CI-gated) against an idle server; this vitest mirror asserts
+  // the 1009 code with load-tolerant bounds and no retry so a hang fails
+  // loudly instead of being masked by a retried attempt.
+  it("2MB payload closes with code 1009", { timeout: 15000 }, async () => {
     const proc = await launch();
     const client = await dial(proc);
-    client.sendJson({ t: "hello", proto: 1, view: "dune", name: "Huge", pad: "x".repeat(2 * 1024 * 1024) });
-    const msg = await client.next(5000);
+    const frame = maskedText({ t: "hello", proto: 1, view: "dune", name: "Huge", pad: "x".repeat(2 * 1024 * 1024) });
+    await sendChunked(client, frame);
+    const msg = await client.next(10000);
     expect(msg.t).toBe("close");
     expect((msg as { t: "close"; code: number }).code).toBe(1009);
   });

@@ -507,7 +507,11 @@ function sendClose(socket: net.Socket, state: ConnState, code: number, reason: s
   }
   state.closed = true;
   try {
-    socket.write(frameClose(code, reason), () => {
+    // end() half-closes with FIN after the queued close frame: TCP must
+    // deliver the frame before the FIN, so the peer always observes the
+    // code. A bare write() plus destroy() sends RST, which may discard
+    // the unread close frame in the peer's queue (flaky 1009/4002 reads).
+    socket.end(frameClose(code, reason), () => {
       try {
         socket.destroy();
       } catch {

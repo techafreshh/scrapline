@@ -22,4 +22,5 @@ jobs:
       - run: pip install -e "rl[test]"
       - run: npm run lint
       - run: npm test
+      - run: npm run probe:online
       - run: python -m pytest rl/tests

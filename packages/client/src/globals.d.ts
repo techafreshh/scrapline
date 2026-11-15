@@ -239,10 +239,12 @@ declare global {
         h: number;
         jetting: boolean;
         protected: boolean;
+        /** Jetpack fuel fraction in [0, 1] (1 when the sim fuel is missing). */
+        fuelRatio: number;
         alpha: number;
         color: number;
         colorCss: string;
-        flame: { scale: number; alpha: number } | null;
+        flame: { scale: number; alpha: number; boost: number } | null;
         /** Wall-clock run-cycle phase in radians. */
         legPhase: number;
         /** Signed leg offset in local px. */

@@ -59,8 +59,18 @@ import type { SetupStorage } from "../setup";
 import { FX_EMITTER_CAPS } from "../fx/particles-config";
 import type { FxEmitters } from "../fx/emitters";
 import {
+  ambientBirdCount,
+  ambientMoteCount,
+  createAmbientBed,
+  paintAmbient2D,
+  paintAmbientPixi,
+  updateAmbientBed,
+  type AmbientBed,
+} from "../ambient/beds";
+import {
   createCamera,
   projectCamera,
+  viewSize,
   visibleTileRange,
   type Camera,
 } from "./camera";
@@ -870,9 +880,12 @@ function paintFramePixi(
   nowMs: number = 0,
   quality: QualityLevel = "high",
   hurtPulse: number = 0,
+  ambient: AmbientBed | null = null,
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
+  const ambientProject = (x: number, y: number): { x: number; y: number } =>
+    projectCamera(cam, canvasWidth, canvasHeight, x, y);
   const tileSize = TILE_SIZE * cam.scale;
   const activeTheme = theme ?? resolveTileTheme();
   graphics.clear();
@@ -884,6 +897,19 @@ function paintFramePixi(
   paintDecorPixi(graphics, px, py, cam.scale, decors);
   paintTilesPixi(graphics, px, py, tileSize, cam.scale, layers, activeTheme, padSquash);
   paintLightsPixi(graphics, px, py, cam.scale, lights, nowMs);
+  // Ambient particle bed: per-theme background life behind gameplay
+  // (below entities, above tiles) so scenery reads alive without
+  // touching collision. Quality-gated: low paints nothing.
+  paintAmbientPixi(
+    graphics,
+    ambient,
+    activeTheme.name,
+    ambientProject,
+    canvasWidth,
+    canvasHeight,
+    nowMs,
+    quality,
+  );
   for (const prop of frame.props) {
     if (!prop.alive) {
       continue;
@@ -1310,9 +1336,12 @@ function paintFrame2D(
   nowMs: number = 0,
   quality: QualityLevel = "high",
   hurtPulse: number = 0,
+  ambient: AmbientBed | null = null,
 ): void {
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
+  const ambientProject = (x: number, y: number): { x: number; y: number } =>
+    projectCamera(cam, canvasWidth, canvasHeight, x, y);
   const tileSize = TILE_SIZE * cam.scale;
   const activeTheme = theme ?? resolveTileTheme();
   paintSky2D(ctx, canvasWidth, canvasHeight, activeTheme.name);
@@ -1323,6 +1352,19 @@ function paintFrame2D(
   paintDecor2D(ctx, px, py, cam.scale, decors);
   paintTiles2D(ctx, px, py, tileSize, cam.scale, layers, activeTheme, padSquash);
   paintLights2D(ctx, px, py, cam.scale, lights, nowMs);
+  // Ambient particle bed: per-theme background life behind gameplay
+  // (below entities, above tiles) so scenery reads alive without
+  // touching collision. Quality-gated: low paints nothing.
+  paintAmbient2D(
+    ctx,
+    ambient,
+    activeTheme.name,
+    ambientProject,
+    canvasWidth,
+    canvasHeight,
+    nowMs,
+    quality,
+  );
   for (const prop of frame.props) {
     if (!prop.alive) {
       continue;
@@ -1877,6 +1919,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   const victimFlash = new Map<number, number>();
   // Live shockwave rings in world coords (one per blast, 500ms life).
   const shockwaves: Shockwave[] = [];
+  // Ambient particle bed: per-theme background life (dust+birds,
+  // shimmer+streaks, snowfall+aurora) painted behind gameplay on high
+  // quality, cleared on low. Decor only: never touches the sim.
+  const ambientBed: AmbientBed = createAmbientBed();
   // Renderer-owned post-effect quality (seeded from storage, forwarded
   // from the settings binder). High keeps the chromatic hurt pulse and
   // the Pixi filter pass; rings, halos, and vignette paint on all levels.
@@ -2079,6 +2125,19 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     updateParticles(particles);
     const theme = resolveTileTheme();
     const themeName = theme.name;
+    // Ambient bed advances on the live camera view (camera-relative
+    // spawn keeps the view populated while panning); the quality gate
+    // lives inside updateAmbientBed (low clears the bed).
+    const ambientView = viewSize(cam, logicalW, logicalH);
+    updateAmbientBed(ambientBed, {
+      theme: themeName,
+      quality,
+      tick: frame.tick,
+      camX: cam.x,
+      camY: cam.y,
+      viewW: ambientView.w,
+      viewH: ambientView.h,
+    });
     const allDecors = decorationsFor(themeName) ?? [];
     const tileMapForDecor =
       map !== undefined &&
@@ -2172,6 +2231,13 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             quality,
             shockwaveCount: shockwaves.length,
             hurtPulse: Math.round(hurtPulse * 100) / 100,
+            // Ambient bed probes: live mote count (snowfall on
+            // frostbite), bird count plus screen-space bird positions
+            // (mid-band crossing on kilima), and the bed theme. Low
+            // quality clears the bed so ambientCount reads 0.
+            ambientCount: ambientMoteCount(ambientBed),
+            ambientBirdCount: ambientBirdCount(ambientBed),
+            ambientTheme: themeName,
           });
         }
       } catch {
@@ -2234,6 +2300,15 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         particleCount: particles.length,
         particleCap: MAX_PARTICLES,
         fxCaps: { ...FX_EMITTER_CAPS },
+        // Ambient bed probes (decor-only, quality-gated): live mote
+        // count plus bird count/screen positions for the crossing probe.
+        ambientCount: ambientMoteCount(ambientBed),
+        ambientBirdCount: ambientBirdCount(ambientBed),
+        ambientTheme: themeName,
+        ambientBirds: ambientBed.birds.map((b) => {
+          const s = projectCamera(cam, logicalW, logicalH, b.x, b.y);
+          return { x: s.x, y: s.y };
+        }),
         tints: frame.players.map((p) =>
           playerPaintColor(p.index, p.alive, victimFlash.has(p.index)),
         ),
@@ -2644,6 +2719,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           nowMs,
           quality,
           hurtPulse,
+          ambientBed,
         );
         // High-quality Pixi filter pass (best-effort): Glow on the fx
         // layer, Shockwave from live rings, RGBSplit while hurt. Low
@@ -2707,7 +2783,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         // composed geometry is drawn immediately in paintFrame2D.
         ensurePlayerNodes(playerNodes, null, null, frame.players.length);
         publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles, anims);
-        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), particles.slice(), victimFlash, logicalW, logicalH, anims, theme, decors, lights, padSquash, shockwaves.slice(), nowMs, quality, hurtPulse);
+        paintFrame2D(ctx, frame, cam, layers, flashes.slice(), tracers.slice(), muzzles.slice(), sparks.slice(), bursts.slice(), particles.slice(), victimFlash, logicalW, logicalH, anims, theme, decors, lights, padSquash, shockwaves.slice(), nowMs, quality, hurtPulse, ambientBed);
       },
     };
   }

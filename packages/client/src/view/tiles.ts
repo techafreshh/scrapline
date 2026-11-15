@@ -40,10 +40,20 @@ export interface TileQuery {
   readonly heightTiles?: number;
 }
 
+/** Per-side exposure for one solid tile (true = neighbor is not solid). */
+export interface ExposedEdges {
+  top: boolean;
+  bottom: boolean;
+  left: boolean;
+  right: boolean;
+}
+
 /** One tile cell to paint. */
 export interface TileCell {
   tx: number;
   ty: number;
+  /** Per-side exposure for solids (absent = fully exposed fallback). */
+  exposed?: ExposedEdges;
 }
 
 /** Classified tile layers for one frame. */
@@ -188,6 +198,55 @@ export function tileKindAt(map: TileQuery | null | undefined, tx: number, ty: nu
 }
 
 /**
+ * Per-side exposure for one tile: a side counts exposed only when the
+ * neighbor's `tileKindAt` is not `solid`. Coordinates outside the
+ * declared `widthTiles`/`heightTiles` count as air (not solid) so
+ * arena-border tiles keep their outer edge lines even though TileMap
+ * reports OOB reads as solid. Pure, DOM-free, TileMap-driven.
+ */
+export function exposedEdgesAt(
+  map: TileQuery | null | undefined,
+  tx: number,
+  ty: number,
+): ExposedEdges {
+  try {
+    const rec = map as unknown as Record<string, unknown> | null | undefined;
+    let width: number | null = null;
+    let height: number | null = null;
+    if (rec !== null && rec !== undefined) {
+      const wRaw = rec["widthTiles"];
+      const hRaw = rec["heightTiles"];
+      if (typeof wRaw === "number" && Number.isFinite(wRaw)) {
+        width = Math.floor(wRaw);
+      }
+      if (typeof hRaw === "number" && Number.isFinite(hRaw)) {
+        height = Math.floor(hRaw);
+      }
+    }
+    const isOob = (x: number, y: number): boolean => {
+      if (width === null || height === null) {
+        return false;
+      }
+      return x < 0 || y < 0 || x >= width || y >= height;
+    };
+    const neighborSolid = (x: number, y: number): boolean => {
+      if (isOob(x, y)) {
+        return false;
+      }
+      return tileKindAt(map, x, y) === "solid";
+    };
+    return {
+      top: !neighborSolid(tx, ty - 1),
+      bottom: !neighborSolid(tx, ty + 1),
+      left: !neighborSolid(tx - 1, ty),
+      right: !neighborSolid(tx + 1, ty),
+    };
+  } catch {
+    return { top: true, bottom: true, left: true, right: true };
+  }
+}
+
+/**
  * Resolve the active theme name: explicit override first (main.ts sets
  * it on startMatch), then the window mirrors (`__game.theme`,
  * `__matchConfig.map`) so a harness theme switch takes effect on the
@@ -316,6 +375,61 @@ export function tilePaintFor(kind: TileKind, theme: TileTheme): TilePaint {
   };
 }
 
+/** One theme cap mark: a rect in tile-local world px (TILE_SIZE grid). */
+export interface CapMark {
+  /** X offset from the tile left in world px (0 <= dx < TILE_SIZE). */
+  dx: number;
+  /** Y offset from the tile top in world px (inside the cap band). */
+  dy: number;
+  /** Mark width in world px. */
+  w: number;
+  /** Mark height in world px (dy + h <= HIGHLIGHT_PX). */
+  h: number;
+  /** Mark fill as Pixi hex (existing palette only). */
+  hex: number;
+  /** Mark fill as CSS twin. */
+  css: string;
+}
+
+/**
+ * Per-theme top-cap marks stamped over the HIGHLIGHT_PX strip on
+ * exposed tops only. Arrangement branches on the theme name (grass-tuft
+ * ticks for kilima, ripple ticks for dune, diagonal sheen for
+ * frostbite) and every mark reuses the theme's existing edge fill, so
+ * the Rec.601 luminance gap to the base side fill stays > 10.
+ * Deterministic: no RNG, clock, or DOM.
+ */
+export function capMarksFor(theme: unknown): CapMark[] {
+  const resolved = themeFor(themeNameOf(theme));
+  const hex = resolved.edgeHex;
+  const css = resolved.edge;
+  if (resolved.name === "dune") {
+    // Ripple ticks: short dashes across the top half of the cap band.
+    return [
+      { dx: 2, dy: 0, w: 4, h: 1, hex, css },
+      { dx: 10, dy: 0, w: 4, h: 1, hex, css },
+      { dx: 18, dy: 0, w: 4, h: 1, hex, css },
+      { dx: 26, dy: 0, w: 4, h: 1, hex, css },
+    ];
+  }
+  if (resolved.name === "frostbite") {
+    // Diagonal sheen: two offset streaks stepping down across the band.
+    return [
+      { dx: 4, dy: 0, w: 8, h: 1, hex, css },
+      { dx: 8, dy: 1, w: 8, h: 1, hex, css },
+      { dx: 18, dy: 0, w: 8, h: 1, hex, css },
+      { dx: 22, dy: 1, w: 8, h: 1, hex, css },
+    ];
+  }
+  // kilima (and tolerant fallback): grass-tuft ticks spanning the band.
+  return [
+    { dx: 3, dy: 0, w: 2, h: 2, hex, css },
+    { dx: 11, dy: 0, w: 2, h: 2, hex, css },
+    { dx: 19, dy: 0, w: 2, h: 2, hex, css },
+    { dx: 27, dy: 0, w: 2, h: 2, hex, css },
+  ];
+}
+
 /** Per-theme tileset entry: flat CC0 asset key plus the paint pair. */
 export interface TilesetEntry {
   /** Asset key without extension (e.g. tile-kilima). */
@@ -400,7 +514,7 @@ export function collectTileLayers(
       for (let tx = range.x0; tx <= range.x1; tx += 1) {
         const kind = tileKindAt(map, tx, ty);
         if (kind === "solid") {
-          solids.push({ tx, ty });
+          solids.push({ tx, ty, exposed: exposedEdgesAt(map, tx, ty) });
         } else if (kind === "oneway") {
           oneWays.push({ tx, ty });
         } else if (kind === "bounce") {

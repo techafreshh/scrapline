@@ -14,7 +14,9 @@ import {
   ONEWAY_PLANK_H,
   SOLID_TILE_H,
   SOLID_Z,
+  capMarksFor,
   collectTileLayers,
+  exposedEdgesAt,
   resolveThemeName,
   resolveTileTheme,
   tileKindAt,
@@ -22,7 +24,7 @@ import {
   tilePaintFor,
   tilesetFor,
 } from "../src/view/tiles";
-import { THEMES } from "../src/view/theme";
+import { THEMES, luminanceOfHex } from "../src/view/theme";
 
 afterEach(() => {
   delete (globalThis as unknown as Record<string, unknown>)["window"];
@@ -203,5 +205,96 @@ describe("per-theme tilesets", () => {
     expect(svg).toMatch(/viewBox="0 0 32 32"/);
     expect(svg).toMatch(/width="32"/);
     expect(svg).toMatch(/height="32"/);
+  });
+});
+
+describe("terrain edge blending", () => {
+  it("reports no exposed sides for the interior of a 3x3 solid block", () => {
+    const map = new TileMap(["#####", "#####", "#####", "#####", "#####"]);
+    expect(exposedEdgesAt(map, 2, 2)).toEqual({
+      top: false,
+      bottom: false,
+      left: false,
+      right: false,
+    });
+  });
+
+  it("reports exactly the outward sides on block edge tiles", () => {
+    const map = new TileMap(["...", "###", "..."]);
+    // Single solid row: every tile exposes top and bottom, ends add sides.
+    expect(exposedEdgesAt(map, 1, 1)).toEqual({
+      top: true,
+      bottom: true,
+      left: false,
+      right: false,
+    });
+    expect(exposedEdgesAt(map, 0, 1)).toEqual({
+      top: true,
+      bottom: true,
+      left: true,
+      right: false,
+    });
+    expect(exposedEdgesAt(map, 2, 1)).toEqual({
+      top: true,
+      bottom: true,
+      left: false,
+      right: true,
+    });
+  });
+
+  it("keeps outer edges on OOB-adjacent border tiles", () => {
+    const map = new TileMap(["#.", ".."]);
+    // Corner solid: OOB top/left count as exposed so the border keeps
+    // its outer edge lines (TileMap reports OOB solid, exposure does not).
+    expect(exposedEdgesAt(map, 0, 0)).toEqual({
+      top: true,
+      bottom: true,
+      left: true,
+      right: true,
+    });
+  });
+
+  it("keeps every cap-mark color >10 luminance away from the base fill", () => {
+    for (const name of ["kilima", "dune", "frostbite"] as const) {
+      const theme = THEMES[name];
+      const baseLum = luminanceOfHex(theme.baseHex);
+      const marks = capMarksFor(name);
+      expect(marks.length).toBeGreaterThan(0);
+      for (const mark of marks) {
+        // Confined to the top cap band on the 32px tile grid.
+        expect(mark.dx).toBeGreaterThanOrEqual(0);
+        expect(mark.dx + mark.w).toBeLessThanOrEqual(32);
+        expect(mark.dy).toBeGreaterThanOrEqual(0);
+        expect(mark.dy + mark.h).toBeLessThanOrEqual(HIGHLIGHT_PX);
+        expect(Math.abs(luminanceOfHex(mark.hex) - baseLum)).toBeGreaterThan(10);
+      }
+      // Highlight cap itself also lifts off the base by >10.
+      expect(Math.abs(luminanceOfHex(theme.highlightHex) - baseLum)).toBeGreaterThan(10);
+    }
+  });
+
+  it("branches cap-mark arrangement per theme name", () => {
+    expect(capMarksFor("kilima")).not.toEqual(capMarksFor("dune"));
+    expect(capMarksFor("kilima")).not.toEqual(capMarksFor("frostbite"));
+    expect(capMarksFor("dune")).not.toEqual(capMarksFor("frostbite"));
+    // Tolerant fallback: unknown themes read as kilima tufts.
+    expect(capMarksFor("bogus")).toEqual(capMarksFor("kilima"));
+  });
+
+  it("collects identical solid layers across kilima/dune/frostbite", () => {
+    const rows = mapRowsFor("kilima");
+    expect(rows).not.toBeNull();
+    const map = new TileMap(rows as string[]);
+    const cam = createCamera(map.widthPixels, map.heightPixels);
+    const a = collectTileLayers(map, cam, 640, 360, map.widthPixels, map.heightPixels);
+    const b = collectTileLayers(map, cam, 640, 360, map.widthPixels, map.heightPixels);
+    const c = collectTileLayers(map, cam, 640, 360, map.widthPixels, map.heightPixels);
+    // Exposure is map-derived and theme-independent, so the full cell
+    // records (including `exposed`) stay equal across themes.
+    expect(b.solids).toEqual(a.solids);
+    expect(c.solids).toEqual(a.solids);
+    expect(b.solids.length).toBeGreaterThan(0);
+    // At least one buried tile merges fully (no exposed sides).
+    expect(a.solids.some((cell) => cell.exposed !== undefined && !cell.exposed.top && !cell.exposed.bottom && !cell.exposed.left && !cell.exposed.right)).toBe(true);
   });
 });

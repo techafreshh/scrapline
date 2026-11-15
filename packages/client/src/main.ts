@@ -73,6 +73,7 @@ import {
 import { setLocalAccent } from "./view/soldier";
 import { bindSettings, loadQuality, loadShowNameTags, parseVolume } from "./settings";
 import { bindMenuScene } from "./menu/scene";
+import { bindOnline } from "./net/online";
 import { bindCarousel } from "./menu/carousel";
 import { bindMenuTips } from "./menu/tips";
 import {
@@ -1449,6 +1450,27 @@ try {
 // stays owned by the match renderer; the soldier rides above it.
 const menuScene = bindMenuScene(document, storage);
 void menuScene;
+// Honest-mode online room (issue #216): `Play online` hides the menu,
+// hellos the same-origin /room endpoint, sends quantized inputs at
+// 60 Hz, and paints snapshot-interpolated states through the live
+// renderer with no local prediction. The offline frame loop is parked
+// while a session owns the canvas (mirrors the matchEnd edge above).
+try {
+  void bindOnline(document, {
+    getRenderer: () => renderer,
+    getView: () => matchConfig.map,
+    sampleInput: () => {
+      const intent = localInput();
+      return { moveX: intent.moveX, aim: intent.aim, buttons: intent.buttons };
+    },
+    onStart: () => {
+      running = false;
+      cancelAnimationFrame(rafId);
+    },
+  });
+} catch {
+  // Online entry optional: offline Quick Play still boots.
+}
 // Map carousel with live headless thumbnails (issue #156): builds one
 // card per arena inside #menu, paints each thumbnail synchronously
 // from core map data, and persists card clicks as the setup default so

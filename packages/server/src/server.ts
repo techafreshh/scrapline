@@ -11,6 +11,8 @@ import * as http from "node:http";
 import type * as net from "node:net";
 import * as path from "node:path";
 import { TICK_HZ, World } from "../../core/src/world";
+import type { WorldInput } from "../../core/src/world";
+import { playerToSnapshot } from "./codec";
 
 const PORT = resolvePort();
 const SEED = intOr(process.env.SEED, 1);
@@ -94,12 +96,17 @@ function mapRowsFor(name: unknown): string[] | null {
   return rows;
 }
 
+/** Latest honest-mode input per session (neutral until the first frame). */
+const latestInputs = new Map<string, WorldInput>();
+
 /** One authoritative room: a seeded World plus its live sockets. */
 interface Room {
   view: string;
   seed: number;
   world: World;
   clients: Set<net.Socket>;
+  /** Fixed-step counter (snapshot broadcast runs every 3rd step). */
+  tick: number;
 }
 
 /** Rooms keyed by view map name; sessions minted per hello. */
@@ -120,19 +127,65 @@ function getOrCreateRoom(view: string): Room {
   }
   const rows = mapRowsFor(view);
   const world = rows !== null ? new World({ seed: SEED, map: rows }) : new World({ seed: SEED });
-  const room: Room = { view, seed: SEED, world, clients: new Set() };
+  const room: Room = { view, seed: SEED, world, clients: new Set(), tick: 0 };
   rooms.set(view, room);
   return room;
 }
 
+/** Neutral intent: sessions with no fresh input stand still, aim forward. */
+function neutralInput(): WorldInput {
+  return { moveX: 0, aim: 0, buttons: 0 };
+}
+
+/** Per-player inputs for one room step, aligned to world.players order. */
+function inputsForRoom(roomName: string, room: Room): WorldInput[] {
+  const byPid = new Map<number, WorldInput>();
+  for (const [session, member] of sessions) {
+    if (member.room !== roomName) {
+      continue;
+    }
+    const latest = latestInputs.get(session);
+    if (latest !== undefined) {
+      byPid.set(member.pid, latest);
+    }
+  }
+  return room.world.players.map((p) => byPid.get(p.id) ?? neutralInput());
+}
+
+/** Broadcast one JSON snapshot row per world player at 20 Hz. */
+function broadcastSnapshot(room: Room): void {
+  if (room.clients.size === 0) {
+    return;
+  }
+  const snapshot = {
+    t: "snapshot",
+    tick: room.world.tick,
+    players: room.world.players.map((p) => playerToSnapshot(p)),
+  };
+  for (const member of room.clients) {
+    sendText(member, snapshot);
+  }
+}
+
 /** One fixed step per 60 Hz interval across every room, no catch-up. */
 setInterval(() => {
-  for (const room of rooms.values()) {
+  for (const [roomName, room] of rooms) {
     try {
-      room.world.step([]);
+      room.tick += 1;
+      room.world.step(inputsForRoom(roomName, room));
     } catch (err) {
       console.error(
         `scrapline-server: step failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    // 20 Hz honest-mode broadcast: every 3rd 60 Hz step.
+    try {
+      if (room.tick % 3 === 0) {
+        broadcastSnapshot(room);
+      }
+    } catch (err) {
+      console.error(
+        `scrapline-server: snapshot failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -317,6 +370,26 @@ function handleMessage(socket: net.Socket, state: ConnState, text: string): void
       room.clients.add(socket);
       state.memberOf.add(room);
       sendText(socket, welcomeFor(known.room, room, known.pid, session as string));
+      return;
+    }
+    // Honest-mode input frame: finite moveX/aim, buttons masked to 10
+    // bits, stored per session with no reply (unknown session already
+    // closed 4002 above). Non-finite fields fall back to neutral.
+    if (rec["t"] === "input") {
+      const moveX =
+        typeof rec["moveX"] === "number" && Number.isFinite(rec["moveX"])
+          ? (rec["moveX"] as number)
+          : 0;
+      const aim =
+        typeof rec["aim"] === "number" && Number.isFinite(rec["aim"])
+          ? (rec["aim"] as number)
+          : 0;
+      const rawButtons = rec["buttons"];
+      const buttons =
+        typeof rawButtons === "number" && Number.isFinite(rawButtons)
+          ? Math.floor(rawButtons) & 0x3ff
+          : 0;
+      latestInputs.set(session as string, { moveX, aim, buttons });
       return;
     }
     sendClose(socket, state, 4002, "bad message");

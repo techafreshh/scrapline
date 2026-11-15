@@ -265,6 +265,7 @@ declare global {
       }[];
       /** Live pickup markers with held weapons. */
       pickups?: {
+        id: number;
         x: number;
         y: number;
         kind: string;

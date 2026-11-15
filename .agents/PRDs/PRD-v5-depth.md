@@ -12,7 +12,7 @@
 
 - **A1. Theme-correct backdrops.** Each map's parallax set must match its theme: kilima = dusk savanna (acacia tree silhouettes, warm sun disc, birds occasionally crossing), dune = golden-hour desert (dunes, refinery chimneys, haze), frostbite = polar night (aurora band, station antennas, drifting snow). Remove the generic city silhouettes. A `themeFor` audit test asserts each theme's backdrop layers contain theme-declared shapes.
 - **A2. Terrain texture + edge blending.** Tile tops get theme-tinted highlight caps with soft edge shading (grass tuft tops on kilima, sand ripples on dune, frost sheen on frostbite); platform undersides get depth shading; adjacent same-type tiles merge visually (no internal seams). Pure rendering — physics tiles unchanged.
-- **A3. Cohesion audit.** agent-browser captures of all three maps at 1920×1080 committed to `docs/benchmark/themes/`; a checklist test fails if any map renders a backdrop layer not declared by its theme.
+- **A3. Cohesion audit.** agent-browser captures of all three maps at 1920×1080 committed to the benchmark themes capture directory; a checklist test fails if any map renders a backdrop layer not declared by its theme.
 
 ## B. Animation polish
 
@@ -47,7 +47,7 @@
 - **V1. Depth verification lap.** Captures: all three themed maps (cohesion audit), menu with level badge + challenge panel, locker preview, online 2-client smoke via in-box agent-browser + headless WS client. Assert: theme audit green, music audible only via WebAudio state (no autoplay before gesture), netcode probes green, all prior milestones' probes green, fps guardrail green with ambient beds on.
 
 **Acceptance (milestone level)**
-- [ ] Side-by-side redo vs `docs/benchmark/` shows no theme mismatches; menus match reference anatomy
+- [ ] Side-by-side redo vs the benchmark references shows no theme mismatches; menus match reference anatomy
 - [ ] A human can: earn XP → level up → unlock a cosmetic → see it in-match; complete a daily challenge
 - [ ] Two browser tabs can play the same authoritative match locally over WS with smooth remote movement
 - [ ] Determinism/purity + all scenario contracts green; `core` additions additive and tested

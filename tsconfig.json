@@ -11,7 +11,8 @@
   "references": [
     { "path": "./packages/core" },
     { "path": "./packages/client" },
-    { "path": "./packages/env" }
+    { "path": "./packages/env" },
+    { "path": "./packages/server" }
   ],
   "exclude": ["packages/*/test", "packages/*/tests"]
 }

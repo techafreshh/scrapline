@@ -1,6 +1,7 @@
-// PRD docs reference guard: no markdown may point at the deleted
-// docs/benchmark/ directory, and every backticked docs/... path referenced
-// in markdown must exist on disk (so stale prose cannot silently return).
+// PRD docs reference guard: only docs/benchmark/README.md may mention
+// the allowlisted docs/benchmark/ reference directory (#161), and every
+// backticked docs/... path referenced in markdown must exist on disk
+// (so stale prose cannot silently return).
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -35,17 +36,23 @@ function docsRefsIn(text) {
   return refs;
 }
 
-test("no markdown references the deleted docs/benchmark/ path", () => {
+test("only docs/benchmark/README.md mentions the benchmark path", () => {
   const files = markdownFiles(ROOT);
   assert.ok(files.length > 0, "expected markdown files under the repo");
   const hits = [];
+  const allowed = path.join("docs", "benchmark", "README.md");
   for (const file of files) {
     const text = fs.readFileSync(file, "utf8");
-    if (text.includes("docs/benchmark")) {
+    if (text.includes("docs/benchmark") && path.relative(ROOT, file) !== allowed) {
       hits.push(path.relative(ROOT, file));
     }
   }
   assert.deepEqual(hits, [], `stale docs/benchmark reference in: ${hits.join(", ")}`);
+});
+
+test("docs/benchmark/README.md exists for the allowlisted references", () => {
+  const readme = path.join(ROOT, "docs", "benchmark", "README.md");
+  assert.ok(fs.existsSync(readme), "expected docs/benchmark/README.md on disk");
 });
 
 test("every backticked docs/... path referenced in markdown exists on disk", () => {

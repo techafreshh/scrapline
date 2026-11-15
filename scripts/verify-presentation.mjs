@@ -1,9 +1,13 @@
 // Presentation verification lap: headless-Chromium captures plus guards.
 // Launches system Chromium via puppeteer-core (node:* only otherwise),
 // screenshots 1920x1080 and 1280x720 frames to artifacts/ (menu, setup,
-// one mid-match frame per map, fullscreen on/off, standings), asserts the
-// canvas CSS letterbox, the fps guardrail, and the prior health/state
-// probes, then writes artifacts/verify.json with status ALL GREEN.
+// carousel close-up, one mid-match frame per map with a kilima combat
+// re-take under live fire, fullscreen on/off, standings), asserts the
+// canvas CSS letterbox, the fps guardrail (30 fps mean over 5 s in
+// combat), particles near the muzzle on fire/explosion, glow, readable
+// name tags, the ammo module text, and the prior health/state probes,
+// then writes artifacts/verify.json with status ALL GREEN plus the
+// per-capture muzzle-to-screenshot map the benchmark compare consumes.
 // Zero repo dependencies beyond puppeteer-core (devDependency): stays out
 // of `npm test` and CI on purpose (no browser there), mirroring the
 // tools/feel-parity.js harness idiom.
@@ -17,6 +21,10 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
+import {
+  brightPixelsNearFile,
+  mapMuzzleToShot,
+} from "./verify/benchmark-compare.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
@@ -27,8 +35,9 @@ const MIN_PNG_BYTES = 5 * 1024;
 // Pairwise mid-match distinctness floor: warm/cool/neutral grades land
 // near 35%+ pixel delta, so 5% proves distinct themes with wide margin.
 const MIN_HISTOGRAM_DELTA = 0.05;
-// Runtime fps floor: healthy SwiftShader runs report ~60 via __game.fps.
-const MIN_FPS = 20;
+// Runtime fps floor: healthy SwiftShader runs report ~60 via __game.fps,
+// so the combat-leg 5 s mean must clear 30 with wide margin.
+const MIN_FPS = 30;
 // Canvas CSS box tolerance in px: the #game 1px border inflates the
 // border-box by 2px over the exact letterbox size.
 const CANVAS_BOX_TOLERANCE_PX = 4;
@@ -250,6 +259,37 @@ function pngDimensions(file) {
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
 }
 
+/**
+ * Record the screenshot-space mapping for one capture: shot dims plus
+ * the live canvas box, backing-store size, and __game muzzle, so the
+ * benchmark compare can map the muzzle into screenshot pixels.
+ */
+async function recordCapture(page, store, name) {
+  const file = path.join(ARTIFACTS_DIR, name);
+  const dims = pngDimensions(file);
+  const live = await page.evaluate(() => {
+    const canvas = document.getElementById("game");
+    const rect =
+      canvas !== null && typeof canvas.getBoundingClientRect === "function"
+        ? canvas.getBoundingClientRect()
+        : null;
+    const game = window.__game;
+    return {
+      box:
+        rect === null
+          ? null
+          : { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      canvasW: canvas !== null ? canvas.width : 0,
+      canvasH: canvas !== null ? canvas.height : 0,
+      muzzle:
+        game !== undefined && game !== null
+          ? { x: game.muzzle.x, y: game.muzzle.y }
+          : null,
+    };
+  });
+  store[name] = { shotW: dims.width, shotH: dims.height, ...live };
+}
+
 async function run() {
   let builtIndex = path.join(ROOT, "packages", "client", "dist", "index.html");
   if (!fs.existsSync(builtIndex)) {
@@ -270,6 +310,8 @@ async function run() {
 
   fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
   const checks = {};
+  // Per-capture muzzle-to-screenshot map (benchmark-compare input).
+  const captures = {};
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, ["server.js"], {
@@ -370,9 +412,164 @@ async function run() {
       const shot = path.join(ARTIFACTS_DIR, `midmatch-${map}.png`);
       await page.screenshot({ path: shot });
       const bytes = assertShot(shot);
+      await recordCapture(page, captures, `midmatch-${map}.png`);
       log(`midmatch ${map} ok (theme=${map} tiles=${snap.tilesDrawn} fps=${snap.fps} ${(bytes / 1024).toFixed(1)}KB)`);
     }
     checks.midmatch = { maps: MAPS.slice(), fpsSamples };
+
+    // Kilima combat leg (#161): live fire plus a grenade, then the
+    // particle/glow/nametag/ammo/fps probes and the combat capture that
+    // re-takes midmatch-kilima.png with muzzle-flash particles visible.
+    await page.goto(`${base}/?bots=1&tier=normal&map=kilima`, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+    await waitForClientReady(page);
+    await page.waitForFunction(
+      () =>
+        window.__game !== undefined &&
+        window.__game !== null &&
+        window.__game.theme === "kilima" &&
+        window.__game.tilesDrawn > 0,
+      { timeout: 20000, polling: 100 },
+    );
+    await sleep(1500);
+    // Aim at canvas center and hold fire: the window mousedown path
+    // sets fireMouse, so tracers/muzzles/particles spawn every draw.
+    const combatBox = await (await page.$("#game")).boundingBox();
+    assert(combatBox !== null, "game canvas has no layout box for the combat leg");
+    await page.mouse.move(
+      combatBox.x + combatBox.width / 2,
+      combatBox.y + combatBox.height / 2,
+    );
+    await page.mouse.down();
+    try {
+      // Fire gate: pooled particles plus tracers/muzzles live, with one
+      // particle projected within 24px of the __game muzzle (backing px).
+      await page.waitForFunction(
+        () => {
+          const dbg = window.__scraplineDebug;
+          const game = window.__game;
+          const cam = window.__camera;
+          if (dbg === undefined || dbg === null) {
+            return false;
+          }
+          if (game === undefined || game === null) {
+            return false;
+          }
+          if (cam === undefined || cam === null) {
+            return false;
+          }
+          const parts = dbg.particles || [];
+          const tracers = dbg.tracers || [];
+          const muzzles = dbg.muzzle || [];
+          if (parts.length === 0) {
+            return false;
+          }
+          if (tracers.length === 0 && muzzles.length === 0) {
+            return false;
+          }
+          const mx = game.muzzle.x;
+          const my = game.muzzle.y;
+          if (!Number.isFinite(mx) || !Number.isFinite(my)) {
+            return false;
+          }
+          for (const p of parts) {
+            const sx = (p.x - cam.x) * cam.scale + 320;
+            const sy = (p.y - cam.y) * cam.scale + 180;
+            if (Math.hypot(sx - mx, sy - my) <= 24) {
+              return true;
+            }
+          }
+          return false;
+        },
+        { timeout: 15000, polling: 100 },
+      );
+      log("combat fire gate ok (particles + tracers/muzzles near muzzle)");
+      // Grenade beat: tap g, then await explosion evidence (a live
+      // shockwave ring, death-burst fallout, or the shockwave counter).
+      await page.keyboard.press("g");
+      await page.waitForFunction(
+        () => {
+          const dbg = window.__scraplineDebug;
+          const game = window.__game;
+          if (dbg === undefined || dbg === null) {
+            return false;
+          }
+          if (game === undefined || game === null) {
+            return false;
+          }
+          if ((dbg.shockwaves || []).length > 0) {
+            return true;
+          }
+          if ((dbg.bursts || []).length > 0) {
+            return true;
+          }
+          return (game.shockwaveCount || 0) > 0;
+        },
+        { timeout: 20000, polling: 100 },
+      );
+      log("combat explosion gate ok (grenade shockwave live)");
+      // Fps meter leg: sample __game.fps 10x at 500ms during combat;
+      // the guardrail mean must clear 30 fps.
+      const fpsCombat = [];
+      for (let i = 0; i < 10; i += 1) {
+        await sleep(500);
+        fpsCombat.push(await page.evaluate(() => window.__game.fps));
+      }
+      const fpsMean = fpsCombat.reduce((a, b) => a + b, 0) / fpsCombat.length;
+      assert(
+        fpsCombat.every((v) => Number.isFinite(v)) && fpsMean >= MIN_FPS,
+        `combat fps mean ${fpsMean.toFixed(1)} below floor ${MIN_FPS} (samples ${fpsCombat.join(",")})`,
+      );
+      // Glow gate: static additive lights painted this frame.
+      const lightCount = await page.evaluate(() => window.__game.lightCount);
+      assert(lightCount > 0, `glow guardrail failed (lightCount=${lightCount})`);
+      // Ammo module: mag/reserve counts render `32/96`-style.
+      const ammoText = await page.$eval("#ammo-counts", (el) => el.textContent || "");
+      assert(
+        /^\d+\/\d+$/.test(ammoText.trim()),
+        `#ammo-counts reads ${JSON.stringify(ammoText)}, expected digits/digits`,
+      );
+      // Name tags: at least two readable labels on screen.
+      const tagCount = await page.$$eval(".nametag", (els) =>
+        els.filter((el) => {
+          if (el.textContent === null || el.textContent.trim().length === 0) {
+            return false;
+          }
+          const style = getComputedStyle(el);
+          if (style.display === "none" || style.visibility === "hidden") {
+            return false;
+          }
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        }).length,
+      );
+      assert(tagCount >= 2, `expected >=2 readable name tags, found ${tagCount}`);
+      // Combat capture while still holding fire: overwrites the settled
+      // midmatch-kilima.png with muzzle-flash particles visible.
+      const combatShot = path.join(ARTIFACTS_DIR, "midmatch-kilima.png");
+      await page.screenshot({ path: combatShot });
+      assertShot(combatShot);
+      await recordCapture(page, captures, "midmatch-kilima.png");
+      // Screenshot-space muzzle proof: a bright pixel within 24px of
+      // the mapped muzzle must exist in the captured PNG itself.
+      const mapped = mapMuzzleToShot(captures["midmatch-kilima.png"]);
+      const bright = brightPixelsNearFile(combatShot, mapped.x, mapped.y, 24);
+      assert(bright >= 1, "no bright pixel within 24px of the muzzle in midmatch-kilima.png");
+      checks.combat = {
+        fpsSamples: fpsCombat,
+        fpsMean: Math.round(fpsMean * 10) / 10,
+        lightCount,
+        ammo: ammoText.trim(),
+        tags: tagCount,
+        brightNearMuzzle: bright,
+        muzzle: captures["midmatch-kilima.png"].muzzle,
+      };
+      log(`combat ok (fps mean=${fpsMean.toFixed(1)} ammo=${ammoText.trim()} tags=${tagCount} bright=${bright})`);
+    } finally {
+      await page.mouse.up();
+    }
 
     // Canvas CSS scale guardrail at 1920x1080: the letterbox box keeps
     // 16:9 and fills the viewport exactly (up to the 1px canvas border).
@@ -417,6 +614,7 @@ async function run() {
     assert(/Fullscreen: ON/.test(onLabel), `fullscreen label reads ${JSON.stringify(onLabel)}`);
     await page.screenshot({ path: path.join(ARTIFACTS_DIR, "fullscreen-on.png") });
     assertShot(path.join(ARTIFACTS_DIR, "fullscreen-on.png"));
+    await recordCapture(page, captures, "fullscreen-on.png");
     await page.click("#btn-fullscreen");
     await page.waitForFunction(
       () => window.localStorage.getItem("scrapline.fullscreen") === "0",
@@ -426,6 +624,7 @@ async function run() {
     assert(/Fullscreen: OFF/.test(offLabel), `fullscreen label reads ${JSON.stringify(offLabel)}`);
     await page.screenshot({ path: path.join(ARTIFACTS_DIR, "fullscreen-off.png") });
     assertShot(path.join(ARTIFACTS_DIR, "fullscreen-off.png"));
+    await recordCapture(page, captures, "fullscreen-off.png");
     checks.fullscreen = { on: "Fullscreen: ON", off: "Fullscreen: OFF" };
     log("fullscreen on/off ok");
     await page.click("#settings-close");
@@ -451,6 +650,7 @@ async function run() {
     assert(standingRows >= 2, `expected standings rows, found ${standingRows}`);
     await page.screenshot({ path: path.join(ARTIFACTS_DIR, "standings.png") });
     assertShot(path.join(ARTIFACTS_DIR, "standings.png"));
+    await recordCapture(page, captures, "standings.png");
     checks.standings = { winner: winnerText.trim(), rows: standingRows };
     log(`standings ok (${winnerText.trim()}, ${standingRows} rows)`);
 
@@ -467,8 +667,14 @@ async function run() {
       const handle = await page.$(id);
       assert(handle !== null, `missing ${id} on the menu`);
     }
+    const carouselHandle = await page.$("#map-carousel");
+    assert(carouselHandle !== null, "missing #map-carousel on the menu");
+    await carouselHandle.screenshot({ path: path.join(ARTIFACTS_DIR, "carousel.png") });
+    assertShot(path.join(ARTIFACTS_DIR, "carousel.png"));
+    await recordCapture(page, captures, "carousel.png");
     await page.screenshot({ path: path.join(ARTIFACTS_DIR, "menu.png") });
     assertShot(path.join(ARTIFACTS_DIR, "menu.png"));
+    await recordCapture(page, captures, "menu.png");
     await page.click("#play");
     await page.waitForFunction(
       () => {
@@ -487,6 +693,7 @@ async function run() {
     assert(mapCount >= 3, `expected map buttons, found ${mapCount}`);
     await page.screenshot({ path: path.join(ARTIFACTS_DIR, "setup.png") });
     assertShot(path.join(ARTIFACTS_DIR, "setup.png"));
+    await recordCapture(page, captures, "setup.png");
     checks.menuSetup = { tiers: tierCount, maps: mapCount };
     log("menu/setup ok");
 
@@ -517,6 +724,7 @@ async function run() {
     const shot720 = path.join(ARTIFACTS_DIR, "midmatch-1280x720.png");
     await page.screenshot({ path: shot720 });
     assertShot(shot720);
+    await recordCapture(page, captures, "midmatch-1280x720.png");
     checks.canvasCss720 = { box: box720, expected: expected720 };
     log(`canvas CSS ok at 1280x720 (${Math.round(box720.width)}x${Math.round(box720.height)})`);
 
@@ -525,6 +733,7 @@ async function run() {
     const required = [
       "menu.png",
       "setup.png",
+      "carousel.png",
       "midmatch-kilima.png",
       "midmatch-dune.png",
       "midmatch-frostbite.png",
@@ -540,7 +749,7 @@ async function run() {
       const dims = pngDimensions(file);
       files.push({ name, bytes, ...dims });
     }
-    assert(files.length >= 8, `expected >=8 captures, found ${files.length}`);
+    assert(files.length >= 10, `expected >=10 captures, found ${files.length}`);
     const dimsOf = (name) => files.find((f) => f.name === name);
     assert(
       dimsOf("menu.png").width === 1920 && dimsOf("menu.png").height === 1080,
@@ -573,6 +782,7 @@ async function run() {
       }
     }
     checks.histogram = histogram;
+    checks.captures = captures;
 
     const report = {
       status: "ALL GREEN",

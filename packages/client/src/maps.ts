@@ -8,6 +8,7 @@ import kilimaRaw from "../../core/src/maps/kilima.txt?raw";
 import { decorations as duneDecorations } from "../../core/src/maps/dune";
 import { decorations as frostbiteDecorations } from "../../core/src/maps/frostbite";
 import { decorations as kilimaDecorations } from "../../core/src/maps/kilima";
+import { generateScatterDecorations } from "../../core/src/maps/scatter";
 
 /** Arena names in menu order. */
 export const MAP_NAMES = ["kilima", "dune", "frostbite"] as const;
@@ -65,6 +66,27 @@ export function decorationsFor(name: unknown): Decoration[] | null {
     return null;
   }
   return DECORATIONS[key].slice();
+}
+
+/**
+ * Static rects plus deterministic micro-scatter for an arena name
+ * (case-insensitive, whitespace-tolerant); null when unknown. The scatter
+ * half draws from the seeded core sampler over the arena rows, so the same
+ * seed always yields byte-identical output. Returns a fresh array (and
+ * fresh scatter rects) so callers cannot mutate the cache. Non-finite seeds
+ * fall back to 0 exactly like the core sampler.
+ */
+export function decorationsForSeeded(name: unknown, seed: unknown): Decoration[] | null {
+  if (typeof name !== "string") {
+    return null;
+  }
+  const key = name.trim().toLowerCase();
+  if (!isMapName(key)) {
+    return null;
+  }
+  const rows = ROWS[key];
+  const scatter = generateScatterDecorations(key, rows, seed);
+  return [...DECORATIONS[key], ...scatter];
 }
 
 /**

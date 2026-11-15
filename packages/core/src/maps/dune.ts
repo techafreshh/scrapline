@@ -1,7 +1,9 @@
 // Dune refinery dressing: static per-map decoration rects in world pixels
-// (y-down, TILE_SIZE 32, arena 1280x640). Pure data: no imports of any kind,
-// JSON-serializable, deterministic order. All rects sit in the verified-empty
-// sky band (rows 0-2, center-free columns) so no rect intersects a `#` solid.
+// (y-down, TILE_SIZE 32, arena 1280x640). Pure data: relative core imports
+// only, JSON-serializable, deterministic order. All rects sit in the
+// verified-empty sky band (rows 0-2, center-free columns) so no rect
+// intersects a `#` solid.
+import { generateScatterDecorations } from "./scatter";
 export interface Decoration {
   /** Decoration kind key (resolved to a palette in client view/decor). */
   kind: string;
@@ -21,3 +23,11 @@ export const decorations: Decoration[] = [
   { kind:"vats", x: 576, y: 32, w: 64, h: 64 },
   { kind:"catwalk-rails", x: 768, y: 64, w: 160, h: 16 },
 ];
+
+/**
+ * Static rects plus deterministic micro-scatter for `rows`/`seed`: the
+ * static array is never mutated, so the 3-rect contract stays byte-stable.
+ */
+export function decorationsWithScatter(rows: string[] | string, seed: number): Decoration[] {
+  return [...decorations, ...generateScatterDecorations("dune", rows, seed)];
+}

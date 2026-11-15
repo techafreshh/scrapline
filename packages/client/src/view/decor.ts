@@ -6,7 +6,7 @@
 // DECOR_Z matches BACKWALL_Z (painted before solids, never covering them).
 import { TILE_SIZE } from "../../../core/src/map";
 import { visibleTileRange, type Camera } from "../renderer/camera";
-import { decorationsFor } from "../maps";
+import { decorationsFor, decorationsForSeeded } from "../maps";
 import {
   paintGlowHalo2D,
   paintGlowHaloPixi,
@@ -53,6 +53,10 @@ const DECOR_PALETTE: Record<string, DecorPaint> = {
   "ice-sheen": { fillHex: 0xbae6fd, fillCss: "#bae6fd", accentHex: 0x7dd3fc, accentCss: "#7dd3fc" },
   "antenna-dishes": { fillHex: 0xe0f2fe, fillCss: "#e0f2fe", accentHex: 0x0284c7, accentCss: "#0284c7" },
   "window-lights": { fillHex: 0x1f2937, fillCss: "#1f2937", accentHex: 0xfde68a, accentCss: "#fde68a" },
+  "grass-tuft": { fillHex: 0x4d7c0f, fillCss: "#4d7c0f", accentHex: 0x65a30d, accentCss: "#65a30d" },
+  "rock": { fillHex: 0x78716c, fillCss: "#78716c", accentHex: 0x57534e, accentCss: "#57534e" },
+  "valve": { fillHex: 0xc2410c, fillCss: "#c2410c", accentHex: 0x7c2d12, accentCss: "#7c2d12" },
+  "antenna": { fillHex: 0x94a3b8, fillCss: "#94a3b8", accentHex: 0xef4444, accentCss: "#ef4444" },
 };
 
 /** Fallback paint for unknown kinds (neutral slate). */
@@ -88,6 +92,20 @@ export function decorationsForMap(name: unknown): Decoration[] {
     return direct as Decoration[];
   }
   return (decorationsFor("kilima") ?? []) as Decoration[];
+}
+
+/**
+ * Static rects plus deterministic micro-scatter for an arena name and
+ * seed; unknown names fall back to kilima (the menu default) so headless
+ * renderers never draw an empty set. Returns a fresh array every call so
+ * callers cannot mutate the registry.
+ */
+export function decorationsForMapSeeded(name: unknown, seed: unknown): Decoration[] {
+  const direct = decorationsForSeeded(name, seed);
+  if (direct !== null) {
+    return direct as Decoration[];
+  }
+  return (decorationsForSeeded("kilima", seed) ?? []) as Decoration[];
 }
 
 /**
@@ -280,6 +298,39 @@ function paintOnePixi(
       graphics.circle(dotX, dotY, dotR);
       graphics.fill(paint.accentHex);
     }
+  } else if (kind === "grass-tuft") {
+    graphics.rect(sx, sy + h - bar, w, bar);
+    graphics.fill(paint.accentHex);
+    for (let i = 0; i < 3; i += 1) {
+      const bx = sx + (w * (i + 0.5)) / 3;
+      graphics.moveTo(bx, sy + h);
+      graphics.lineTo(bx + (i - 1) * bar * 0.5, sy);
+      graphics.stroke({ width: bar, color: paint.fillHex });
+    }
+  } else if (kind === "rock") {
+    graphics.circle(sx + w / 2, sy + h * 0.55, Math.max(1.5, Math.min(w, h) / 2));
+    graphics.fill(paint.fillHex);
+    graphics.rect(sx, sy + h - bar, w, bar);
+    graphics.fill(paint.accentHex);
+  } else if (kind === "valve") {
+    const cx = sx + w / 2;
+    graphics.moveTo(cx, sy + h);
+    graphics.lineTo(cx, sy + h * 0.35);
+    graphics.stroke({ width: bar, color: paint.fillHex });
+    graphics.circle(cx, sy + h * 0.35, Math.max(1.5, w / 2));
+    graphics.fill(paint.accentHex);
+    graphics.circle(cx, sy + h * 0.35, Math.max(1, bar * 0.5));
+    graphics.fill(paint.fillHex);
+  } else if (kind === "antenna") {
+    const cx = sx + w / 2;
+    graphics.moveTo(cx, sy + h);
+    graphics.lineTo(cx, sy);
+    graphics.stroke({ width: bar, color: paint.fillHex });
+    graphics.moveTo(cx - w / 2, sy + h * 0.35);
+    graphics.lineTo(cx + w / 2, sy + h * 0.35);
+    graphics.stroke({ width: bar, color: paint.fillHex });
+    graphics.circle(cx, sy, Math.max(1, bar));
+    graphics.fill(paint.accentHex);
   } else {
     graphics.rect(sx, sy, w, h);
     graphics.fill(paint.fillHex);
@@ -435,6 +486,57 @@ function paintOne2D(
       ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
       ctx.fill();
     }
+  } else if (kind === "grass-tuft") {
+    ctx.fillStyle = paint.accentCss;
+    ctx.fillRect(sx, sy + h - bar, w, bar);
+    ctx.strokeStyle = paint.fillCss;
+    ctx.lineWidth = bar;
+    for (let i = 0; i < 3; i += 1) {
+      const bx = sx + (w * (i + 0.5)) / 3;
+      ctx.beginPath();
+      ctx.moveTo(bx, sy + h);
+      ctx.lineTo(bx + (i - 1) * bar * 0.5, sy);
+      ctx.stroke();
+    }
+  } else if (kind === "rock") {
+    ctx.fillStyle = paint.fillCss;
+    ctx.beginPath();
+    ctx.arc(sx + w / 2, sy + h * 0.55, Math.max(1.5, Math.min(w, h) / 2), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = paint.accentCss;
+    ctx.fillRect(sx, sy + h - bar, w, bar);
+  } else if (kind === "valve") {
+    const cx = sx + w / 2;
+    ctx.strokeStyle = paint.fillCss;
+    ctx.lineWidth = bar;
+    ctx.beginPath();
+    ctx.moveTo(cx, sy + h);
+    ctx.lineTo(cx, sy + h * 0.35);
+    ctx.stroke();
+    ctx.fillStyle = paint.accentCss;
+    ctx.beginPath();
+    ctx.arc(cx, sy + h * 0.35, Math.max(1.5, w / 2), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = paint.fillCss;
+    ctx.beginPath();
+    ctx.arc(cx, sy + h * 0.35, Math.max(1, bar * 0.5), 0, Math.PI * 2);
+    ctx.fill();
+  } else if (kind === "antenna") {
+    const cx = sx + w / 2;
+    ctx.strokeStyle = paint.fillCss;
+    ctx.lineWidth = bar;
+    ctx.beginPath();
+    ctx.moveTo(cx, sy + h);
+    ctx.lineTo(cx, sy);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2, sy + h * 0.35);
+    ctx.lineTo(cx + w / 2, sy + h * 0.35);
+    ctx.stroke();
+    ctx.fillStyle = paint.accentCss;
+    ctx.beginPath();
+    ctx.arc(cx, sy, Math.max(1, bar), 0, Math.PI * 2);
+    ctx.fill();
   } else {
     ctx.fillStyle = paint.fillCss;
     ctx.fillRect(sx, sy, w, h);

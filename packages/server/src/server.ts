@@ -254,6 +254,17 @@ function getOrCreateRoom(view: string): Room {
   return room;
 }
 
+/**
+ * Delete the room once its last live socket is gone, keyed by the same
+ * `room.view` string `getOrCreateRoom` stored. Sessions survive (resume
+ * re-seeds a fresh World via `getOrCreateRoom`); only the room is freed.
+ */
+function evictRoomIfEmpty(room: Room): void {
+  if (room.clients.size === 0) {
+    rooms.delete(room.view);
+  }
+}
+
 /** Neutral intent: sessions with no fresh input stand still, aim forward. */
 function neutralInput(): WorldInput {
   return { moveX: 0, aim: 0, buttons: 0 };
@@ -820,6 +831,7 @@ function attachSocket(socket: net.Socket, head: Buffer): void {
     state.helloSessions.clear();
     for (const room of state.memberOf) {
       room.clients.delete(socket);
+      evictRoomIfEmpty(room);
     }
     state.memberOf.clear();
     state.closed = true;

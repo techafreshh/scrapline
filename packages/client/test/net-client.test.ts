@@ -2,6 +2,7 @@
 // under a fake clock, probe counters, and between-snapshot sampling.
 // Fake-socket style (no network, no DOM), mirroring menu-scene.test.ts.
 import { describe, expect, it } from "vitest";
+import { MATCH_TIME_LIMIT_TICKS } from "../../core/src/constants";
 import {
   INTERP_DELAY_MS,
   ONLINE_PROTO,
@@ -288,5 +289,162 @@ describe("OnlineClient snapshots", () => {
     client.close();
     expect(client.connected).toBe(false);
     expect(socket.closed).toBe(true);
+  });
+
+  it("clears roster/scores/queues/buffer/clock on close() for clean reuse", () => {
+    const first = makeFakeSocket();
+    let active: FakeSocket = first;
+    let now = 5000;
+    const client = new OnlineClient({
+      createSocket: () => active,
+      now: () => now,
+    });
+    try {
+      client.connect("dune");
+      first.receive(
+        JSON.stringify({
+          t: "welcome",
+          pid: 0,
+          session: "s-1",
+          tick: 600,
+          timeLimitTicks: 9000,
+          players: [
+            { id: 0, x: 0, y: 0 },
+            { id: 1, x: 100, y: 0 },
+          ],
+          scores: [2, 5],
+          roster: [
+            { id: 0, name: "Alice" },
+            { id: 1, name: "Bob" },
+          ],
+        }),
+      );
+      now += 50;
+      first.receive(
+        JSON.stringify({
+          t: "snapshot",
+          tick: 660,
+          timeLimitTicks: 9000,
+          players: [
+            { id: 0, x: 10, y: 0, aim: 0, hp: 100, weapon: "pistol" },
+            { id: 1, x: 110, y: 0, aim: 0, hp: 100, weapon: "rifle" },
+          ],
+          scores: [2, 5],
+          roster: [
+            { id: 0, name: "Alice" },
+            { id: 1, name: "Bob" },
+          ],
+          events: [
+            {
+              kind: "kill",
+              killer: 1,
+              victim: 0,
+              killerName: "Bob",
+              victimName: "Alice",
+              weapon: "rifle",
+            },
+          ],
+        }),
+      );
+      first.receive(JSON.stringify({ t: "leave", id: 1, name: "Bob" }));
+      // Populated before close: the old room's board, feed, and clock.
+      expect(client.rosterList()).toEqual([
+        { id: 0, name: "Alice" },
+        { id: 1, name: "Bob" },
+      ]);
+      expect(client.scoresList()).toEqual([
+        { id: 0, score: 2 },
+        { id: 1, score: 5 },
+      ]);
+      expect(client.scoreFor(1)).toBe(5);
+      expect(client.matchTick()).toBe(660);
+      expect(client.matchTimeLimitTicks()).toBe(9000);
+      expect(client.sample(now)).not.toEqual([]);
+      expect(client.drainKills()).toHaveLength(1);
+      expect(client.drainLeaves()).toHaveLength(1);
+      // Re-queue one kill and one leave so close() has queued rows to
+      // clear (the drains above emptied the first pair).
+      now += 50;
+      first.receive(
+        JSON.stringify({
+          t: "snapshot",
+          tick: 663,
+          timeLimitTicks: 9000,
+          players: [
+            { id: 0, x: 20, y: 0, aim: 0, hp: 100, weapon: "pistol" },
+            { id: 1, x: 120, y: 0, aim: 0, hp: 100, weapon: "rifle" },
+          ],
+          scores: [2, 5],
+          roster: [
+            { id: 0, name: "Alice" },
+            { id: 1, name: "Bob" },
+          ],
+          events: [
+            {
+              kind: "kill",
+              killer: 1,
+              victim: 0,
+              killerName: "Bob",
+              victimName: "Alice",
+              weapon: "rifle",
+            },
+          ],
+        }),
+      );
+      first.receive(JSON.stringify({ t: "leave", id: 1, name: "Bob" }));
+      const snapsBefore = client.snapshotsReceived;
+      const inputsBefore = client.inputsSent;
+      expect(snapsBefore).toBeGreaterThan(0);
+      client.close();
+      // A reused-but-not-yet-welcomed client reads like a fresh one.
+      expect(client.rosterList()).toEqual([]);
+      expect(client.scoresList()).toEqual([]);
+      expect(client.scoreFor(0)).toBe(0);
+      expect(client.drainKills()).toEqual([]);
+      expect(client.drainLeaves()).toEqual([]);
+      expect(client.sample(now)).toEqual([]);
+      expect(client.matchTick()).toBe(0);
+      expect(client.matchTimeLimitTicks()).toBe(MATCH_TIME_LIMIT_TICKS);
+      expect(client.connected).toBe(false);
+      expect(client.sessionId).toBeNull();
+      expect(client.playerId).toBeNull();
+      expect(first.closed).toBe(true);
+      // Diagnostic counters stay cumulative across reuse.
+      expect(client.snapshotsReceived).toBe(snapsBefore);
+      expect(client.inputsSent).toBe(inputsBefore);
+      // Reuse hellos on the fast-open path and stays empty pre-welcome.
+      const second = makeFakeSocket();
+      active = second;
+      client.connect("dune");
+      expect(second.sent).toHaveLength(1);
+      const hello = JSON.parse(second.sent[0] as string) as Record<string, unknown>;
+      expect(hello["t"]).toBe("hello");
+      expect(client.rosterList()).toEqual([]);
+      expect(client.scoresList()).toEqual([]);
+      expect(client.sample(now)).toEqual([]);
+      expect(client.matchTick()).toBe(0);
+      expect(client.connected).toBe(false);
+      // A fresh welcome arms the new room on the reused client.
+      second.receive(
+        JSON.stringify({
+          t: "welcome",
+          pid: 1,
+          session: "s-2",
+          tick: 10,
+          timeLimitTicks: 9000,
+          players: [{ id: 1, x: 0, y: 0 }],
+          scores: [7],
+          roster: [{ id: 1, name: "Nova" }],
+        }),
+      );
+      expect(client.connected).toBe(true);
+      expect(client.sessionId).toBe("s-2");
+      expect(client.playerId).toBe(1);
+      expect(client.rosterList()).toEqual([{ id: 1, name: "Nova" }]);
+      expect(client.scoresList()).toEqual([{ id: 1, score: 7 }]);
+      expect(client.matchTick()).toBe(10);
+    } finally {
+      client.close();
+    }
   });
 });

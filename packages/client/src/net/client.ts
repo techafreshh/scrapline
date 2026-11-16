@@ -393,6 +393,18 @@ export class OnlineClient {
     this.connected = false;
     this.session = null;
     this.pid = null;
+    // Per-room render state: a close()->connect() reuse must read like
+    // a fresh client until the next welcome/snapshot arrives.
+    this.roster = [];
+    this.scoreById.clear();
+    this.pendingKills = [];
+    this.pendingLeaves = [];
+    this.buffer.clear();
+    this.serverTick = 0;
+    this.serverTimeLimitTicks = MATCH_TIME_LIMIT_TICKS;
+    this.tick = 0;
+    this.lastSendMs = 0;
+    this.opened = false;
     const socket = this.socket;
     this.socket = null;
     if (socket !== null) {

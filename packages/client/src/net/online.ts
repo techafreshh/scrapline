@@ -13,6 +13,7 @@ import {
   type SocketFactory,
 } from "./client";
 import type { InterpPlayer } from "./interpolation";
+import { buildHud, type HudHandles } from "../hud/hud";
 import { buildFeed, type FeedHandles } from "../ui/feed";
 import { buildNametags, type NametagsHandles } from "../ui/nametags";
 import { buildToast, type ToastHandles } from "../ui/toast";
@@ -61,6 +62,8 @@ export interface OnlineClientLike {
   close(): void;
   /** Server roster copy (absent on legacy stubs; render falls back). */
   rosterList?(): RosterEntry[];
+  /** Kills by pid in pid order (absent on legacy stubs; board reads 0). */
+  scoresList?(): Array<{ id: number; score: number }>;
   /** Queued snapshot kill rows (absent on legacy stubs; no feed). */
   drainKills?(): OnlineKillEvent[];
   /** Queued leave banners (absent on legacy stubs; no banner). */
@@ -169,10 +172,36 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
   let nametags: NametagsHandles;
   let feed: FeedHandles;
   let toast: ToastHandles;
+  let hud: HudHandles;
+  // Hello name for the scoreboard fallback while the roster is silent.
+  let sessionName = "";
   try {
     nametags = buildNametags(doc);
   } catch {
     nametags = { container: null };
+  }
+  try {
+    hud = buildHud(doc);
+  } catch {
+    hud = {
+      hud: null,
+      health: null,
+      fuel: null,
+      grenades: null,
+      weapon: null,
+      ammo: null,
+      score: null,
+      timer: null,
+      killfeed: null,
+      respawn: null,
+      endScreen: null,
+      endStandings: null,
+      ammoModule: null,
+      ammoIcon: null,
+      ammoName: null,
+      ammoCounts: null,
+      ammoPips: null,
+    };
   }
   try {
     feed = buildFeed(doc);
@@ -260,8 +289,11 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
     } catch {
       renderer = null;
     }
-    if (renderer === null || typeof renderer.draw !== "function") {
-      return;
+    // Null renderers still reconcile the DOM overlays (issue #253): the
+    // scoreboard must list every pid even before WebGL is ready, while
+    // renderOnlineSnapshot skips the draw itself on a null renderer.
+    if (renderer !== null && typeof renderer.draw !== "function") {
+      renderer = null;
     }
     let stamp = nowMs;
     if (stamp === undefined) {
@@ -298,6 +330,12 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
     } catch {
       kills = [];
     }
+    let scores: Array<{ id: number; score: number }>;
+    try {
+      scores = client.scoresList?.() ?? [];
+    } catch {
+      scores = [];
+    }
     let leaves: OnlineLeaveEvent[];
     try {
       leaves = client.drainLeaves?.() ?? [];
@@ -325,6 +363,9 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
         camera,
         canvasW: BASE_W,
         canvasH: BASE_H,
+        scoreEl: hud.score,
+        scores,
+        localName: sessionName,
       });
     } catch {
       // Renderer faults never kill the session; the next frame retries.
@@ -376,6 +417,16 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
       helloName = resolveOnlineName(doc, { getName: deps.getName, name: deps.name });
     } catch {
       helloName = "";
+    }
+    sessionName = helloName;
+    // Online HUD scoreboard (issue #253): reveal the HUD shell so the
+    // pid-ordered board lists every roster row, never a top-2 slice.
+    try {
+      if (hud.hud !== null) {
+        hud.hud.style.display = "";
+      }
+    } catch {
+      // HUD reveal best-effort: the score text still mirrors below.
     }
     let client: OnlineClientLike | null;
     try {
@@ -496,6 +547,14 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
     } catch {
       // Menu restore best-effort only.
     }
+    try {
+      if (hud.hud !== null) {
+        hud.hud.style.display = "none";
+      }
+    } catch {
+      // HUD hide best-effort only.
+    }
+    sessionName = "";
     try {
       deps.onStop?.();
     } catch {

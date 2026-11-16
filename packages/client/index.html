@@ -406,6 +406,17 @@
         width: 100%;
         background: #22d3ee;
       }
+      /* Online scoreboard (issue #253): compact pid-ordered rows that
+        scroll past two lines so 3+ player rooms never drop a row. */
+      #hud-score {
+        max-width: 44vw;
+        max-height: 72px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        font-size: 11px;
+        line-height: 1.4;
+        white-space: normal;
+      }
       #ammo-module {
         position: absolute;
         right: 12px;

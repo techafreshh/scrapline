@@ -19,6 +19,7 @@ import {
   updateCamera,
   type Camera,
 } from "../renderer/camera";
+import { renderOnlineScoreboard, type OnlineScores } from "../hud/hud";
 import { buildFeedEntry, pushFeed, type FeedHandles } from "../ui/feed";
 import {
   updateNametags,
@@ -241,6 +242,12 @@ export interface OnlineRenderFrame {
   localId?: number | null;
   /** Nametag visibility (mirrors the offline show-name-tags setting). */
   showNametags?: boolean;
+  /** HUD score node (null skips the online scoreboard). */
+  scoreEl?: { textContent: string | null } | null;
+  /** Kills by pid (drives the pid-ordered online scoreboard). */
+  scores?: OnlineScores;
+  /** Local-name fallback for the scoreboard when the roster is silent. */
+  localName?: string | null;
 }
 
 /**
@@ -333,6 +340,13 @@ export function renderOnlineSnapshot(frame: OnlineRenderFrame): {
       } catch {
         // Feed faults never kill the session.
       }
+    }
+  }
+  if (frame.scoreEl !== null && frame.scoreEl !== undefined) {
+    try {
+      renderOnlineScoreboard(frame.scoreEl, roster, frame.scores, frame.localName);
+    } catch {
+      // Scoreboard faults never kill the session.
     }
   }
   if (frame.toast !== null && frame.toast !== undefined) {

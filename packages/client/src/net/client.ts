@@ -166,6 +166,8 @@ export class OnlineClient {
   private readonly helloBackfill: boolean | undefined;
   /** Server roster rows (welcome/snapshot/join drive it; never wiped by flag-less snapshots). */
   private roster: RosterEntry[] = [];
+  /** Kills by player id, zipped from the parallel scores/players arrays. */
+  private scoreById = new Map<number, number>();
   /** Kill rows drained from snapshot events (renderOnlineSnapshot consumes them). */
   private pendingKills: OnlineKillEvent[] = [];
   /** Departures queued from leave frames (bannered within the frame). */
@@ -217,6 +219,44 @@ export class OnlineClient {
   /** Server roster copy (welcome/snapshot/join drive it). */
   rosterList(): RosterEntry[] {
     return this.roster.map((row) => ({ ...row }));
+  }
+
+  /** Kills for a player id (missing rows read 0). */
+  scoreFor(id: number): number {
+    return this.scoreById.get(id) ?? 0;
+  }
+
+  /** Id/score pairs in pid order (drives the online HUD scoreboard). */
+  scoresList(): Array<{ id: number; score: number }> {
+    return [...this.scoreById.entries()]
+      .map(([id, score]) => ({ id, score }))
+      .sort((a, b) => a.id - b.id);
+  }
+
+  /**
+   * Zip the parallel scores/players arrays into scoreById: scores[k]
+   * owns players[k]. Non-array payloads keep the previous scores so a
+   * score-less frame never wipes the board mid-match.
+   */
+  private ingestScores(players: unknown, scores: unknown): void {
+    if (!Array.isArray(players) || !Array.isArray(scores)) {
+      return;
+    }
+    for (let k = 0; k < players.length; k += 1) {
+      const item = players[k];
+      if (item === null || typeof item !== "object") {
+        continue;
+      }
+      const id = (item as Record<string, unknown>)["id"];
+      if (typeof id !== "number" || !Number.isFinite(id)) {
+        continue;
+      }
+      const raw = scores[k];
+      this.scoreById.set(
+        Math.floor(id),
+        typeof raw === "number" && Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : 0,
+      );
+    }
   }
 
   /** Display name for a player id (roster wins, else `Player<id>`). */
@@ -451,6 +491,9 @@ export class OnlineClient {
       if (fresh.length > 0) {
         this.roster = fresh;
       }
+      // Authoritative kills ride the welcome alongside the roster so the
+      // online HUD scoreboard lists every pid from the first frame.
+      this.ingestScores(rec["players"], rec["scores"]);
       if (this.session !== null) {
         this.connected = true;
         try {
@@ -515,6 +558,10 @@ export class OnlineClient {
       if (freshRoster.length > 0) {
         this.roster = mergeRoster(this.roster, freshRoster);
       }
+      // Authoritative kills ride every snapshot: the online scoreboard
+      // reconciles at 20 Hz so the third row in a 3+ player room is
+      // never dropped by a stale top-2 snapshot.
+      this.ingestScores(rec["players"], rec["scores"]);
       const events = rec["events"];
       if (Array.isArray(events)) {
         for (const item of events) {

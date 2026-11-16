@@ -90,7 +90,8 @@ cd rl && python -m scrapline_rl.eval --model ../model.zip --episodes 10 --tier n
 | `packages/client` | PixiJS v8 browser client (menu, HUD, killfeed, camera) driving the exact core |
 | `packages/env` | Headless RL gateway: stdio JSON-lines env-server (`reset`/`step`/`close`), observation vector, versioned action map |
 | `rl/` | Gymnasium wrapper (`ScraplineEnv`), PPO training baseline, per-tier eval harness |
-| `server.js` | Zero-dependency static server: prefers staged root `dist/`, falls back to `packages/client/dist`, then client source |
+| `server.js` | Offline-only dev static server (no WS upgrade): prefers staged root `dist/`, falls back to `packages/client/dist`, then client source |
+| `packages/server` | Combined single process: serves the staged client (same routes as `server.js`) and upgrades `/room` to authoritative 60 Hz WS rooms |
 | `tools/` | `stage-dist.js` (root `dist/` staging, excluding compiler byproducts), throughput / repro benches |
 | `tests/` | Live HTTP contract probes (`node --test tests/skeleton.test.js`) |
 
@@ -98,10 +99,10 @@ cd rl && python -m scrapline_rl.eval --model ../model.zip --episodes 10 --tier n
 
 | Command | Effect |
 |---|---|
-| `npm run dev` | Build client, serve on `http://localhost:3000` |
-| `npm run build` | Full build + stage root `dist/` |
-| `npm run preview` | Serve staged `dist/` (same `PORT` / `--port` contract as `dev`) |
-| `npm start` | Serve (no rebuild) |
+| `npm run dev` | Build client, serve offline static on `http://localhost:3000` (`server.js`, no WS) |
+| `npm run build` | Full build (client + env + server) + stage root `dist/` |
+| `npm run preview` | Serve staged `dist/` AND authoritative WS rooms on one origin (same `PORT` / `--port` contract as `dev`) |
+| `npm start` | Combined static+WS server (no rebuild): staged client plus `ws://host/room` Play online |
 | `npm run lint` | ESLint over the repo |
 | `npm test` | Client build + `tsc -b` + env build, vitest suites, HTTP contract tests |
 | `python -m pytest rl/tests` | Python env / train / eval tests |

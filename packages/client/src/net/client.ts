@@ -13,6 +13,7 @@ import {
 } from "./interpolation";
 import { mergeRoster, normalizeRosterName, rosterFrom, type RosterEntry } from "./roster";
 import type { OnlineKillEvent, OnlineLeaveEvent } from "./render";
+import { MATCH_TIME_LIMIT_TICKS } from "../../../core/src/constants";
 
 /** Re-exported delay constant for probe convenience. */
 export { INTERP_DELAY_MS };
@@ -172,6 +173,10 @@ export class OnlineClient {
   private pendingKills: OnlineKillEvent[] = [];
   /** Departures queued from leave frames (bannered within the frame). */
   private pendingLeaves: OnlineLeaveEvent[] = [];
+  /** Authoritative room tick from the latest welcome/snapshot (drives the HUD clock). */
+  private serverTick = 0;
+  /** Authoritative time cap from the latest welcome/snapshot (pairs with the tick). */
+  private serverTimeLimitTicks = MATCH_TIME_LIMIT_TICKS;
 
   private socket: OnlineSocket | null = null;
   private interval: unknown = null;
@@ -214,6 +219,35 @@ export class OnlineClient {
   /** Fixed interpolation delay in ms (always INTERP_DELAY_MS). */
   interpDelayMs(): number {
     return INTERP_DELAY_MS;
+  }
+
+  /** Authoritative room tick (welcome, then the latest snapshot). */
+  matchTick(): number {
+    return this.serverTick;
+  }
+
+  /** Authoritative time cap (defaults to the offline cap when absent). */
+  matchTimeLimitTicks(): number {
+    return this.serverTimeLimitTicks;
+  }
+
+  /**
+   * Adopt the authoritative match clock from a welcome/snapshot frame:
+   * finite ticks win (floored, never negative), finite positive caps
+   * win, everything else keeps the previous clock so a partial frame
+   * never rewinds the HUD mid-match.
+   */
+  private ingestMatchClock(tick: unknown, timeLimitTicks: unknown): void {
+    if (typeof tick === "number" && Number.isFinite(tick)) {
+      this.serverTick = Math.max(0, Math.floor(tick));
+    }
+    if (
+      typeof timeLimitTicks === "number" &&
+      Number.isFinite(timeLimitTicks) &&
+      Math.floor(timeLimitTicks) > 0
+    ) {
+      this.serverTimeLimitTicks = Math.floor(timeLimitTicks);
+    }
   }
 
   /** Server roster copy (welcome/snapshot/join drive it). */
@@ -494,6 +528,9 @@ export class OnlineClient {
       // Authoritative kills ride the welcome alongside the roster so the
       // online HUD scoreboard lists every pid from the first frame.
       this.ingestScores(rec["players"], rec["scores"]);
+      // Authoritative match clock (issue #254): the HUD countdown
+      // renders from the room tick, never the local join time.
+      this.ingestMatchClock(rec["tick"], rec["timeLimitTicks"]);
       if (this.session !== null) {
         this.connected = true;
         try {
@@ -562,6 +599,9 @@ export class OnlineClient {
       // reconciles at 20 Hz so the third row in a 3+ player room is
       // never dropped by a stale top-2 snapshot.
       this.ingestScores(rec["players"], rec["scores"]);
+      // Authoritative match clock (issue #254): every snapshot re-arms
+      // the HUD countdown so late joiners share the room's remaining.
+      this.ingestMatchClock(rec["tick"], rec["timeLimitTicks"]);
       const events = rec["events"];
       if (Array.isArray(events)) {
         for (const item of events) {

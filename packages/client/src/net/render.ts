@@ -19,7 +19,13 @@ import {
   updateCamera,
   type Camera,
 } from "../renderer/camera";
-import { renderOnlineScoreboard, type OnlineScores } from "../hud/hud";
+import {
+  formatTimer,
+  renderOnlineScoreboard,
+  type OnlineScores,
+} from "../hud/hud";
+import { setBitmapText } from "../ui/fonts";
+import { MATCH_TIME_LIMIT_TICKS } from "../../../core/src/constants";
 import { buildFeedEntry, pushFeed, type FeedHandles } from "../ui/feed";
 import {
   updateNametags,
@@ -248,6 +254,10 @@ export interface OnlineRenderFrame {
   scores?: OnlineScores;
   /** Local-name fallback for the scoreboard when the roster is silent. */
   localName?: string | null;
+  /** HUD timer node (null skips the online match clock). */
+  timerEl?: { textContent: string | null } | null;
+  /** Authoritative time cap (defaults to the offline cap when absent). */
+  timeLimitTicks?: number | null;
 }
 
 /**
@@ -347,6 +357,26 @@ export function renderOnlineSnapshot(frame: OnlineRenderFrame): {
       renderOnlineScoreboard(frame.scoreEl, roster, frame.scores, frame.localName);
     } catch {
       // Scoreboard faults never kill the session.
+    }
+  }
+  // Authoritative match clock (issue #254): the room tick plus the
+  // room cap render the same m:ss countdown on every HUD, so a late
+  // joiner never counts down from its own join time.
+  if (frame.timerEl !== null && frame.timerEl !== undefined) {
+    try {
+      const tick =
+        typeof frame.tick === "number" && Number.isFinite(frame.tick)
+          ? Math.max(0, Math.floor(frame.tick))
+          : 0;
+      const limit =
+        typeof frame.timeLimitTicks === "number" &&
+        Number.isFinite(frame.timeLimitTicks) &&
+        Math.floor(frame.timeLimitTicks) > 0
+          ? Math.floor(frame.timeLimitTicks)
+          : MATCH_TIME_LIMIT_TICKS;
+      setBitmapText(frame.timerEl, formatTimer(tick, limit));
+    } catch {
+      // Timer faults never kill the session.
     }
   }
   if (frame.toast !== null && frame.toast !== undefined) {

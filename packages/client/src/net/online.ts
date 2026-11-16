@@ -68,6 +68,10 @@ export interface OnlineClientLike {
   drainKills?(): OnlineKillEvent[];
   /** Queued leave banners (absent on legacy stubs; no banner). */
   drainLeaves?(): OnlineLeaveEvent[];
+  /** Authoritative room tick (absent on legacy stubs; clock reads 0). */
+  matchTick?(): number;
+  /** Authoritative time cap (absent on legacy stubs; offline cap stands). */
+  matchTimeLimitTicks?(): number;
 }
 
 /** Dependencies injected into bindOnline (all optional for probes). */
@@ -349,11 +353,31 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
         camera = null;
       }
     }
+    // Authoritative match clock (issue #254): the room tick plus the
+    // room cap render the same countdown on every HUD in the room.
+    let serverTick = 0;
+    try {
+      const tick = client.matchTick?.() ?? 0;
+      if (typeof tick === "number" && Number.isFinite(tick)) {
+        serverTick = Math.max(0, Math.floor(tick));
+      }
+    } catch {
+      serverTick = 0;
+    }
+    let serverLimit: number | null = null;
+    try {
+      const limit = client.matchTimeLimitTicks?.() ?? null;
+      if (typeof limit === "number" && Number.isFinite(limit)) {
+        serverLimit = limit;
+      }
+    } catch {
+      serverLimit = null;
+    }
     try {
       renderOnlineSnapshot({
         renderer,
         rows,
-        tick: 0,
+        tick: serverTick,
         roster,
         kills,
         leaves,
@@ -366,6 +390,8 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
         scoreEl: hud.score,
         scores,
         localName: sessionName,
+        timerEl: hud.timer,
+        timeLimitTicks: serverLimit,
       });
     } catch {
       // Renderer faults never kill the session; the next frame retries.

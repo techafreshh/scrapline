@@ -360,6 +360,10 @@ function broadcastSnapshot(room: Room): void {
   const snapshot = {
     t: "snapshot",
     tick: room.world.tick,
+    // Authoritative match clock (issue #254): the remaining time
+    // derives from this cap minus tick, so every client in the room
+    // renders the same countdown instead of its own join-relative one.
+    timeLimitTicks: room.world.timeLimitTicks,
     players: room.world.players.map((p) => ({
       ...playerToSnapshot(p),
       name: room.roster.get(p.id) ?? `Player${p.id}`,
@@ -447,6 +451,9 @@ function welcomeFor(roomName: string, room: Room, pid: number, session: string):
     session,
     room: roomName,
     tick: room.world.tick,
+    // Authoritative match clock (issue #254): welcome carries the same
+    // cap as snapshots so the HUD renders the room countdown at once.
+    timeLimitTicks: room.world.timeLimitTicks,
     seed: room.seed,
     view: roomName,
     players: room.world.players.map((p) => ({ ...p })),

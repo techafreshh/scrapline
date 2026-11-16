@@ -113,6 +113,146 @@ export function standingsRows(
   }));
 }
 
+/** One online scoreboard line: player id, roster display name, kills. */
+export interface OnlineScoreRow {
+  id: number;
+  name: string;
+  score: number;
+}
+
+/** Score input for the online board: id/score pairs or an id-keyed map. */
+export type OnlineScores =
+  | ReadonlyMap<number, number>
+  | Readonly<Record<number, number>>
+  | readonly { id: number; score: number }[]
+  | null
+  | undefined;
+
+/** Score for one pid from any OnlineScores shape (missing reads 0). */
+function onlineScoreFor(scores: OnlineScores, id: number): number {
+  try {
+    if (scores === null || scores === undefined) {
+      return 0;
+    }
+    if (Array.isArray(scores)) {
+      for (const row of scores) {
+        if (row !== null && typeof row === "object" && row.id === id) {
+          const value = (row as { score?: unknown }).score;
+          return typeof value === "number" && Number.isFinite(value)
+            ? Math.max(0, Math.floor(value))
+            : 0;
+        }
+      }
+      return 0;
+    }
+    if (typeof (scores as ReadonlyMap<number, number>).get === "function") {
+      const hit = (scores as ReadonlyMap<number, number>).get(id);
+      return typeof hit === "number" && Number.isFinite(hit)
+        ? Math.max(0, Math.floor(hit))
+        : 0;
+    }
+    if (typeof scores === "object") {
+      const hit = (scores as Readonly<Record<number, number>>)[id];
+      return typeof hit === "number" && Number.isFinite(hit)
+        ? Math.max(0, Math.floor(hit))
+        : 0;
+    }
+  } catch {
+    // Hostile scores: the 0 fallback stands.
+  }
+  return 0;
+}
+
+/**
+ * Online scoreboard rows in pid order (issue #253): the union of roster
+ * and score ids sorted ascending, roster names winning with a
+ * `Player<id>` fallback. Never sorted by score so the third row in a
+ * 3+ player room is never dropped by a top-2 truncation.
+ */
+export function onlineScoreRows(
+  roster: readonly { id: number; name?: unknown }[] | null | undefined,
+  scores: OnlineScores,
+  localName?: string | null,
+): OnlineScoreRow[] {
+  const names = new Map<number, string>();
+  try {
+    if (Array.isArray(roster)) {
+      for (const row of roster) {
+        if (row !== null && typeof row === "object" && Number.isInteger(row.id) && row.id >= 0) {
+          const raw = (row as { name?: unknown }).name;
+          names.set(
+            row.id,
+            typeof raw === "string" && raw.length > 0 ? raw : `Player${row.id}`,
+          );
+        }
+      }
+    }
+  } catch {
+    // Hostile roster: the score ids below still list every player.
+  }
+  const ids = new Set<number>(names.keys());
+  try {
+    if (Array.isArray(scores)) {
+      for (const row of scores) {
+        if (row !== null && typeof row === "object" && Number.isInteger((row as { id?: unknown }).id)) {
+          const id = (row as { id: number }).id;
+          if (id >= 0) {
+            ids.add(id);
+          }
+        }
+      }
+    } else if (scores !== null && typeof scores === "object" && typeof (scores as ReadonlyMap<number, number>).get === "function") {
+      for (const id of (scores as ReadonlyMap<number, number>).keys()) {
+        if (Number.isInteger(id) && (id as number) >= 0) {
+          ids.add(id as number);
+        }
+      }
+    } else if (scores !== null && typeof scores === "object") {
+      for (const key of Object.keys(scores as Readonly<Record<number, number>>)) {
+        const id = Math.floor(Number(key));
+        if (Number.isInteger(id) && id >= 0) {
+          ids.add(id);
+        }
+      }
+    }
+  } catch {
+    // Hostile scores: the roster ids above still list every player.
+  }
+  return [...ids]
+    .sort((a, b) => a - b)
+    .map((id) => ({
+      id,
+      name:
+        names.get(id) ??
+        (id === 0 && hasLocalName(localName) ? (localName as string).trim() : `Player${id}`),
+      score: onlineScoreFor(scores, id),
+    }));
+}
+
+/**
+ * Mirror online scoreboard rows into the HUD score node: pid-ordered
+ * `Name: score` entries joined compactly (the container scrolls past
+ * two rows via the #hud-score max-height rule). Null-safe: missing
+ * elements are skipped so fake-doc probes stay green.
+ */
+export function renderOnlineScoreboard(
+  scoreEl: { textContent: string | null } | null | undefined,
+  roster: readonly { id: number; name?: unknown }[] | null | undefined,
+  scores: OnlineScores,
+  localName?: string | null,
+): void {
+  if (scoreEl === null || scoreEl === undefined) {
+    return;
+  }
+  try {
+    scoreEl.textContent = onlineScoreRows(roster, scores, localName)
+      .map((row) => `${row.name}: ${row.score}`)
+      .join(" \u00b7 ");
+  } catch {
+    // Hostile shims: the previous scoreboard text stands.
+  }
+}
+
 /** One end-screen line: player id, display name, kills, deaths, winner flag. */
 export interface EndStandingsRow {
   id: number;

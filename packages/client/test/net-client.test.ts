@@ -216,6 +216,66 @@ describe("OnlineClient snapshots", () => {
     }
   });
 
+  it("zips welcome and snapshot scores by pid for the 3-player board", () => {
+    const socket = makeFakeSocket();
+    const client = new OnlineClient({
+      createSocket: () => socket,
+      now: () => 0,
+    });
+    try {
+      client.connect("dune");
+      socket.receive(
+        JSON.stringify({
+          t: "welcome",
+          pid: 0,
+          session: "s-1",
+          players: [
+            { id: 0, x: 0, y: 0 },
+            { id: 1, x: 100, y: 0 },
+            { id: 2, x: 200, y: 0 },
+          ],
+          scores: [1, 2, 3],
+          roster: [
+            { id: 0, name: "Alice" },
+            { id: 1, name: "Bob" },
+            { id: 2, name: "Viper" },
+          ],
+        }),
+      );
+      expect(client.scoresList()).toEqual([
+        { id: 0, score: 1 },
+        { id: 1, score: 2 },
+        { id: 2, score: 3 },
+      ]);
+      expect(client.scoreFor(2)).toBe(3);
+      socket.receive(
+        JSON.stringify({
+          t: "snapshot",
+          tick: 3,
+          players: [
+            { id: 0, x: 0, y: 0 },
+            { id: 1, x: 100, y: 0 },
+            { id: 2, x: 200, y: 0 },
+          ],
+          scores: [4, 0, 0],
+          roster: [
+            { id: 0, name: "Alice" },
+            { id: 1, name: "Bob" },
+            { id: 2, name: "Viper" },
+          ],
+        }),
+      );
+      expect(client.scoresList()).toEqual([
+        { id: 0, score: 4 },
+        { id: 1, score: 0 },
+        { id: 2, score: 0 },
+      ]);
+      expect(client.scoreFor(7)).toBe(0);
+    } finally {
+      client.close();
+    }
+  });
+
   it("closes the socket and drops the session on close()", () => {
     const socket = makeFakeSocket();
     const client = new OnlineClient({

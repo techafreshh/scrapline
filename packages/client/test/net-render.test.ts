@@ -215,6 +215,48 @@ describe("renderOnlineSnapshot", () => {
     expect(textOf(toastBox.children[0] as FakeEl)).toContain(LEAVE_BANNER_TEXT);
   });
 
+  it("lists all three roster rows in pid order on the HUD score node", () => {
+    const doc = makeDoc();
+    const scoreEl = makeEl(doc, "div");
+    renderOnlineSnapshot({
+      renderer: { draw: (): void => {} },
+      rows: [
+        { id: 0, x: 620, y: 300, aim: 0, hp: 100, weapon: "pistol" },
+        { id: 1, x: 660, y: 300, aim: 0, hp: 100, weapon: "pistol" },
+        { id: 2, x: 700, y: 300, aim: 0, hp: 100, weapon: "pistol" },
+      ],
+      tick: 7,
+      roster: [
+        { id: 0, name: "Alice" },
+        { id: 1, name: "Bob" },
+        { id: 2, name: "Viper" },
+      ],
+      scores: [
+        { id: 0, score: 1 },
+        { id: 1, score: 2 },
+        { id: 2, score: 3 },
+      ],
+      kills: [],
+      leaves: [],
+      nametags: { container: null } as unknown as NametagsHandles,
+      feed: { feed: null } as unknown as FeedHandles,
+      toast: { toast: null } as unknown as ToastHandles,
+      camera: createOnlineCamera(),
+      canvasW: 640,
+      canvasH: 360,
+      scoreEl: scoreEl as unknown as { textContent: string | null },
+    });
+    expect(scoreEl.textContent).toContain("Alice");
+    expect(scoreEl.textContent).toContain("Bob");
+    expect(scoreEl.textContent).toContain("Viper");
+    expect(scoreEl.textContent.indexOf("Alice")).toBeLessThan(
+      scoreEl.textContent.indexOf("Bob"),
+    );
+    expect(scoreEl.textContent.indexOf("Bob")).toBeLessThan(
+      scoreEl.textContent.indexOf("Viper"),
+    );
+  });
+
   it("is a no-op binder when overlays and the renderer are missing", () => {
     expect(() =>
       renderOnlineSnapshot({

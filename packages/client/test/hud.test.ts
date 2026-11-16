@@ -8,10 +8,12 @@ import {
   endStandingsRows,
   formatTimer,
   killsFromDiff,
+  onlineScoreRows,
   ordinal,
   playerColor,
   playerName,
   pushKillfeed,
+  renderOnlineScoreboard,
   standingsRows,
   updateHud,
   type HudHandles,
@@ -408,6 +410,50 @@ describe("pushKillfeed weapon entries", () => {
     const entry = feed.children[0];
     expect(entry.children).toHaveLength(0);
     expect(entry.textContent).toBe("Raptor \u25B8 You");
+  });
+});
+
+describe("onlineScoreRows", () => {
+  it("lists all three pids in pid order even when scores sort otherwise", () => {
+    const roster = [
+      { id: 0, name: "Alice" },
+      { id: 1, name: "Bob" },
+      { id: 2, name: "Viper" },
+    ];
+    const rows = onlineScoreRows(roster, [
+      { id: 0, score: 0 },
+      { id: 1, score: 0 },
+      { id: 2, score: 4 },
+    ]);
+    expect(rows.map((row) => row.id)).toEqual([0, 1, 2]);
+    expect(rows.map((row) => row.name)).toEqual(["Alice", "Bob", "Viper"]);
+    expect(rows.map((row) => row.score)).toEqual([0, 0, 4]);
+  });
+
+  it("mirrors all three names into the HUD score node", () => {
+    const score = { textContent: "" };
+    renderOnlineScoreboard(
+      score,
+      [
+        { id: 0, name: "Alice" },
+        { id: 1, name: "Bob" },
+        { id: 2, name: "Viper" },
+      ],
+      [
+        { id: 0, score: 1 },
+        { id: 1, score: 2 },
+        { id: 2, score: 3 },
+      ],
+    );
+    expect(score.textContent).toContain("Alice");
+    expect(score.textContent).toContain("Bob");
+    expect(score.textContent).toContain("Viper");
+    expect(score.textContent.indexOf("Alice")).toBeLessThan(
+      score.textContent.indexOf("Bob"),
+    );
+    expect(score.textContent.indexOf("Bob")).toBeLessThan(
+      score.textContent.indexOf("Viper"),
+    );
   });
 });
 

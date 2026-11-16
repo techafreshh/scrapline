@@ -9,9 +9,9 @@
   "scripts": {
     "build:client": "npm run build --workspace=@scrapline/client",
     "dev": "npm run build:client && node server.js",
-    "start": "node server.js",
-    "build": "npm run build:client && tsc -b && npm run build --workspace=@scrapline/env && node tools/stage-dist.js",
-    "preview": "node server.js",
+    "start": "node packages/server/dist/server.js",
+    "build": "npm run build:client && tsc -b && npm run build --workspace=@scrapline/env && npm run build --workspace=@scrapline/server && node tools/stage-dist.js",
+    "preview": "node packages/server/dist/server.js",
     "lint": "eslint .",
     "test": "npm run build:client && npm run build && vitest run packages/core packages/client packages/env packages/server && node --test tests/skeleton.test.js tests/port-list.test.js tests/stage-dist.test.js tests/core-imports.test.js tests/perf-guardrail.test.js tests/prd-docs-refs.test.js tests/asset-pipeline.test.js tests/pwa.test.js tests/benchmark-refs.test.js tests/cohesion.test.js tests/milestone-closeout.test.js",
     "test:purity": "node --test tests/core-imports.test.js && npx vitest run packages/core/tests/decorations.test.ts",

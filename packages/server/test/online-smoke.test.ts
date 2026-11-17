@@ -406,14 +406,15 @@ describe("online two-client smoke", () => {
 
   // Strict 1s timing is enforced by scripts/probes/online-two-client.mjs
   // (also CI-gated) against an idle server; this vitest mirror asserts
-  // the 1009 code with load-tolerant bounds and no retry so a hang fails
+  // the 1009 code with load-tolerant bounds (generous under the full
+  // 101-file parallel suite on small boxes) and no retry so a hang fails
   // loudly instead of being masked by a retried attempt.
-  it("2MB payload closes with code 1009", { timeout: 15000 }, async () => {
+  it("2MB payload closes with code 1009", { timeout: 60000 }, async () => {
     const proc = await launch();
     const client = await dial(proc);
     const frame = maskedText({ t: "hello", proto: 1, view: "dune", name: "Huge", pad: "x".repeat(2 * 1024 * 1024) });
     await sendChunked(client, frame);
-    const msg = await client.next(10000);
+    const msg = await client.next(45000);
     expect(msg.t).toBe("close");
     expect((msg as { t: "close"; code: number }).code).toBe(1009);
   });

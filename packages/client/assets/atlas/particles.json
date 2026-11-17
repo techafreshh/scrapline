@@ -88,6 +88,48 @@
       "y": 0,
       "w": 512,
       "h": 512
+    },
+    "fx.flash.0": {
+      "file": "particles/flare_01.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.flash.1": {
+      "file": "particles/light_01.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.trail.0": {
+      "file": "particles/trace_01.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.trail.1": {
+      "file": "particles/trace_02.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.sparkle.0": {
+      "file": "particles/star_01.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.sparkle.1": {
+      "file": "particles/star_02.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
     }
   }
 }

@@ -26,7 +26,15 @@ import type {
   ShotDetail,
 } from "../../../core/src/events";
 import {
+  DEATH_COUNT,
+  EXPLOSION_DEBRIS_COUNT,
+  EXPLOSION_FLASH_COUNT,
+  EXPLOSION_SMOKE_COUNT,
+  IMPACT_COUNT,
+  JET_PER_FRAME,
   MAX_PARTICLES,
+  MUZZLE_COUNT,
+  PICKUP_COUNT,
   particleOpacity,
   spawnDeathBurst,
   spawnExplosion,
@@ -3198,6 +3206,146 @@ export function ageFx(tracers: Tracer[], muzzles: Muzzle[]): void {
 }
 
 /**
+ * True when a shot endpoint has a damage detail within 12px (squared
+ * 144): flesh/prop hits land on their damage point, wall hits and full
+ * misses have no nearby damage. Pure: no DOM, no clock.
+ */
+export function shotHasNearbyDamage(
+  shot: { x: number; y: number },
+  damages: readonly { x: number; y: number }[],
+): boolean {
+  for (const detail of damages) {
+    const dx = detail.x - shot.x;
+    const dy = detail.y - shot.y;
+    if (dx * dx + dy * dy <= 144) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * True when a world point touches a solid tile (3x3 around the point).
+ * Without a tile query (headless unit draws) every orphan shot counts
+ * as a wall hit so the wall-gap fix stays testable under node. Pure
+ * apart from the structural tile query.
+ */
+export function isWallEndpoint(
+  x: number,
+  y: number,
+  map: unknown,
+): boolean {
+  try {
+    const query = map as {
+      isSolidTile?: (tx: number, ty: number) => unknown;
+    } | null;
+    if (
+      query === null ||
+      query === undefined ||
+      typeof query.isSolidTile !== "function"
+    ) {
+      return true;
+    }
+    const tx = Math.floor(x / TILE_SIZE);
+    const ty = Math.floor(y / TILE_SIZE);
+    for (let oy = -1; oy <= 1; oy += 1) {
+      for (let ox = -1; ox <= 1; ox += 1) {
+        try {
+          if (query.isSolidTile(tx + ox, ty + oy) === true) {
+            return true;
+          }
+        } catch {
+          // Shorn tile queries: fall through to the next neighbor.
+        }
+      }
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Orphan wall-hit shots: every shot endpoint with no nearby damage and
+ * a solid neighbor (the wall-hit gap: wall impacts emit no damage
+ * events, so impact counts must come from shot endpoints). Pure: no
+ * DOM, no clock, no randomness, so unit-testable under node.
+ */
+export function wallHitShots(
+  shots: readonly ShotDetail[],
+  damages: readonly DamageDetail[],
+  map: unknown,
+): ShotDetail[] {
+  const out: ShotDetail[] = [];
+  for (const shot of shots) {
+    if (shotHasNearbyDamage(shot, damages)) {
+      continue;
+    }
+    if (!isWallEndpoint(shot.x, shot.y, map)) {
+      continue;
+    }
+    out.push(shot);
+  }
+  return out;
+}
+
+/** Cumulative particle-pack emitter totals (issue #269 probe shape). */
+export interface FxEmitterTotals {
+  muzzle: number;
+  impact: number;
+  explosionFlash: number;
+  explosionSmoke: number;
+  debris: number;
+  trail: number;
+  death: number;
+  pickup: number;
+  impactTintHex: number;
+  impactCss: string;
+}
+
+/**
+ * Build the `window.__scrapline.emitterCounts()` probe snapshot from
+ * cumulative totals: exact keys plus common aliases so wall/muzzle
+ * (`muzzle`/`impact`), grenade (`explosionFlash`/`explosionSmoke`/
+ * `debris`), trail, death-burst, and pickup-sparkle probes all read
+ * one shape. Pure, never throws.
+ */
+export function buildEmitterCounts(
+  totals: Partial<FxEmitterTotals>,
+): Record<string, number | string> {
+  const muzzle = Math.floor(totals.muzzle ?? 0);
+  const impact = Math.floor(totals.impact ?? 0);
+  const explosionFlash = Math.floor(totals.explosionFlash ?? 0);
+  const explosionSmoke = Math.floor(totals.explosionSmoke ?? 0);
+  const debris = Math.floor(totals.debris ?? 0);
+  const trail = Math.floor(totals.trail ?? 0);
+  const death = Math.floor(totals.death ?? 0);
+  const pickup = Math.floor(totals.pickup ?? 0);
+  const impactTintHex = Math.floor(totals.impactTintHex ?? 0xfef08a);
+  const impactCss =
+    typeof totals.impactCss === "string" ? totals.impactCss : "#fef08a";
+  return {
+    muzzle,
+    impact,
+    explosionFlash,
+    explosionSmoke,
+    debris,
+    trail,
+    death,
+    pickup,
+    impactTint: impactTintHex,
+    impactTintHex,
+    impactCss,
+    flash: explosionFlash,
+    smoke: explosionSmoke,
+    jet: trail,
+    burst: death,
+    sparkle: pickup,
+    explosion: explosionFlash,
+  };
+}
+
+/**
  * Null-safe localStorage surface for the renderer's quality default.
  * Mirrors the browserStorage helper in main.ts so createRenderer can
  * seed from loadQuality before main forwards the settings toggle.
@@ -3291,6 +3439,22 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
   let decorCacheKey = "";
   let decorCache: Decoration[] = [];
   let decorCacheHash = "";
+  // Cumulative particle-pack emitter counters (issue #269): pooled-path
+  // counts per effect family plus the last wall surface tint. Wall hits
+  // emit no damage events, so impact counts come from shot endpoints;
+  // explosion smoke/debris count pooled particles per blast so a single
+  // grenade reads flash>=1, smoke>=3, debris>=3 within 1s (live TTLs
+  // would have expired). Never reset: probes sample cumulative totals.
+  let fxMuzzleCount = 0;
+  let fxImpactCount = 0;
+  let fxExplosionFlashCount = 0;
+  let fxExplosionSmokeCount = 0;
+  let fxDebrisCount = 0;
+  let fxTrailCount = 0;
+  let fxDeathCount = 0;
+  let fxPickupCount = 0;
+  let fxImpactTintHex = 0xfef08a;
+  let fxImpactCss = "#fef08a";
 
   function trackDraw(
     state: StateLike,
@@ -3315,6 +3479,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     dtSec: number;
     nowMs: number;
     hurtPulse: number;
+    wallShots: ShotDetail[];
   } {
     const frame = describeFrame(state, map ?? null);
     const cam = camera ?? createCamera(frame.arena.width, frame.arena.height);
@@ -3404,7 +3569,8 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     spawnShots(tracers, muzzles, frame, shots ?? []);
     // Pooled muzzle flashes ride the same barrel tips as the tracer
     // muzzles (one burst per firing shooter, not per pellet, to cap
-    // perf on shotguns) so the 24px probe always finds >= 4.
+    // perf on shotguns) so the 24px probe always finds >= 4. Counts
+    // accumulate per pooled burst for the emitterCounts probe.
     {
       const muzzled = new Set<number>();
       for (const shot of shots ?? []) {
@@ -3416,18 +3582,36 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         const tip =
           shooter !== undefined ? shooter.barrel : { x: shot.ox, y: shot.oy };
         spawnMuzzleFlash(particles, tip.x, tip.y, shooter?.aim ?? 0);
+        fxMuzzleCount += MUZZLE_COUNT;
       }
     }
     spawnSparks(sparks, damages ?? []);
     for (const detail of damages ?? []) {
       spawnImpact(particles, detail.x, detail.y);
+      fxImpactCount += IMPACT_COUNT;
+    }
+    // Wall-hit gap (issue #269): wall impacts emit no damage events, so
+    // orphan shot endpoints (no nearby damage, solid neighbor) spawn a
+    // surface-tinted burst at the endpoint. Tint is the live wall base
+    // so the impact hue matches the surface within 20 degrees.
+    const fxWallTheme = resolveTileTheme();
+    const wallShots = wallHitShots(shots ?? [], damages ?? [], map ?? null);
+    for (const shot of wallShots) {
+      spawnImpact(particles, shot.x, shot.y, fxWallTheme.baseHex, fxWallTheme.base);
+      fxImpactCount += IMPACT_COUNT;
+      fxImpactTintHex = fxWallTheme.baseHex;
+      fxImpactCss = fxWallTheme.base;
     }
     spawnBursts(bursts, kills ?? []);
     for (const detail of kills ?? []) {
       spawnDeathBurst(particles, detail.x, detail.y);
+      fxDeathCount += DEATH_COUNT;
     }
     for (const blast of explodes ?? []) {
       spawnExplosion(particles, blast.x, blast.y, blast.radius);
+      fxExplosionFlashCount += EXPLOSION_FLASH_COUNT;
+      fxExplosionSmokeCount += EXPLOSION_SMOKE_COUNT;
+      fxDebrisCount += EXPLOSION_DEBRIS_COUNT;
     }
     // One shockwave ring per blast center; the ring store ages on the
     // wall clock so the 10->60px expansion tracks real capture time.
@@ -3437,6 +3621,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     updateShockwaves(shockwaves, now);
     for (const pickup of pickups ?? []) {
       spawnPickupSparkle(particles, pickup.x, pickup.y);
+      fxPickupCount += PICKUP_COUNT;
     }
     // Jet exhaust trail: continuous emission while thrusting (not
     // event-gated) so the flame reads for the full jet duration (F2).
@@ -3445,6 +3630,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     for (const p of frame.players) {
       if (p.alive && p.jetting) {
         spawnJetExhaust(particles, p.x + p.w / 2, p.y + p.h + 1);
+        fxTrailCount += JET_PER_FRAME;
         // Low-fuel sputter: gray wisps only while the tank runs dry, so
         // full-fuel flight keeps a clean orange trail.
         if (jetSmokeGateFor(p.fuelRatio, frame.tick, p.index)) {
@@ -3770,7 +3956,57 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     // prop/pad probe surface (issue #267): propFrames, padLabels, and
     // the glow pulse alpha, all read per call from the latest frame.
     publishSoldierSpriteProbes(frame, anims, tileMapForDecor, padSquash, now);
-    return { frame, cam, layers, anims, theme, themeName, decors, lights, padSquash, dtSec, nowMs: now, hurtPulse };
+    // Particle-pack emitter probe (issue #269): cumulative pooled-path
+    // counts plus the last wall tint, read per call so grenade and
+    // wall-hit totals are visible within a frame of the blast.
+    try {
+      const counts = buildEmitterCounts({
+        muzzle: fxMuzzleCount,
+        impact: fxImpactCount,
+        explosionFlash: fxExplosionFlashCount,
+        explosionSmoke: fxExplosionSmokeCount,
+        debris: fxDebrisCount,
+        trail: fxTrailCount,
+        death: fxDeathCount,
+        pickup: fxPickupCount,
+        impactTintHex: fxImpactTintHex,
+        impactCss: fxImpactCss,
+      });
+      const emitterCounts = (): Record<string, number | string> =>
+        buildEmitterCounts({
+          muzzle: fxMuzzleCount,
+          impact: fxImpactCount,
+          explosionFlash: fxExplosionFlashCount,
+          explosionSmoke: fxExplosionSmokeCount,
+          debris: fxDebrisCount,
+          trail: fxTrailCount,
+          death: fxDeathCount,
+          pickup: fxPickupCount,
+          impactTintHex: fxImpactTintHex,
+          impactCss: fxImpactCss,
+        });
+      void counts;
+      if (typeof window !== "undefined") {
+        const scope = window as unknown as Record<string, unknown>;
+        const hook = scope["__scrapline"] as Record<string, unknown> | undefined;
+        if (hook !== undefined && hook !== null && typeof hook === "object") {
+          hook["emitterCounts"] = emitterCounts;
+        }
+        const game = scope["__game"] as Record<string, unknown> | undefined;
+        if (game !== undefined && game !== null && typeof game === "object") {
+          game["emitterCounts"] = emitterCounts;
+        }
+        const debug = scope["__scraplineDebug"] as
+          | Record<string, unknown>
+          | undefined;
+        if (debug !== undefined && debug !== null && typeof debug === "object") {
+          debug["emitterCounts"] = emitterCounts;
+        }
+      }
+    } catch {
+      // Probe mirrors never break the frame.
+    }
+    return { frame, cam, layers, anims, theme, themeName, decors, lights, padSquash, dtSec, nowMs: now, hurtPulse, wallShots };
   }
 
   // Lazy Pixi-side particle emitters (pixi-v8-particles): additive glow
@@ -3991,7 +4227,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         explodes?: ExplodeDetail[],
         pickups?: PickupDetail[],
       ): void {
-        const { frame, cam, layers, anims, theme, decors, lights, padSquash, dtSec, nowMs, hurtPulse } = trackDraw(
+        const { frame, cam, layers, anims, theme, decors, lights, padSquash, dtSec, nowMs, hurtPulse, wallShots } = trackDraw(
           state,
           map,
           camera,
@@ -4020,6 +4256,13 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             }
             for (const detail of damages ?? []) {
               const s = toScreen(detail.x, detail.y);
+              fx.impact.updateOwnerPos(s.x, s.y);
+              fx.impact.emitNow();
+            }
+            // Wall-hit gap: orphan shot endpoints drive the Pixi impact
+            // emitter too, so the additive glow matches the pooled tint.
+            for (const shot of wallShots ?? []) {
+              const s = toScreen(shot.x, shot.y);
               fx.impact.updateOwnerPos(s.x, s.y);
               fx.impact.emitNow();
             }

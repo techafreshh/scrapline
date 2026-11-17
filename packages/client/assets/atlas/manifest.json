@@ -557,6 +557,42 @@
     "w": 512,
     "h": 512
   },
+  "fx.flash.0": {
+    "file": "particles/flare_01.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.flash.1": {
+    "file": "particles/light_01.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.trail.0": {
+    "file": "particles/trace_01.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.trail.1": {
+    "file": "particles/trace_02.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.sparkle.0": {
+    "file": "particles/star_01.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.sparkle.1": {
+    "file": "particles/star_02.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
   "prop.crate.intact": {
     "file": "props/prop-crate-intact.png",
     "atlas": "props.json",

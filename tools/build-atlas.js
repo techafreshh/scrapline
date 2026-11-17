@@ -407,7 +407,10 @@ const ATLAS_ALLOWLIST = [
   { name: "tile.frostbite.oneway", from: PIXEL_SHEET, crop: { x: 90, y: 18, w: 18, h: 18 }, to: "tiles/tile-frostbite-oneway.png" },
   { name: "tile.frostbite.bounce", from: PIXEL_SHEET, crop: { x: 252, y: 90, w: 18, h: 18 }, to: "tiles/tile-frostbite-bounce.png" },
   { name: "tile.frostbite.backwall", from: INDUSTRIAL_SHEET, crop: { x: 162, y: 36, w: 18, h: 18 }, darken: 0.6, to: "tiles/tile-frostbite-backwall.png" },
-  // Particles: smoke/muzzle/spark/fire runs plus one flame head.
+  // Particles: smoke/muzzle/spark/fire runs plus one flame head, plus
+  // the issue #269 flash/trail/sparkle runs (explosion flash,
+  // jet exhaust trail, pickup sparkle) from the same particle-pack
+  // so every pixi-v8-particle-emitter texture resolves in-manifest.
   { name: "fx.smoke.0", from: `${PARTICLES}/smoke_01.png` },
   { name: "fx.smoke.1", from: `${PARTICLES}/smoke_02.png` },
   { name: "fx.smoke.2", from: `${PARTICLES}/smoke_03.png` },
@@ -420,6 +423,12 @@ const ATLAS_ALLOWLIST = [
   { name: "fx.fire.0", from: `${PARTICLES}/fire_01.png` },
   { name: "fx.fire.1", from: `${PARTICLES}/fire_02.png` },
   { name: "fx.flame.0", from: `${PARTICLES}/flame_01.png` },
+  { name: "fx.flash.0", from: `${PARTICLES}/flare_01.png` },
+  { name: "fx.flash.1", from: `${PARTICLES}/light_01.png` },
+  { name: "fx.trail.0", from: `${PARTICLES}/trace_01.png` },
+  { name: "fx.trail.1", from: `${PARTICLES}/trace_02.png` },
+  { name: "fx.sparkle.0", from: `${PARTICLES}/star_01.png` },
+  { name: "fx.sparkle.1", from: `${PARTICLES}/star_02.png` },
   // Props + pads (issue #267): crates/barrels plus weapon/health/
   // grenade/bounce pads from the simplified-platformer-pack tiles/items
   // (64x64, byte-distinct) with the barrel explosion scorch from the

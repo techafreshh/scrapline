@@ -460,6 +460,28 @@ try {
       return "tile.kilima.solid";
     }
   };
+  // Pre-draw particle-pack emitter probe (issue #269): zeroed totals so
+  // `window.__scrapline.emitterCounts()` exists before the first draw;
+  // the renderer replaces the closure every draw with live totals.
+  const emitterCountsSeed = (): Record<string, number | string> => ({
+    muzzle: 0,
+    impact: 0,
+    explosionFlash: 0,
+    explosionSmoke: 0,
+    debris: 0,
+    trail: 0,
+    death: 0,
+    pickup: 0,
+    impactTint: 0xfef08a,
+    impactTintHex: 0xfef08a,
+    impactCss: "#fef08a",
+    flash: 0,
+    smoke: 0,
+    jet: 0,
+    burst: 0,
+    sparkle: 0,
+    explosion: 0,
+  });
   if (seed === undefined || seed === null || typeof seed !== "object") {
     scope["__scrapline"] = {
       debugFrame,
@@ -469,6 +491,7 @@ try {
       currentWeaponSprite,
       botSprites,
       tileFrameAt: tileFrameAtSeed,
+      emitterCounts: emitterCountsSeed,
     };
   } else {
     seed["debugFrame"] = debugFrame;
@@ -486,6 +509,9 @@ try {
     }
     if (seed["tileFrameAt"] === undefined) {
       seed["tileFrameAt"] = tileFrameAtSeed;
+    }
+    if (seed["emitterCounts"] === undefined) {
+      seed["emitterCounts"] = emitterCountsSeed;
     }
   }
   void activeSoldierTexture;

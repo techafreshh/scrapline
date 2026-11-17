@@ -33,8 +33,17 @@ under packages/client/assets/vendor/ for the sprite-swap milestone (PRD v6).
 ## Pack: Kenney CC0 vendor packs (staged, PRD v6 sprite swap)
 
 Third-party sprite sources committed once under packages/client/assets/vendor/
-and never fetched over the network; per-pack rows live in
+and never fetched over the network; per-pack rows live below and in
 packages/client/assets/LICENSES.md.
+
+| Vendor pack | Author | License | Source |
+|---|---|---|---|
+| `platformer-characters` | Kenney Vleugels (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/platformer-characters |
+| `pixel-platformer` | Kenney Vleugels (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/pixel-platformer |
+| `pixel-platformer-industrial-expansion` | Kenney Vleugels (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/pixel-platformer-industrial-expansion |
+| `simplified-platformer-pack` | Kenney Vleugels (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/simplified-platformer-pack |
+| `particle-pack` | Kenney Vleugels (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/particle-pack |
+| `ui-pack-pixel-adventure` | Kenney Vleugels (kenney.nl) | CC0 1.0 | https://kenney.nl/assets/ui-pack-pixel-adventure |
 
 - Author: Kenney Vleugels (kenney.nl)
 - License: CC0-1.0 (public domain dedication; no attribution required)

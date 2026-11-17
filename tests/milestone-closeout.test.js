@@ -202,6 +202,7 @@ test("npm test runs every node test file including the closeout gate", () => {
     "pwa",
     "benchmark-refs",
     "cohesion",
+    "licenses",
     "milestone-closeout",
   ]) {
     assert.ok(

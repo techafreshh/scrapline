@@ -12,6 +12,37 @@
 
 import type { EmitterConfigV3 } from "pixi-v8-particles";
 
+/**
+ * Vendor atlas dot-names per effect family (tools/build-atlas.js
+ * manifest keys) for the later vendor-sprite swap: emitters resolve
+ * textures through the manifest; no runtime file imports vendor art.
+ */
+export const FX_MANIFEST_FRAMES: Record<string, readonly string[]> = Object.freeze({
+  smoke: Object.freeze(["fx.smoke.0", "fx.smoke.1", "fx.smoke.2", "fx.smoke.3"]),
+  muzzle: Object.freeze(["fx.muzzle.0", "fx.muzzle.1", "fx.muzzle.2"]),
+  spark: Object.freeze(["fx.spark.0", "fx.spark.1"]),
+  fire: Object.freeze(["fx.fire.0", "fx.fire.1"]),
+  flame: Object.freeze(["fx.flame.0"]),
+});
+
+/**
+ * Vendor atlas dot-name for one effect frame (family plus cycle index,
+ * wrapping around the family run). Unknown families and non-finite
+ * indexes fall back to the first smoke frame. Pure, never throws.
+ */
+export function fxManifestFrame(family: unknown, index: unknown): string {
+  try {
+    const run =
+      typeof family === "string" ? FX_MANIFEST_FRAMES[family.trim().toLowerCase()] : undefined;
+    const frames = run ?? FX_MANIFEST_FRAMES["smoke"];
+    const step = typeof index === "number" && Number.isFinite(index) ? Math.floor(index) : 0;
+    const at = ((step % frames.length) + frames.length) % frames.length;
+    return frames[at] ?? "fx.smoke.0";
+  } catch {
+    return "fx.smoke.0";
+  }
+}
+
 /** Per-emitter live-particle caps (perf: six emitters sum to 412). */
 export const FX_EMITTER_CAPS = Object.freeze({
   muzzle: 32,

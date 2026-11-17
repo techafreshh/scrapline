@@ -98,7 +98,9 @@ test("packages/client/assets holds only CC0 SVG sources", () => {
     // top-level sprite: its own manifest entry covers it below.
     // Committed CC0 vendor packs live under vendor/ with their own
     // packages/client/assets/LICENSES.md manifest (PRD v6 sprite milestone).
-    if (name === "fonts" || name === "vendor" || name === "LICENSES.md") {
+    // The committed vendor atlas output lives under atlas/ (issue #261):
+    // generated PNG/JSON build output, validated by the atlas-weight gate.
+    if (name === "fonts" || name === "vendor" || name === "atlas" || name === "LICENSES.md") {
       continue;
     }
     assert.match(name, /\.svg$/, `${name} must be an SVG source`);
@@ -113,6 +115,11 @@ test("every asset file is listed under the manifest Files section", () => {
   const manifest = fs.readFileSync(path.join(ROOT, "LICENSES.md"), "utf8");
   const names = fs.readdirSync(ASSETS);
   for (const name of names) {
+    // atlas/ is committed build output (issue #261), not a licensed
+    // source: the atlas-weight gate validates it instead of LICENSES.md.
+    if (name === "atlas") {
+      continue;
+    }
     assert.ok(
       manifest.includes(name),
       `${name} must be listed in LICENSES.md`,

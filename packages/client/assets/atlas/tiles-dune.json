@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "app": "scrapline",
+    "version": 1,
+    "family": "tiles-dune"
+  },
+  "frames": {
+    "tile.dune.solid": {
+      "file": "tiles/platformPack_tile005.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "tile.dune.oneway": {
+      "file": "tiles/platformPack_tile006.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "tile.dune.bounce": {
+      "file": "tiles/platformPack_tile007.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "tile.dune.backwall": {
+      "file": "tiles/platformPack_tile008.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    }
+  }
+}

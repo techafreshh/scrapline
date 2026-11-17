@@ -17,6 +17,24 @@ export interface AtlasIndex {
   frames: Record<string, AtlasFrame>;
 }
 
+/**
+ * One vendor-atlas manifest entry: the co-located PNG under
+ * packages/client/assets/atlas/ plus its per-family frame map.
+ */
+export interface AtlasManifestEntry {
+  /** Atlas-relative PNG path (e.g. characters/soldier_walk1.png). */
+  file: string;
+  /** Per-family PixiJS frame map holding this frame. */
+  atlas: string;
+  /** Frame width in px (from the PNG IHDR header). */
+  w: number;
+  /** Frame height in px (from the PNG IHDR header). */
+  h: number;
+}
+
+/** Built vendor atlas manifest: logical dot-name to frame entry. */
+export type AtlasManifest = Record<string, AtlasManifestEntry>;
+
 /** Fetch surface for loadAtlas (defaults to the global fetch). */
 export type AtlasFetch = (
   url: string,
@@ -73,6 +91,61 @@ export function isAtlasIndex(value: unknown): value is AtlasIndex {
     }
   }
   return true;
+}
+
+/** True when the value parses as one manifest entry (file/atlas/w/h). */
+export function isAtlasManifestEntry(value: unknown): value is AtlasManifestEntry {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry["file"] === "string" &&
+    (entry["file"] as string).length > 0 &&
+    typeof entry["atlas"] === "string" &&
+    (entry["atlas"] as string).length > 0 &&
+    typeof entry["w"] === "number" &&
+    Number.isFinite(entry["w"] as number) &&
+    typeof entry["h"] === "number" &&
+    Number.isFinite(entry["h"] as number)
+  );
+}
+
+/** True when the value parses as a usable vendor manifest (entries present). */
+export function isAtlasManifest(value: unknown): value is AtlasManifest {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  const rec = value as Record<string, unknown>;
+  const keys = Object.keys(rec);
+  if (keys.length === 0) {
+    return false;
+  }
+  for (const key of keys) {
+    if (!isAtlasManifestEntry(rec[key])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Look up one logical frame (soldier.run.3, tile.kilima.solid, fx.smoke.2)
+ * in a parsed manifest. Null when absent or unusable. Never throws.
+ */
+export function manifestFrame(manifest: unknown, name: unknown): AtlasManifestEntry | null {
+  try {
+    if (manifest === null || typeof manifest !== "object") {
+      return null;
+    }
+    if (typeof name !== "string" || name.length === 0) {
+      return null;
+    }
+    const entry = (manifest as Record<string, unknown>)[name];
+    return isAtlasManifestEntry(entry) ? entry : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Publish the parsed index (or null) on the probe mirror. */

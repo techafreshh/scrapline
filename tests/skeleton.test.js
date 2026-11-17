@@ -182,7 +182,11 @@ test("repo ships zero *.png/*.jpg images (docs/benchmark/*.png excepted)", () =>
   // live under docs/benchmark/ (plus the per-map themes/ captures);
   // committed CC0 vendor packs live under packages/client/assets/vendor/
   // (see packages/client/assets/LICENSES.md); every other image fails.
+  // Atlas exception (#261): the curated vendor atlas ships committed PNGs
+  // under packages/client/assets/atlas/ plus staged dist copies; the 6 MB
+  // atlas-weight gate owns that weight instead of this test.
   const vendorRoot = path.join("packages", "client", "assets", "vendor") + path.sep;
+  const atlasSeg = `${path.sep}atlas${path.sep}`;
   const isBenchmarkRef = (rel) =>
     rel.toLowerCase().endsWith(".png") &&
     (rel === path.join("docs", "benchmark", path.basename(rel)) ||
@@ -200,7 +204,7 @@ test("repo ships zero *.png/*.jpg images (docs/benchmark/*.png excepted)", () =>
         const lower = entry.name.toLowerCase();
         if (lower.endsWith(".png") || lower.endsWith(".jpg")) {
           const rel = path.relative(root, full);
-          if (!isBenchmarkRef(rel) && !rel.startsWith(vendorRoot)) {
+          if (!isBenchmarkRef(rel) && !rel.startsWith(vendorRoot) && !rel.includes(atlasSeg)) {
             hits.push(rel);
           }
         }

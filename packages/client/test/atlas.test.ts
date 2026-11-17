@@ -6,7 +6,10 @@ import {
   atlasUrl,
   isAtlasFrame,
   isAtlasIndex,
+  isAtlasManifest,
+  isAtlasManifestEntry,
   loadAtlas,
+  manifestFrame,
 } from "../src/atlas";
 
 afterEach(() => {
@@ -61,6 +64,65 @@ describe("index validation", () => {
     expect(isAtlasFrame({ file: "a.svg", w: NaN, h: 58 })).toBe(false);
     expect(isAtlasFrame({ file: "a.svg" })).toBe(false);
     expect(isAtlasFrame(null)).toBe(false);
+  });
+});
+
+describe("manifest validation", () => {
+  it("accepts the built vendor manifest shape", () => {
+    expect(
+      isAtlasManifest({
+        "soldier.run.3": { file: "characters/soldier_skid.png", atlas: "characters.json", w: 80, h: 110 },
+        "tile.kilima.solid": {
+          file: "tiles/platformPack_tile001.png",
+          atlas: "tiles-kilima.json",
+          w: 64,
+          h: 64,
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects a missing or empty entries map", () => {
+    expect(isAtlasManifest({})).toBe(false);
+    expect(isAtlasManifest(null)).toBe(false);
+    expect(isAtlasManifest({ frames: {} })).toBe(false);
+  });
+
+  it("rejects entries pointing at unusable values", () => {
+    expect(
+      isAtlasManifestEntry({ file: "a.png", atlas: "characters.json", w: 80, h: 110 }),
+    ).toBe(true);
+    expect(isAtlasManifestEntry({ file: "", atlas: "characters.json", w: 80, h: 110 })).toBe(
+      false,
+    );
+    expect(isAtlasManifestEntry({ file: "a.png", atlas: "", w: 80, h: 110 })).toBe(false);
+    expect(isAtlasManifestEntry({ file: "a.png", atlas: "characters.json", w: NaN, h: 110 })).toBe(
+      false,
+    );
+    expect(isAtlasManifestEntry({ file: "a.png", atlas: "characters.json" })).toBe(false);
+    expect(isAtlasManifestEntry(null)).toBe(false);
+    expect(
+      isAtlasManifest({
+        valid: { file: "a.png", atlas: "characters.json", w: 1, h: 1 },
+        broken: { file: "b.png", atlas: "characters.json", w: 1 },
+      }),
+    ).toBe(false);
+  });
+
+  it("manifestFrame resolves logical names without throwing", () => {
+    const manifest = {
+      "soldier.run.3": { file: "characters/soldier_skid.png", atlas: "characters.json", w: 80, h: 110 },
+    };
+    expect(manifestFrame(manifest, "soldier.run.3")).toEqual({
+      file: "characters/soldier_skid.png",
+      atlas: "characters.json",
+      w: 80,
+      h: 110,
+    });
+    expect(manifestFrame(manifest, "no.such.key")).toBeNull();
+    expect(manifestFrame(manifest, "")).toBeNull();
+    expect(manifestFrame(null, "soldier.run.3")).toBeNull();
+    expect(manifestFrame(manifest, null)).toBeNull();
   });
 });
 

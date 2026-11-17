@@ -1,0 +1,410 @@
+{
+  "soldier.idle": {
+    "file": "characters/soldier_idle.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.run.0": {
+    "file": "characters/soldier_walk1.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.run.1": {
+    "file": "characters/soldier_walk2.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.run.2": {
+    "file": "characters/soldier_stand.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.run.3": {
+    "file": "characters/soldier_skid.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.jet": {
+    "file": "characters/soldier_jump.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.crouch": {
+    "file": "characters/soldier_duck.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.dead": {
+    "file": "characters/soldier_hurt.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.action.0": {
+    "file": "characters/soldier_action1.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.action.1": {
+    "file": "characters/soldier_action2.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.back": {
+    "file": "characters/soldier_back.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.cheer.0": {
+    "file": "characters/soldier_cheer1.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.cheer.1": {
+    "file": "characters/soldier_cheer2.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.climb.0": {
+    "file": "characters/soldier_climb1.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.climb.1": {
+    "file": "characters/soldier_climb2.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.fall": {
+    "file": "characters/soldier_fall.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.hang": {
+    "file": "characters/soldier_hang.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.hold.0": {
+    "file": "characters/soldier_hold1.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.hold.1": {
+    "file": "characters/soldier_hold2.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.kick": {
+    "file": "characters/soldier_kick.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.slide": {
+    "file": "characters/soldier_slide.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.swim.0": {
+    "file": "characters/soldier_swim1.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.swim.1": {
+    "file": "characters/soldier_swim2.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.talk": {
+    "file": "characters/soldier_talk.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "soldier.limb.arm": {
+    "file": "characters/arm.png",
+    "atlas": "characters.json",
+    "w": 17,
+    "h": 33
+  },
+  "soldier.limb.body.back": {
+    "file": "characters/body_back.png",
+    "atlas": "characters.json",
+    "w": 39,
+    "h": 31
+  },
+  "soldier.limb.body.front": {
+    "file": "characters/body_front.png",
+    "atlas": "characters.json",
+    "w": 39,
+    "h": 31
+  },
+  "soldier.limb.hand": {
+    "file": "characters/hand.png",
+    "atlas": "characters.json",
+    "w": 17,
+    "h": 15
+  },
+  "soldier.limb.head": {
+    "file": "characters/head.png",
+    "atlas": "characters.json",
+    "w": 52,
+    "h": 54
+  },
+  "soldier.limb.head.back": {
+    "file": "characters/head_back.png",
+    "atlas": "characters.json",
+    "w": 52,
+    "h": 53
+  },
+  "soldier.limb.head.focus": {
+    "file": "characters/head_focus.png",
+    "atlas": "characters.json",
+    "w": 52,
+    "h": 53
+  },
+  "soldier.limb.head.hurt": {
+    "file": "characters/head_hurt.png",
+    "atlas": "characters.json",
+    "w": 52,
+    "h": 53
+  },
+  "soldier.limb.leg": {
+    "file": "characters/leg.png",
+    "atlas": "characters.json",
+    "w": 21,
+    "h": 23
+  },
+  "tile.kilima.solid": {
+    "file": "tiles/platformPack_tile001.png",
+    "atlas": "tiles-kilima.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.kilima.oneway": {
+    "file": "tiles/platformPack_tile002.png",
+    "atlas": "tiles-kilima.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.kilima.bounce": {
+    "file": "tiles/platformPack_tile003.png",
+    "atlas": "tiles-kilima.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.kilima.backwall": {
+    "file": "tiles/platformPack_tile004.png",
+    "atlas": "tiles-kilima.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.dune.solid": {
+    "file": "tiles/platformPack_tile005.png",
+    "atlas": "tiles-dune.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.dune.oneway": {
+    "file": "tiles/platformPack_tile006.png",
+    "atlas": "tiles-dune.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.dune.bounce": {
+    "file": "tiles/platformPack_tile007.png",
+    "atlas": "tiles-dune.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.dune.backwall": {
+    "file": "tiles/platformPack_tile008.png",
+    "atlas": "tiles-dune.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.frostbite.solid": {
+    "file": "tiles/platformPack_tile009.png",
+    "atlas": "tiles-frostbite.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.frostbite.oneway": {
+    "file": "tiles/platformPack_tile010.png",
+    "atlas": "tiles-frostbite.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.frostbite.bounce": {
+    "file": "tiles/platformPack_tile011.png",
+    "atlas": "tiles-frostbite.json",
+    "w": 64,
+    "h": 64
+  },
+  "tile.frostbite.backwall": {
+    "file": "tiles/platformPack_tile012.png",
+    "atlas": "tiles-frostbite.json",
+    "w": 64,
+    "h": 64
+  },
+  "fx.smoke.0": {
+    "file": "particles/smoke_01.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.smoke.1": {
+    "file": "particles/smoke_02.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.smoke.2": {
+    "file": "particles/smoke_03.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.smoke.3": {
+    "file": "particles/smoke_04.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.muzzle.0": {
+    "file": "particles/muzzle_01.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.muzzle.1": {
+    "file": "particles/muzzle_02.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.muzzle.2": {
+    "file": "particles/muzzle_03.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.spark.0": {
+    "file": "particles/spark_01.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.spark.1": {
+    "file": "particles/spark_02.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.fire.0": {
+    "file": "particles/fire_01.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.fire.1": {
+    "file": "particles/fire_02.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "fx.flame.0": {
+    "file": "particles/flame_01.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
+  "ui.panel": {
+    "file": "ui/tile_0000.png",
+    "atlas": "ui.json",
+    "w": 16,
+    "h": 16
+  },
+  "ui.button": {
+    "file": "ui/tile_0001.png",
+    "atlas": "ui.json",
+    "w": 16,
+    "h": 16
+  },
+  "ui.button.hover": {
+    "file": "ui/tile_0002.png",
+    "atlas": "ui.json",
+    "w": 16,
+    "h": 16
+  },
+  "ui.slot": {
+    "file": "ui/tile_0003.png",
+    "atlas": "ui.json",
+    "w": 16,
+    "h": 16
+  },
+  "ui.bar": {
+    "file": "ui/tile_0004.png",
+    "atlas": "ui.json",
+    "w": 16,
+    "h": 16
+  },
+  "ui.icon.0": {
+    "file": "ui/tile_0005.png",
+    "atlas": "ui.json",
+    "w": 16,
+    "h": 16
+  },
+  "ui.icon.1": {
+    "file": "ui/tile_0006.png",
+    "atlas": "ui.json",
+    "w": 16,
+    "h": 16
+  },
+  "ui.icon.2": {
+    "file": "ui/tile_0007.png",
+    "atlas": "ui.json",
+    "w": 16,
+    "h": 16
+  },
+  "ui.corner.0": {
+    "file": "ui/tile_0008.png",
+    "atlas": "ui.json",
+    "w": 16,
+    "h": 16
+  },
+  "ui.tilesheet.small": {
+    "file": "ui/tilemap-small.png",
+    "atlas": "ui.json",
+    "w": 390,
+    "h": 118
+  },
+  "ui.tilesheet.large": {
+    "file": "ui/tilemap-large.png",
+    "atlas": "ui.json",
+    "w": 428,
+    "h": 230
+  }
+}

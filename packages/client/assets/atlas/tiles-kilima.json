@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "app": "scrapline",
+    "version": 1,
+    "family": "tiles-kilima"
+  },
+  "frames": {
+    "tile.kilima.solid": {
+      "file": "tiles/platformPack_tile001.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "tile.kilima.oneway": {
+      "file": "tiles/platformPack_tile002.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "tile.kilima.bounce": {
+      "file": "tiles/platformPack_tile003.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "tile.kilima.backwall": {
+      "file": "tiles/platformPack_tile004.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    }
+  }
+}

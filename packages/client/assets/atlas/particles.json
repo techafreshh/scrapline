@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "app": "scrapline",
+    "version": 1,
+    "family": "particles"
+  },
+  "frames": {
+    "fx.smoke.0": {
+      "file": "particles/smoke_01.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.smoke.1": {
+      "file": "particles/smoke_02.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.smoke.2": {
+      "file": "particles/smoke_03.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.smoke.3": {
+      "file": "particles/smoke_04.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.muzzle.0": {
+      "file": "particles/muzzle_01.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.muzzle.1": {
+      "file": "particles/muzzle_02.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.muzzle.2": {
+      "file": "particles/muzzle_03.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.spark.0": {
+      "file": "particles/spark_01.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.spark.1": {
+      "file": "particles/spark_02.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.fire.0": {
+      "file": "particles/fire_01.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.fire.1": {
+      "file": "particles/fire_02.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "fx.flame.0": {
+      "file": "particles/flame_01.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    }
+  }
+}

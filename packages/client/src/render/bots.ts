@@ -184,11 +184,6 @@ export function botSpriteFile(key: string): string | null {
   return BOT_SPRITE_FILES[key] ?? null;
 }
 
-/** True for a known bot silhouette set. */
-function isBotSet(value: string): value is BotSet {
-  return (BOT_SETS as readonly string[]).includes(value);
-}
-
 /**
  * Silhouette set for a 0-based bot slot. Wraps around the roster order
  * so slots 0/1/2 (a 3-bot match) always read Adventurer/Zombie/Female.

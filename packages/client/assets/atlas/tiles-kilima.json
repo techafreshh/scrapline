@@ -6,32 +6,32 @@
   },
   "frames": {
     "tile.kilima.solid": {
-      "file": "tiles/platformPack_tile001.png",
+      "file": "tiles/tile-kilima-solid.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     },
     "tile.kilima.oneway": {
-      "file": "tiles/platformPack_tile002.png",
+      "file": "tiles/tile-kilima-oneway.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     },
     "tile.kilima.bounce": {
-      "file": "tiles/platformPack_tile003.png",
+      "file": "tiles/tile-kilima-bounce.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     },
     "tile.kilima.backwall": {
-      "file": "tiles/platformPack_tile004.png",
+      "file": "tiles/tile-kilima-backwall.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     }
   }
 }

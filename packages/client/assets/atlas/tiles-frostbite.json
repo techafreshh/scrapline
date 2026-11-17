@@ -6,32 +6,32 @@
   },
   "frames": {
     "tile.frostbite.solid": {
-      "file": "tiles/platformPack_tile009.png",
+      "file": "tiles/tile-frostbite-solid.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     },
     "tile.frostbite.oneway": {
-      "file": "tiles/platformPack_tile010.png",
+      "file": "tiles/tile-frostbite-oneway.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     },
     "tile.frostbite.bounce": {
-      "file": "tiles/platformPack_tile011.png",
+      "file": "tiles/tile-frostbite-bounce.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     },
     "tile.frostbite.backwall": {
-      "file": "tiles/platformPack_tile012.png",
+      "file": "tiles/tile-frostbite-backwall.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     }
   }
 }

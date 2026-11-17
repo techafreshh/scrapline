@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "app": "scrapline",
+    "version": 1,
+    "family": "props"
+  },
+  "frames": {
+    "prop.crate.intact": {
+      "file": "props/prop-crate-intact.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "prop.crate.crack": {
+      "file": "props/prop-crate-crack.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "prop.barrel.intact": {
+      "file": "props/prop-barrel-intact.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "prop.barrel.crack": {
+      "file": "props/prop-barrel-crack.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "prop.barrel.explode": {
+      "file": "props/prop-barrel-explode.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    }
+  }
+}

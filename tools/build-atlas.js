@@ -305,6 +305,8 @@ const INDUSTRIAL_SHEET = "pixel-platformer-industrial-expansion/Tilemap/tilemap_
 /** Vendor sheet cell in px (both packed sheets share the 18px grid). */
 const VENDOR_CELL = 18;
 const PARTICLES = "particle-pack/PNG";
+const SIMPLIFIED_TILES = "simplified-platformer-pack/PNG/Tiles";
+const SIMPLIFIED_ITEMS = "simplified-platformer-pack/PNG/Items";
 const UI_SMALL = "ui-pack-pixel-adventure/Tiles/Small tiles/Thick outline";
 const UI_SHEETS = "ui-pack-pixel-adventure/Tilesheets";
 
@@ -418,6 +420,22 @@ const ATLAS_ALLOWLIST = [
   { name: "fx.fire.0", from: `${PARTICLES}/fire_01.png` },
   { name: "fx.fire.1", from: `${PARTICLES}/fire_02.png` },
   { name: "fx.flame.0", from: `${PARTICLES}/flame_01.png` },
+  // Props + pads (issue #267): crates/barrels plus weapon/health/
+  // grenade/bounce pads from the simplified-platformer-pack tiles/items
+  // (64x64, byte-distinct) with the barrel explosion scorch from the
+  // particle-pack, so every prop/pad state paints distinct pack art.
+  // Cracked stages and the bounce squash own distinct keys so probes
+  // read state changes without guessing paint internals.
+  { name: "prop.crate.intact", from: `${SIMPLIFIED_TILES}/platformPack_tile036.png`, to: "props/prop-crate-intact.png" },
+  { name: "prop.crate.crack", from: `${SIMPLIFIED_TILES}/platformPack_tile037.png`, to: "props/prop-crate-crack.png" },
+  { name: "prop.barrel.intact", from: `${SIMPLIFIED_TILES}/platformPack_tile038.png`, to: "props/prop-barrel-intact.png" },
+  { name: "prop.barrel.crack", from: `${SIMPLIFIED_TILES}/platformPack_tile039.png`, to: "props/prop-barrel-crack.png" },
+  { name: "prop.barrel.explode", from: `${PARTICLES}/scorch_01.png`, to: "props/prop-barrel-explode.png" },
+  { name: "pad.weapon", from: `${SIMPLIFIED_ITEMS}/platformPack_item001.png`, to: "pads/pad-weapon.png" },
+  { name: "pad.health", from: `${SIMPLIFIED_ITEMS}/platformPack_item002.png`, to: "pads/pad-health.png" },
+  { name: "pad.grenades", from: `${SIMPLIFIED_ITEMS}/platformPack_item003.png`, to: "pads/pad-grenades.png" },
+  { name: "pad.bounce", from: `${SIMPLIFIED_TILES}/platformPack_tile040.png`, to: "pads/pad-bounce.png" },
+  { name: "pad.bounce.squash", from: `${SIMPLIFIED_TILES}/platformPack_tile041.png`, to: "pads/pad-bounce-squash.png" },
   // UI: nine small-tile widgets plus both packed tilesheets, so the
   // Tilesheets dir ships a frame too instead of raw PNGs only.
   { name: "ui.panel", from: `${UI_SMALL}/tile_0000.png` },
@@ -470,10 +488,16 @@ function familyOf(name) {
   if (name.startsWith("fx.")) {
     return { dir: "particles", json: "particles.json" };
   }
+  if (name.startsWith("prop.")) {
+    return { dir: "props", json: "props.json" };
+  }
+  if (name.startsWith("pad.")) {
+    return { dir: "pads", json: "pads.json" };
+  }
   if (name.startsWith("ui.")) {
     return { dir: "ui", json: "ui.json" };
   }
-  fail(`atlas allowlist name ${name} matches no family (characters/tile/fx/ui).`);
+  fail(`atlas allowlist name ${name} matches no family (characters/tile/fx/prop/pad/ui).`);
 }
 
 // Decoded-sheet cache for cropped entries: one decode per vendor sheet
@@ -502,7 +526,7 @@ const SRC_CLIENT = path.join(ROOT, "packages", "client", "src");
 // property access (fx.muzzle, soldier.style) and prose (theme tile) also
 // match a raw dot pattern but are not frame names, so only a quoted
 // dotted token counts as a manifest reference.
-const REF_PATTERN = /["'`](soldier|adventurer|zombie|female|player|tile|fx)\.[A-Za-z0-9_.-]+["'`]/g;
+const REF_PATTERN = /["'`](soldier|adventurer|zombie|female|player|tile|fx|prop|pad)\.[A-Za-z0-9_.-]+["'`]/g;
 
 // Every quoted soldier./tile./fx. token under packages/client/src.
 function collectRendererRefs(dir) {

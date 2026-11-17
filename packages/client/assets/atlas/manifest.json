@@ -557,6 +557,66 @@
     "w": 512,
     "h": 512
   },
+  "prop.crate.intact": {
+    "file": "props/prop-crate-intact.png",
+    "atlas": "props.json",
+    "w": 64,
+    "h": 64
+  },
+  "prop.crate.crack": {
+    "file": "props/prop-crate-crack.png",
+    "atlas": "props.json",
+    "w": 64,
+    "h": 64
+  },
+  "prop.barrel.intact": {
+    "file": "props/prop-barrel-intact.png",
+    "atlas": "props.json",
+    "w": 64,
+    "h": 64
+  },
+  "prop.barrel.crack": {
+    "file": "props/prop-barrel-crack.png",
+    "atlas": "props.json",
+    "w": 64,
+    "h": 64
+  },
+  "prop.barrel.explode": {
+    "file": "props/prop-barrel-explode.png",
+    "atlas": "props.json",
+    "w": 512,
+    "h": 512
+  },
+  "pad.weapon": {
+    "file": "pads/pad-weapon.png",
+    "atlas": "pads.json",
+    "w": 64,
+    "h": 64
+  },
+  "pad.health": {
+    "file": "pads/pad-health.png",
+    "atlas": "pads.json",
+    "w": 64,
+    "h": 64
+  },
+  "pad.grenades": {
+    "file": "pads/pad-grenades.png",
+    "atlas": "pads.json",
+    "w": 64,
+    "h": 64
+  },
+  "pad.bounce": {
+    "file": "pads/pad-bounce.png",
+    "atlas": "pads.json",
+    "w": 64,
+    "h": 64
+  },
+  "pad.bounce.squash": {
+    "file": "pads/pad-bounce-squash.png",
+    "atlas": "pads.json",
+    "w": 64,
+    "h": 64
+  },
   "ui.panel": {
     "file": "ui/tile_0000.png",
     "atlas": "ui.json",

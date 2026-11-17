@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "app": "scrapline",
+    "version": 1,
+    "family": "pads"
+  },
+  "frames": {
+    "pad.weapon": {
+      "file": "pads/pad-weapon.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "pad.health": {
+      "file": "pads/pad-health.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "pad.grenades": {
+      "file": "pads/pad-grenades.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "pad.bounce": {
+      "file": "pads/pad-bounce.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "pad.bounce.squash": {
+      "file": "pads/pad-bounce-squash.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    }
+  }
+}

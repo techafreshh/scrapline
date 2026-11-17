@@ -180,6 +180,12 @@ import {
   weaponSpriteKey,
 } from "../render/weapons";
 import {
+  tileFrameAt,
+  tileSpriteFile,
+  tileSpriteKey,
+  type TileProbeMap,
+} from "../render/tiles";
+import {
   updateAnimState,
   type AnimInput,
   type AnimPose,
@@ -412,6 +418,117 @@ export function barrelEndpoint(
 const soldierImageCache = new Map<string, unknown>();
 const soldierTintCache = new Map<string, unknown>();
 const soldierImageFailed = new Set<string>();
+
+/**
+ * Themed tile sprite cache (canvas2d backend): one 18px vendor cell per
+ * frame key, painted 1:1 over the ASCII core at 32 world px per cell.
+ * Same guarded-async-Image idiom as soldierImageFor: node unit tests
+ * (no document/Image) resolve null and keep the vector tiles; failures
+ * never throw.
+ */
+const tileImageCache = new Map<string, unknown>();
+const tileImageFailed = new Set<string>();
+
+/** Resolve the co-located atlas PNG URL for a themed tile frame key. */
+function tileAtlasUrl(key: string): string | null {
+  try {
+    const file = tileSpriteFile(key);
+    if (file === null) {
+      return null;
+    }
+    const rel = `assets/atlas/${file}`;
+    if (typeof document !== "undefined" && typeof document.baseURI === "string") {
+      try {
+        return new URL(rel, document.baseURI).toString();
+      } catch {
+        return rel;
+      }
+    }
+    return rel;
+  } catch {
+    return null;
+  }
+}
+
+/** Live Image element for a themed tile frame key (null until loaded). */
+function tileImageFor(key: string): unknown {
+  try {
+    if (tileImageCache.has(key)) {
+      return tileImageCache.get(key) ?? null;
+    }
+    if (tileImageFailed.has(key)) {
+      return null;
+    }
+    if (typeof document === "undefined" || typeof Image === "undefined") {
+      return null;
+    }
+    const url = tileAtlasUrl(key);
+    if (url === null) {
+      return null;
+    }
+    const img = new Image();
+    (img as { decoding?: string }).decoding = "async";
+    try {
+      (img as { src: string }).src = url;
+    } catch {
+      tileImageFailed.add(key);
+      return null;
+    }
+    tileImageCache.set(key, img);
+    return img;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Paint one themed tile sprite over its vector quad: the 18px vendor
+ * cell scaled to the full 32-world-px cell box (the same tileSize + 1
+ * screen box the vector fill uses, so the measured canvas tile size
+ * stays 32 within 1px). A cache miss or an undecoded image is a silent
+ * no-op (the vector quad stays). Never throws.
+ */
+function paintTileSprite(
+  ctx: CanvasRenderingContext2D,
+  key: string,
+  x: number,
+  y: number,
+  size: number,
+): void {
+  try {
+    const img = tileImageFor(key) as
+      | {
+        complete?: boolean;
+        naturalWidth?: number;
+        naturalHeight?: number;
+        width?: number;
+        height?: number;
+      }
+      | null;
+    if (img === null || img === undefined) {
+      return;
+    }
+    const w = img.naturalWidth ?? img.width ?? 0;
+    const h = img.naturalHeight ?? img.height ?? 0;
+    const ready =
+      (img.complete === true && w > 0 && h > 0) ||
+      ((img.width ?? 0) > 0 && (img.height ?? 0) > 0);
+    if (!ready || !Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+      return;
+    }
+    const draw = (
+      ctx as unknown as {
+        drawImage?: (img: unknown, x: number, y: number, w: number, h: number) => void;
+      }
+    ).drawImage;
+    if (typeof draw !== "function") {
+      return;
+    }
+    draw.call(ctx, img, x, y, size, size);
+  } catch {
+    // Undecoded or hostile shims: the vector quad stays.
+  }
+}
 
 /** Resolve the co-located atlas PNG URL for a soldier or bot texture key. */
 function soldierAtlasUrl(key: string): string | null {
@@ -822,10 +939,16 @@ export function soldierArmAnchorWorld(p: FramePlayer): { x: number; y: number } 
  * and debugFrame reads agree. Also mirrors the arm anchor and muzzle
  * world points so aim-alignment probes read them without guessing the
  * pivot. Never throws; mirrors are best-effort under shorn harnesses.
+ *
+ * Also publishes the themed tile frame probe (issue #266):
+ * window.__scrapline.tileFrameAt(tx, ty) resolves the live ASCII cell
+ * through the drawn map to its `tile.<theme>.<kind>` frame key, so the
+ * per-map tileset reads back without guessing paint internals.
  */
 function publishSoldierSpriteProbes(
   frame: Frame,
   anims: readonly AnimPose[],
+  map?: TileProbeMap | null,
 ): { activeTexture: string; liveKey: string } {
   let liveKey = "soldier.idle";
   try {
@@ -869,6 +992,16 @@ function publishSoldierSpriteProbes(
       return [];
     }
   };
+  // Live themed tile frame for one ASCII cell (issue #266): read per
+  // call through the drawn map, so a map switch is visible instantly on
+  // the next draw without reloading the probe surface.
+  const tileFrameAtProbe = (tx: unknown, ty: unknown): string => {
+    try {
+      return tileFrameAt(map ?? null, tx, ty);
+    } catch {
+      return tileSpriteKey("solid", "kilima");
+    }
+  };
   try {
     if (typeof window !== "undefined") {
       const scope = window as unknown as Record<string, unknown>;
@@ -903,6 +1036,7 @@ function publishSoldierSpriteProbes(
           lastTexture: activeTexture,
           currentWeaponSprite,
           botSprites,
+          tileFrameAt: tileFrameAtProbe,
         };
       } else {
         existing["debugFrame"] = debugFrame;
@@ -911,6 +1045,7 @@ function publishSoldierSpriteProbes(
         existing["lastTexture"] = activeTexture;
         existing["currentWeaponSprite"] = currentWeaponSprite;
         existing["botSprites"] = botSprites;
+        existing["tileFrameAt"] = tileFrameAtProbe;
       }
       // Aim-alignment + texture mirrors on the established surfaces.
       const first = frame.players[0];
@@ -1392,6 +1527,61 @@ function paintTiles2D(
       ctx.lineTo(x + tileSize - 1, cy);
       ctx.stroke();
     }
+  }
+  // Vendor tile sprites (issue #266): one 18px pack cell per ASCII cell
+  // painted over the vector quad at the same tileSize + 1 screen box,
+  // so the measured canvas tile size stays 32 within 1px while the
+  // pixels read as pack art. Backwalls paint first (pre-darkened art
+  // behind the playfield); one-way and bounce cells keep their distinct
+  // shapes via transparency cutouts in the art. Undecoded art is a
+  // silent no-op: the vector quad underneath keeps every probe green.
+  paintTileSprites2D(ctx, px, py, tileSize, layers, theme.name);
+}
+
+/** Overlay the themed tile sprites over the vector quads (canvas2d). */
+function paintTileSprites2D(
+  ctx: CanvasRenderingContext2D,
+  px: (x: number) => number,
+  py: (y: number) => number,
+  tileSize: number,
+  layers: LayerCounts,
+  themeName: string,
+): void {
+  for (const cell of layers.backwalls) {
+    paintTileSprite(
+      ctx,
+      tileSpriteKey("backwall", themeName),
+      px(cell.tx * TILE_SIZE),
+      py(cell.ty * TILE_SIZE),
+      tileSize + 1,
+    );
+  }
+  for (const cell of layers.solids) {
+    paintTileSprite(
+      ctx,
+      tileSpriteKey("solid", themeName),
+      px(cell.tx * TILE_SIZE),
+      py(cell.ty * TILE_SIZE),
+      tileSize + 1,
+    );
+  }
+  for (const cell of layers.oneWays) {
+    paintTileSprite(
+      ctx,
+      tileSpriteKey("oneway", themeName),
+      px(cell.tx * TILE_SIZE),
+      py(cell.ty * TILE_SIZE),
+      tileSize + 1,
+    );
+  }
+  for (const cell of layers.bounces) {
+    paintTileSprite(
+      ctx,
+      tileSpriteKey("bounce", themeName),
+      px(cell.tx * TILE_SIZE),
+      py(cell.ty * TILE_SIZE),
+      tileSize + 1,
+    );
   }
 }
 
@@ -2861,6 +3051,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
             bounceTileH: BOUNCE_PAD_H * padSquash,
             oneWayTileH: ONEWAY_PLANK_H,
             solidTileH: SOLID_TILE_H,
+            // Pack tile draw size in world px (issue #266): one 18px
+            // vendor cell per ASCII cell painted at the 32px core grid.
+            tileSize: TILE_SIZE,
             padSquash,
             propCount: frame.props.length,
             pickupCount: frame.pickups.length,
@@ -3055,7 +3248,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     // Sprite-swap probe surface (`platformer-characters` textures,
     // roster tints, arm anchor + muzzle): patches the fresh mirrors
     // above and owns window.__scrapline.debugFrame.
-    publishSoldierSpriteProbes(frame, anims);
+    publishSoldierSpriteProbes(frame, anims, tileMapForDecor);
     return { frame, cam, layers, anims, theme, themeName, decors, lights, padSquash, dtSec, nowMs: now, hurtPulse };
   }
 

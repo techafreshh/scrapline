@@ -23,6 +23,8 @@ declare global {
       currentWeaponSprite: () => string;
       /** Live bot silhouette keys (one `<set>.*` texture per bot, issue #265). */
       botSprites?: () => string[];
+      /** Themed tile frame key for one ASCII cell (issue #266). */
+      tileFrameAt?: (tx: unknown, ty: unknown) => string;
     };
     __scraplineFonts?: {
       displayFamily: string;
@@ -128,6 +130,8 @@ declare global {
       oneWayTileH: number;
       /** Solid tile height in world units (32). */
       solidTileH: number;
+      /** Pack tile draw size in world units (32, one cell per ASCII cell). */
+      tileSize: number;
       /** Total decorations on the active map (>=3 per map). */
       decorationCount: number;
       /** Probe copy of the decoration rects (fresh snapshot per frame). */

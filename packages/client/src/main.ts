@@ -129,6 +129,7 @@ import {
   debugTextureOverride,
 } from "./render/soldier";
 import { weaponSpriteKey } from "./render/weapons";
+import { tileFrameAt } from "./render/tiles";
 import { loadAtlas } from "./atlas";
 import { registerServiceWorker } from "./pwa";
 import {
@@ -442,6 +443,23 @@ try {
   // the first draw, so the seed reads empty; the renderer replaces
   // the closure every draw. Never throws.
   const botSprites = (): string[] => [];
+  // Pre-draw themed tile frame probe (issue #266): resolves the live
+  // world map (null before the first match reads theme-prefixed solid)
+  // with the live theme mirrors; the renderer replaces the closure
+  // every draw with the drawn map. Never throws.
+  const tileFrameAtSeed = (tx: unknown, ty: unknown): string => {
+    try {
+      const world = scope["__scraplineWorld"] as unknown as {
+        map?: {
+          isSolidTile(tx: number, ty: number): boolean;
+          tileChar?(tx: number, ty: number): string;
+        } | null;
+      } | null;
+      return tileFrameAt(world?.map ?? null, tx, ty);
+    } catch {
+      return "tile.kilima.solid";
+    }
+  };
   if (seed === undefined || seed === null || typeof seed !== "object") {
     scope["__scrapline"] = {
       debugFrame,
@@ -450,6 +468,7 @@ try {
       lastTexture: debugTextureOverride() ?? "soldier.idle",
       currentWeaponSprite,
       botSprites,
+      tileFrameAt: tileFrameAtSeed,
     };
   } else {
     seed["debugFrame"] = debugFrame;
@@ -464,6 +483,9 @@ try {
     }
     if (seed["botSprites"] === undefined) {
       seed["botSprites"] = botSprites;
+    }
+    if (seed["tileFrameAt"] === undefined) {
+      seed["tileFrameAt"] = tileFrameAtSeed;
     }
   }
   void activeSoldierTexture;
@@ -530,6 +552,7 @@ function seedGame(
     bounceTileH: 8,
     oneWayTileH: 8,
     solidTileH: 32,
+    tileSize: 32,
     decorationCount: 0,
     occludedTiles: 0,
     lightCount: 0,

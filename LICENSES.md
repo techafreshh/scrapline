@@ -1,7 +1,8 @@
 # Scrapline third-party asset licenses
 
 All game art in this repository is authored in-house for this project and
-dedicated to the public domain. No external packs are vendored.
+dedicated to the public domain, plus the committed CC0 vendor packs staged
+under packages/client/assets/vendor/ for the sprite-swap milestone (PRD v6).
 
 ## Pack: Scrapline CC0 soldier sprites
 
@@ -28,6 +29,18 @@ dedicated to the public domain. No external packs are vendored.
 - Files:
   - packages/client/assets/fonts/orbitron-700.woff2
   - packages/client/assets/fonts/fonts.json
+
+## Pack: Kenney CC0 vendor packs (staged, PRD v6 sprite swap)
+
+Third-party sprite sources committed once under packages/client/assets/vendor/
+and never fetched over the network; per-pack rows live in
+packages/client/assets/LICENSES.md.
+
+- Author: Kenney Vleugels (kenney.nl)
+- License: CC0-1.0 (public domain dedication; no attribution required)
+- Files:
+  - packages/client/assets/vendor/
+  - packages/client/assets/LICENSES.md
 
 ## Pack: Scrapline CC0 arena sprites
 

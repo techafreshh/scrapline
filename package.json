@@ -9,7 +9,7 @@
   "scripts": {
     "build:client": "npm run build --workspace=@scrapline/client",
     "dev": "npm run build:client && node server.js",
-    "start": "node packages/server/dist/server.js",
+    "start": "node scripts/start-combined.js",
     "build": "npm run build:client && tsc -b && npm run build --workspace=@scrapline/env && npm run build --workspace=@scrapline/server && node tools/stage-dist.js",
     "preview": "node packages/server/dist/server.js",
     "lint": "eslint .",

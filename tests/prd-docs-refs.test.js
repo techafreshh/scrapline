@@ -40,10 +40,16 @@ test("only docs/benchmark/README.md mentions the benchmark path", () => {
   const files = markdownFiles(ROOT);
   assert.ok(files.length > 0, "expected markdown files under the repo");
   const hits = [];
-  const allowed = path.join("docs", "benchmark", "README.md");
+  // Allowlisted (#161): the benchmark README itself plus the PRD v6
+  // sprite-swap milestone spec, whose verification lap compares captures
+  // side-by-side against docs/benchmark/.
+  const allowed = new Set([
+    path.join("docs", "benchmark", "README.md"),
+    path.join(".agents", "PRDs", "PRD-v6-sprites.md"),
+  ]);
   for (const file of files) {
     const text = fs.readFileSync(file, "utf8");
-    if (text.includes("docs/benchmark") && path.relative(ROOT, file) !== allowed) {
+    if (text.includes("docs/benchmark") && !allowed.has(path.relative(ROOT, file))) {
       hits.push(path.relative(ROOT, file));
     }
   }

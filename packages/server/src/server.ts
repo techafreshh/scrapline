@@ -982,6 +982,31 @@ const server = http.createServer((req, res) => {
     send(req, res, 200, "application/json", '{"ok":true}');
     return;
   }
+  if (readable && url.pathname === "/api/state") {
+    // Read-only room snapshot (issue #260): reports the room a hello
+    // would join (creating it on demand) without adding a player or
+    // stepping the sim, so the walking-skeleton probe passes over HTTP.
+    const view = roomKeyFor(url.searchParams.get("view"));
+    const room = getOrCreateRoom(view);
+    send(
+      req,
+      res,
+      200,
+      "application/json",
+      JSON.stringify({
+        tick: room.world.tick,
+        players: room.world.players.map((p) => ({
+          ...p,
+          name: room.roster.get(p.id) ?? `Player${p.id}`,
+        })),
+        view: room.view,
+        room: room.view,
+        scores: room.world.scores.slice(),
+        roster: rosterFor(room),
+      }),
+    );
+    return;
+  }
   if (readable && url.pathname === "/favicon.ico") {
     send(req, res, 200, "image/svg+xml", FAVICON_SVG);
     return;

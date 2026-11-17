@@ -1,10 +1,10 @@
-// Pixi `pixi-v8-particles` (v8-native particle-emitter) configs for the
-// six combat effects. Pure JSON (empty-string textures substitute
-// Texture.WHITE inside the library), so unit tests import them under
-// node without touching WebGL. The lazy factory lives in
-// ./emitters.ts and dynamic-imports the library only on the Pixi path,
-// keeping the canvas2d fallback and the initial main.js chunk free of
-// the emitter code.
+// Pixi `pixi-v8-particle-emitter` (v8-native particle-emitter) configs for the
+// six combat effects. Textures resolve through the committed particle-pack
+// vendor atlas (tools/build-atlas.js `particle-pack` manifest keys), so
+// unit tests import them under node without touching WebGL. The lazy
+// factory lives in ./emitters.ts and dynamic-imports the library only on
+// the Pixi path, keeping the canvas2d fallback and the initial main.js
+// chunk free of the emitter code.
 //
 // Caps: every config carries maxParticles; the six emitters sum to 412
 // live particles worst-case, inside the 512 pooled cap, so fill rate
@@ -14,8 +14,13 @@ import type { EmitterConfigV3 } from "pixi-v8-particles";
 
 /**
  * Vendor atlas dot-names per effect family (tools/build-atlas.js
- * manifest keys) for the later vendor-sprite swap: emitters resolve
- * textures through the manifest; no runtime file imports vendor art.
+ * `particle-pack` manifest keys) for the vendor-sprite swap: emitters
+ * resolve textures through the manifest; no runtime file imports vendor
+ * art. Families cover muzzle flash, impact sparks, explosion smoke,
+ * explosion debris (fire), jet flame, plus the issue #269 flash (blast
+ * core), trail (jet exhaust streaks), and sparkle (pickup glints) runs
+ * so `fx.muzzle.1`, `fx.spark.1`, `fx.smoke.2`, `fx.flash.1`,
+ * `fx.trail.1`, and `fx.sparkle.1` all resolve in-manifest.
  */
 export const FX_MANIFEST_FRAMES: Record<string, readonly string[]> = Object.freeze({
   smoke: Object.freeze(["fx.smoke.0", "fx.smoke.1", "fx.smoke.2", "fx.smoke.3"]),
@@ -23,6 +28,9 @@ export const FX_MANIFEST_FRAMES: Record<string, readonly string[]> = Object.free
   spark: Object.freeze(["fx.spark.0", "fx.spark.1"]),
   fire: Object.freeze(["fx.fire.0", "fx.fire.1"]),
   flame: Object.freeze(["fx.flame.0"]),
+  flash: Object.freeze(["fx.flash.0", "fx.flash.1"]),
+  trail: Object.freeze(["fx.trail.0", "fx.trail.1"]),
+  sparkle: Object.freeze(["fx.sparkle.0", "fx.sparkle.1"]),
 });
 
 /**
@@ -43,6 +51,17 @@ export function fxManifestFrame(family: unknown, index: unknown): string {
   }
 }
 
+/** Per-emitter `particle-pack` texture for one effect (manifest dot-name). */
+export const FX_EMITTER_TEXTURES = Object.freeze({
+  muzzle: "fx.muzzle.1",
+  impact: "fx.spark.1",
+  explosionFlash: "fx.flash.1",
+  explosionSmoke: "fx.smoke.2",
+  explosionDebris: "fx.fire.0",
+  jet: "fx.trail.1",
+  death: "fx.fire.1",
+  pickup: "fx.sparkle.1",
+});
 /** Per-emitter live-particle caps (perf: six emitters sum to 412). */
 export const FX_EMITTER_CAPS = Object.freeze({
   muzzle: 32,
@@ -83,12 +102,21 @@ function scaleFade(from: number, to: number): { type: string; config: unknown } 
   };
 }
 
-/** Blank texture entry: the library substitutes Texture.WHITE. */
-function whiteTexture(): { type: string; config: unknown } {
-  return { type: "textureSingle", config: { texture: "" } };
+/** Pack-texture entry: one `particle-pack` manifest frame per emitter.
+ *  The string resolves through ParticleUtils.GetTextureFromString once the
+ *  atlas family loads; headless unit tests never resolve it. */
+function packTexture(frame: string): { type: string; config: unknown } {
+  return { type: "textureSingle", config: { texture: frame } };
 }
 
-/** Muzzle flash: one-shot bright burst at the barrel tip. */
+/** Pack-texture roulette for the explosion core: flash plus smoke plus
+ *  debris frames cycle per particle (pixi `textureRandom` with the
+ *  manifest dot-names), so one config still paints all three bands. */
+function packTextureRandom(frames: readonly string[]): { type: string; config: unknown } {
+  return { type: "textureRandom", config: { textures: [...frames] } };
+}
+
+/** Muzzle flash: one-shot bright burst at the barrel tip (`particle-pack` muzzle). */
 export const MUZZLE_EMITTER_CONFIG: EmitterConfigV3 = {
   lifetime: { min: 0.18, max: 0.3 },
   frequency: 0.01,
@@ -119,7 +147,7 @@ export const MUZZLE_EMITTER_CONFIG: EmitterConfigV3 = {
     },
     { type: "rotationStatic", config: { min: 0, max: 360 } },
     { type: "spawnShape", config: { type: "point", data: { x: 0, y: 0 } } },
-    whiteTexture(),
+    packTexture("fx.muzzle.1"),
   ],
 };
 
@@ -154,7 +182,7 @@ export const IMPACT_EMITTER_CONFIG: EmitterConfigV3 = {
     },
     { type: "rotationStatic", config: { min: 0, max: 360 } },
     { type: "spawnShape", config: { type: "point", data: { x: 0, y: 0 } } },
-    whiteTexture(),
+    packTexture("fx.spark.1"),
   ],
 };
 
@@ -193,7 +221,7 @@ export const EXPLOSION_EMITTER_CONFIG: EmitterConfigV3 = {
       type: "spawnShape",
       config: { type: "torus", data: { x: 0, y: 0, radius: 6 } },
     },
-    whiteTexture(),
+    packTextureRandom(["fx.flash.1", "fx.smoke.2", "fx.fire.0"]),
   ],
 };
 
@@ -235,7 +263,7 @@ export const JET_EMITTER_CONFIG: EmitterConfigV3 = {
     },
     { type: "rotationStatic", config: { min: 240, max: 300 } },
     { type: "spawnShape", config: { type: "rect", data: { x: -3, y: 0, w: 6, h: 2 } } },
-    whiteTexture(),
+    packTexture("fx.trail.1"),
   ],
 };
 
@@ -271,7 +299,7 @@ export const DEATH_EMITTER_CONFIG: EmitterConfigV3 = {
     },
     { type: "rotationStatic", config: { min: 0, max: 360 } },
     { type: "spawnShape", config: { type: "point", data: { x: 0, y: 0 } } },
-    whiteTexture(),
+    packTexture("fx.fire.1"),
   ],
 };
 
@@ -306,6 +334,6 @@ export const PICKUP_EMITTER_CONFIG: EmitterConfigV3 = {
     },
     { type: "rotationStatic", config: { min: 0, max: 360 } },
     { type: "spawnShape", config: { type: "point", data: { x: 0, y: 0 } } },
-    whiteTexture(),
+    packTexture("fx.sparkle.1"),
   ],
 };

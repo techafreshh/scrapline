@@ -123,6 +123,11 @@ import {
 } from "./gamepad";
 import { buildToast, showToast, type ToastHandles } from "./ui/toast";
 import { createRenderer, type Renderer } from "./renderer/index";
+import {
+  activeSoldierTexture,
+  debugSoldierFrame,
+  debugTextureOverride,
+} from "./render/soldier";
 import { loadAtlas } from "./atlas";
 import { registerServiceWorker } from "./pwa";
 import {
@@ -391,6 +396,54 @@ window.__scraplineTick = 0;
 window.__scraplineWorld = null;
 window.__matchConfig = null;
 window.__camera = null;
+// Sprite-swap probe hook (`platformer-characters` Soldier set):
+// window.__scrapline.debugFrame("soldier.run.3") forces the active
+// soldier texture so canvas and mirror probes read a soldier run key
+// while running. The renderer refreshes activeTexture every draw; this
+// seed keeps the hook live before the first draw. Never gates boot.
+try {
+  const scope = window as unknown as Record<string, unknown>;
+  const seed = scope["__scrapline"] as Record<string, unknown> | undefined;
+  const debugFrame = (key: unknown): string => {
+    try {
+      const next = debugSoldierFrame(key, "soldier.idle");
+      try {
+        const cur = scope["__scrapline"] as
+          | Record<string, unknown>
+          | undefined;
+        if (cur !== undefined && cur !== null && typeof cur === "object") {
+          cur["activeTexture"] = next;
+          cur["activeFrame"] = next;
+          cur["lastTexture"] = next;
+        }
+      } catch {
+        // Mirror best-effort only.
+      }
+      return next;
+    } catch {
+      return "soldier.idle";
+    }
+  };
+  if (seed === undefined || seed === null || typeof seed !== "object") {
+    scope["__scrapline"] = {
+      debugFrame,
+      activeTexture: debugTextureOverride() ?? "soldier.idle",
+      activeFrame: debugTextureOverride() ?? "soldier.idle",
+      lastTexture: debugTextureOverride() ?? "soldier.idle",
+    };
+  } else {
+    seed["debugFrame"] = debugFrame;
+    if (seed["activeTexture"] === undefined) {
+      const current = debugTextureOverride() ?? "soldier.idle";
+      seed["activeTexture"] = current;
+      seed["activeFrame"] = current;
+      seed["lastTexture"] = current;
+    }
+  }
+  void activeSoldierTexture;
+} catch {
+  // Shorn harnesses: the renderer-owned hook below still lands.
+}
 /**
  * Fresh window.__game value with composed-sprite probe seeds. The
  * renderer merges live players/colors/bounds/muzzle over these seeds

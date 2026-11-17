@@ -11,6 +11,15 @@ declare global {
     __scraplineTick: number;
     __scraplineInput: InputMirror;
     __scraplineAtlas: AtlasIndex | null;
+    /** Sprite-swap probe hook (issue #263): debugFrame forces the active
+     * `platformer-characters` soldier texture; activeTexture always
+     * contains the live `soldier.*` key (`soldier.run.*` while running). */
+    __scrapline?: {
+      debugFrame: (key: unknown) => string;
+      activeTexture: string;
+      activeFrame?: string;
+      lastTexture?: string;
+    };
     __scraplineFonts?: {
       displayFamily: string;
       displayFile: string;

@@ -150,12 +150,12 @@ describe("team colors", () => {
 });
 
 describe("barrel convention guard", () => {
-  it("keeps BARREL_LENGTH at 8 world px on all four cardinal aims", () => {
-    expect(BARREL_LENGTH).toBe(8);
+  it("keeps BARREL_LENGTH at 14 world px on all four cardinal aims", () => {
+    expect(BARREL_LENGTH).toBe(14);
     for (const aim of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
       const tip = barrelEndpoint(100, 100, aim);
       const dist = Math.hypot(tip.x - 100, tip.y - 100);
-      expect(dist).toBeCloseTo(8, 10);
+      expect(dist).toBeCloseTo(BARREL_LENGTH, 10);
     }
   });
 
@@ -164,6 +164,6 @@ describe("barrel convention guard", () => {
     expect(mid.x).toBeCloseTo(100 + BARREL_LENGTH * 0.55, 10);
     expect(mid.y).toBeCloseTo(100, 10);
     const tip = barrelEndpoint(100, 100, 0);
-    expect(tip.x).toBeCloseTo(108, 10);
+    expect(tip.x).toBeCloseTo(100 + BARREL_LENGTH, 10);
   });
 });

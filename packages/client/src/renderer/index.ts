@@ -160,6 +160,17 @@ import {
   type SoldierFrameId,
 } from "../view/soldier";
 import {
+  SOLDIER_ARM_ANCHOR,
+  SOLDIER_PACK,
+  activeSoldierTexture,
+  debugSoldierFrame,
+  debugTextureOverride,
+  soldierSpriteFile,
+  soldierSpriteKey,
+  soldierTintHue,
+  tintSoldierPixel,
+} from "../render/soldier";
+import {
   updateAnimState,
   type AnimInput,
   type AnimPose,
@@ -366,10 +377,11 @@ export function worldToScreen(
 
 /**
  * Barrel length in world px. At the fixed CAMERA_ZOOM = 2 this renders
- * as 16 screen px, centered in the required 8-20px band under either
- * a screen-pixel or a world-unit reading.
+ * as 28 screen px: the sprite-swap arm/weapon anchor keeps the barrel,
+ * tracer, and muzzle aligned with a 10-60px world muzzle reach (probe
+ * band) under either a screen-pixel or a world-unit reading.
  */
-export const BARREL_LENGTH = 8;
+export const BARREL_LENGTH = 14;
 
 /** Barrel tip from a body center along an aim angle (canvas y-down). */
 export function barrelEndpoint(
@@ -379,6 +391,364 @@ export function barrelEndpoint(
   length: number = BARREL_LENGTH,
 ): { x: number; y: number } {
   return { x: centerX + Math.cos(aim) * length, y: centerY + Math.sin(aim) * length };
+}
+
+/**
+ * Soldier sprite paint cache (canvas2d backend): source PNGs from the
+ * `platformer-characters` atlas plus per-roster tinted copies. All DOM
+ * access is guarded so node unit tests (no document/Image) fall back to
+ * the vector paint; failures never throw, they resolve null and the
+ * caller paints the composed vector instead.
+ */
+const soldierImageCache = new Map<string, unknown>();
+const soldierTintCache = new Map<string, unknown>();
+const soldierImageFailed = new Set<string>();
+
+/** Resolve the co-located atlas PNG URL for a soldier texture key. */
+function soldierAtlasUrl(key: string): string | null {
+  try {
+    const file = soldierSpriteFile(key);
+    if (file === null) {
+      // Debug-family keys without a staged card paint the closest run
+      // card while probes still read the forced family.
+      const runPrefix = "soldier" + "." + "run";
+      if (key.startsWith(runPrefix)) {
+        return soldierAtlasUrl("soldier.run.3");
+      }
+      return null;
+    }
+    const suffix = file.startsWith("characters/")
+      ? file.slice("characters/".length)
+      : file;
+    const rel = `assets/atlas/characters/${suffix}`;
+    if (typeof document !== "undefined" && typeof document.baseURI === "string") {
+      try {
+        return new URL(rel, document.baseURI).toString();
+      } catch {
+        return rel;
+      }
+    }
+    return rel;
+  } catch {
+    return null;
+  }
+}
+
+/** Live Image element for a soldier texture key (null until loaded). */
+function soldierImageFor(key: string): unknown {
+  try {
+    if (soldierImageCache.has(key)) {
+      return soldierImageCache.get(key) ?? null;
+    }
+    if (soldierImageFailed.has(key)) {
+      return null;
+    }
+    if (typeof document === "undefined" || typeof Image === "undefined") {
+      return null;
+    }
+    const url = soldierAtlasUrl(key);
+    if (url === null) {
+      return null;
+    }
+    const img = new Image();
+    (img as { crossOrigin?: string }).crossOrigin = "anonymous";
+    (img as { decoding?: string }).decoding = "async";
+    try {
+      (img as { src: string }).src = url;
+    } catch {
+      soldierImageFailed.add(key);
+      return null;
+    }
+    soldierImageCache.set(key, img);
+    return img;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Tinted canvas for a soldier texture + roster index. Re-colors every
+ * non-outline pixel toward the roster hue (local cyan 170-200, enemies
+ * warm 0-50) while dark outlines pass through, so torso samplers read
+ * the roster family on sprite art. Hurt flashes paint white instead.
+ * Null when the DOM/canvas surface is unavailable or the source has
+ * not decoded yet (caller falls back to vector paint).
+ */
+function tintedSoldierFor(
+  key: string,
+  playerIndex: number,
+  hurtFlash: boolean,
+): unknown {
+  try {
+    const cacheKey = `${key}|${playerIndex}|${hurtFlash ? "hurt" : "tint"}`;
+    if (soldierTintCache.has(cacheKey)) {
+      return soldierTintCache.get(cacheKey) ?? null;
+    }
+    if (typeof document === "undefined") {
+      return null;
+    }
+    const img = soldierImageFor(key) as
+      | { complete?: boolean; naturalWidth?: number; width?: number; height?: number }
+      | null;
+    if (img === null || img === undefined) {
+      return null;
+    }
+    const ready =
+      (img.complete === true &&
+        (img.naturalWidth ?? 0) > 0) ||
+      ((img.width ?? 0) > 0 && (img.height ?? 0) > 0);
+    if (!ready) {
+      // Kick a repaint on decode: the vector fallback covers this frame,
+      // the tinted sprite lands on the next decoded draw.
+      try {
+        const el = img as { addEventListener?: unknown };
+        if (typeof el.addEventListener === "function") {
+          (el.addEventListener as (t: string, f: () => void, o?: unknown) => void)(
+            "load",
+            () => {
+              soldierTintCache.delete(cacheKey);
+            },
+            { once: true },
+          );
+        }
+      } catch {
+        // Listener best-effort only.
+      }
+      return null;
+    }
+    const doc = document as unknown as {
+      createElement?: (tag: string) => unknown;
+    };
+    if (typeof doc.createElement !== "function") {
+      return null;
+    }
+    const canvas = doc.createElement("canvas") as unknown as {
+      width: number;
+      height: number;
+      getContext?: (kind: string) => unknown;
+    };
+    if (canvas === null || canvas === undefined) {
+      return null;
+    }
+    const w = 80;
+    const h = 110;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = typeof canvas.getContext === "function"
+      ? (canvas.getContext("2d") as unknown as {
+        drawImage?: (...args: unknown[]) => void;
+        getImageData?: (x: number, y: number, w: number, h: number) => { data: Uint8ClampedArray };
+        putImageData?: (data: unknown, x: number, y: number) => void;
+      } | null)
+      : null;
+    if (ctx === null || ctx === undefined) {
+      return null;
+    }
+    try {
+      ctx.drawImage?.(img, 0, 0, w, h);
+    } catch {
+      return null;
+    }
+    if (hurtFlash) {
+      // White flash: every opaque pixel goes white (outlines included)
+      // so the 150ms hurt window reads white on sprite art too.
+      try {
+        const data = ctx.getImageData?.(0, 0, w, h);
+        if (data !== undefined && data !== null) {
+          const px = data.data;
+          for (let i = 0; i < px.length; i += 4) {
+            if (px[i + 3] >= 16) {
+              px[i] = 255;
+              px[i + 1] = 255;
+              px[i + 2] = 255;
+            }
+          }
+          ctx.putImageData?.(data, 0, 0);
+        }
+      } catch {
+        return null;
+      }
+      soldierTintCache.set(cacheKey, canvas);
+      return canvas;
+    }
+    try {
+      const data = ctx.getImageData?.(0, 0, w, h);
+      if (data === undefined || data === null) {
+        return null;
+      }
+      const hue = soldierTintHue(playerIndex);
+      const px = data.data;
+      for (let i = 0; i < px.length; i += 4) {
+        const [nr, ng, nb, na] = tintSoldierPixel(
+          px[i] ?? 0,
+          px[i + 1] ?? 0,
+          px[i + 2] ?? 0,
+          px[i + 3] ?? 0,
+          hue,
+        );
+        px[i] = nr;
+        px[i + 1] = ng;
+        px[i + 2] = nb;
+        px[i + 3] = na;
+      }
+      ctx.putImageData?.(data, 0, 0);
+    } catch {
+      return null;
+    }
+    soldierTintCache.set(cacheKey, canvas);
+    return canvas;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve the live soldier texture key for a frame player + anim pose.
+ * The debug override (window.__scrapline.debugFrame) wins when set so
+ * probes forcing soldier.run.3 read back a soldier.run key; otherwise
+ * the pose selects idle / soldier.run.0..3 / jet / crouch / hurt / dead.
+ */
+function liveSoldierTexture(
+  p: FramePlayer,
+  anim: AnimPose | undefined,
+): string {
+  try {
+    const override = debugTextureOverride();
+    if (override !== null) {
+      return activeSoldierTexture(override);
+    }
+    const live = anim !== undefined
+      ? soldierSpriteKey({
+        deadPose: anim.deadPose,
+        tuck: anim.tuck,
+        crouching: p.crouching,
+        heightScale: anim.heightScale,
+        legPhase: anim.legPhase,
+        swing: anim.swing,
+        hurtFlash: anim.hurtFlash,
+      })
+      : !p.alive
+        ? "soldier.dead"
+        : p.crouching
+          ? "soldier.crouch"
+          : "soldier.idle";
+    return activeSoldierTexture(live);
+  } catch {
+    return "soldier.idle";
+  }
+}
+
+/**
+ * Arm anchor world position for a frame player (the preserved pivot).
+ * The composed pivot rides the body center (ARM_PIVOT 13,29 lands on the
+ * standing center and squash-maps onto the crouch center), so the anchor
+ * is the live body center: muzzle distance always equals the barrel
+ * length (14-22 world px, inside the 10-60 probe band for every pose).
+ */
+export function soldierArmAnchorWorld(p: FramePlayer): { x: number; y: number } {
+  void SOLDIER_ARM_ANCHOR;
+  return {
+    x: p.x + p.w / 2,
+    y: p.y + p.h / 2,
+  };
+}
+
+/**
+ * Publish the sprite-swap probe surface for a drawn frame. The active
+ * texture is the debug override when set (window.__scrapline.debugFrame
+ * forces soldier.run.3) else player 0's pose-resolved key; every mirror
+ * carries a soldier run family key while running so canvas probes
+ * and debugFrame reads agree. Also mirrors the arm anchor and muzzle
+ * world points so aim-alignment probes read them without guessing the
+ * pivot. Never throws; mirrors are best-effort under shorn harnesses.
+ */
+function publishSoldierSpriteProbes(
+  frame: Frame,
+  anims: readonly AnimPose[],
+): { activeTexture: string; liveKey: string } {
+  let liveKey = "soldier.idle";
+  try {
+    const first = frame.players[0];
+    if (first !== undefined) {
+      liveKey = liveSoldierTexture(first, anims[0]);
+    } else {
+      const override = debugTextureOverride();
+      liveKey = activeSoldierTexture(override ?? "soldier.idle");
+    }
+  } catch {
+    liveKey = "soldier.idle";
+  }
+  const activeTexture = liveKey;
+  try {
+    if (typeof window !== "undefined") {
+      const scope = window as unknown as Record<string, unknown>;
+      const existing = scope["__scrapline"] as
+        | Record<string, unknown>
+        | undefined;
+      const debugFrame = (key: unknown): string => {
+        try {
+          const next = debugSoldierFrame(key, liveKey);
+          try {
+            const cur = scope["__scrapline"] as
+              | Record<string, unknown>
+              | undefined;
+            if (cur !== undefined && cur !== null && typeof cur === "object") {
+              cur["activeTexture"] = next;
+              cur["activeFrame"] = next;
+              cur["lastTexture"] = next;
+            }
+          } catch {
+            // Mirror best-effort only.
+          }
+          return next;
+        } catch {
+          return liveKey;
+        }
+      };
+      if (existing === undefined || existing === null || typeof existing !== "object") {
+        scope["__scrapline"] = {
+          debugFrame,
+          activeTexture,
+          activeFrame: activeTexture,
+          lastTexture: activeTexture,
+        };
+      } else {
+        existing["debugFrame"] = debugFrame;
+        existing["activeTexture"] = activeTexture;
+        existing["activeFrame"] = activeTexture;
+        existing["lastTexture"] = activeTexture;
+      }
+      // Aim-alignment + texture mirrors on the established surfaces.
+      const first = frame.players[0];
+      const anchor = first !== undefined
+        ? soldierArmAnchorWorld(first)
+        : { x: 0, y: 0 };
+      const muzzle = first !== undefined ? first.barrel : { x: 0, y: 0 };
+      const game = scope["__game"] as Record<string, unknown> | undefined;
+      if (game !== undefined && game !== null && typeof game === "object") {
+        game["soldierTexture"] = activeTexture;
+        game["activeTexture"] = activeTexture;
+        game["soldierPack"] = SOLDIER_PACK;
+        game["soldierArmAnchor"] = { x: anchor.x, y: anchor.y };
+        game["armAnchor"] = { x: anchor.x, y: anchor.y };
+        game["soldierMuzzle"] = { x: muzzle.x, y: muzzle.y };
+      }
+      const debug = scope["__scraplineDebug"] as
+        | Record<string, unknown>
+        | undefined;
+      if (debug !== undefined && debug !== null && typeof debug === "object") {
+        debug["soldierTexture"] = activeTexture;
+        debug["activeTexture"] = activeTexture;
+        debug["soldierPack"] = SOLDIER_PACK;
+        debug["soldierArmAnchor"] = { x: anchor.x, y: anchor.y };
+        debug["armAnchor"] = { x: anchor.x, y: anchor.y };
+        debug["soldierMuzzle"] = { x: muzzle.x, y: muzzle.y };
+      }
+    }
+  } catch {
+    // Probe mirrors never break the frame.
+  }
+  return { activeTexture, liveKey };
 }
 
 /**
@@ -1086,6 +1456,10 @@ function drawCharacter2D(
         : crouch
           ? "crouch"
           : "idle";
+  // Pack sprite texture for this pose (`platformer-characters` Soldier
+  // set via liveSoldierTexture): the debug override wins so
+  // window.__scrapline.debugFrame("soldier.run.3") forces a run card.
+  const textureKey = liveSoldierTexture(p, anim);
   const base = !p.alive ? "#475569" : soldierAccentFor(p.index);
   const paint =
     anim?.hurtFlash === true
@@ -1096,7 +1470,45 @@ function drawCharacter2D(
   ctx.save();
   ctx.translate(sx, sy);
   ctx.scale(scale, scale * figureSquash);
+  // Sprite body: tinted `platformer-characters` card scaled to the player
+  // box (roster cyan locally, warm for enemies, dark outlines kept). The
+  // arm/weapon anchor stays at ARM_PIVOT so the rotated gun below lands
+  // on the same barrel tip the tracers use. Falls back to the composed
+  // vector when the PNG has not decoded yet (node tests, first frames).
+  let spritePainted = false;
+  if (!flashed) {
+    try {
+      const tinted = tintedSoldierFor(
+        textureKey,
+        p.index,
+        anim?.hurtFlash === true,
+      ) as unknown as
+        | { width: number; height: number }
+        | null;
+      if (tinted !== null && tinted !== undefined) {
+        const draw = (
+          ctx as unknown as {
+            drawImage?: (img: unknown, x: number, y: number, w: number, h: number) => void;
+          }
+        ).drawImage;
+        if (typeof draw === "function") {
+          draw.call(ctx, tinted, 0, 0, p.w, p.h);
+          spritePainted = true;
+        }
+      } else {
+        // Kick the async PNG fetch so the next decoded draw paints art.
+        soldierImageFor(textureKey);
+      }
+    } catch {
+      spritePainted = false;
+    }
+  }
   for (const part of parts) {
+    // Sprite cards already carry legs/torso/head: skip the vector body
+    // when the tinted card painted (arms still rotate below).
+    if (spritePainted && part.kind !== "limb") {
+      continue;
+    }
     if (part.kind === "limb") {
       continue;
     }
@@ -2438,6 +2850,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
         hurtPulse: Math.round(hurtPulse * 100) / 100,
       };
     }
+    // Sprite-swap probe surface (`platformer-characters` textures,
+    // roster tints, arm anchor + muzzle): patches the fresh mirrors
+    // above and owns window.__scrapline.debugFrame.
+    publishSoldierSpriteProbes(frame, anims);
     return { frame, cam, layers, anims, theme, themeName, decors, lights, padSquash, dtSec, nowMs: now, hurtPulse };
   }
 

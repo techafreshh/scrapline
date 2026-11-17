@@ -7,10 +7,19 @@
 // anim.ts/character.ts. Tinting stays a client-side palette swap of the
 // authored #00E5FF accent onto the existing teamCss families, so
 // mid-match screenshots keep >= 2 distinct hues across players.
+// Sprite source: Kenney `platformer-characters` Soldier set (CC0) via the
+// atlas pipeline manifest (soldier.run.0..soldier.run.3, soldier.jet,
+// soldier.crouch, soldier.fall, soldier.dead); the run cycle resolves
+// through ../render/soldier.ts so both modules name the same pack art.
 import { BARREL_LENGTH, barrelEndpoint } from "../renderer/index";
 import { teamColor, teamCss } from "./character";
 import type { WeaponId } from "../../../core/src/weapons";
 import { DEAD_LIFT_PX, DEAD_SPLAY_PX, TUCK_IN_PX, TUCK_UP_PX } from "./anim";
+import {
+  SOLDIER_PACK as SOLDIER_SPRITE_PACK,
+  soldierRunKey as spriteRunKey,
+  soldierSpriteKey as spriteTextureKey,
+} from "../render/soldier";
 
 /** Animated soldier frame ids (one atlas card each). */
 export const SOLDIER_FRAME_IDS = [
@@ -48,6 +57,29 @@ export const SOLDIER_MANIFEST_FRAMES: Record<SoldierFrameId, string> = {
   crouch: "soldier.crouch",
   dead: "soldier.dead",
 };
+
+/** Vendor pack backing the soldier frames (re-exported so probes and
+ * menu art name the same `platformer-characters` source). */
+export const SOLDIER_PACK = SOLDIER_SPRITE_PACK;
+
+/**
+ * Four-frame run-cycle texture for a leg phase (soldier.run.0..3 from
+ * the `platformer-characters` Soldier walk/stand/skid cards). Pure.
+ */
+export function soldierRunTexture(legPhase: number): string {
+  return spriteRunKey(legPhase);
+}
+
+/**
+ * Manifest texture key for a pose (4-frame run, jet, crouch, hurt via
+ * soldier.fall, death via soldier.dead). The run family always reads
+ * `soldier.run.*` so canvas probes match on the prefix. Pure.
+ */
+export function soldierTextureFor(
+  pose: SoldierPoseInput & { hurtFlash?: boolean },
+): string {
+  return spriteTextureKey(pose);
+}
 
 /** Vendor atlas dot-name for one soldier frame id. Pure. */
 export function soldierManifestFrame(frame: SoldierFrameId): string {
@@ -131,11 +163,11 @@ export const WEAPON_DEFS: Record<WeaponId, WeaponDef> = {
       return BARREL_LENGTH;
     },
   },
-  smg: { length: 10, width: 3, color: 0xe2e8f0, colorCss: "#E2E8F0", muzzleX: 10 },
-  rifle: { length: 12, width: 3, color: 0xfbbf24, colorCss: "#FBBF24", muzzleX: 12 },
-  shotgun: { length: 13, width: 4, color: 0xfb923c, colorCss: "#FB923C", muzzleX: 13 },
-  sniper: { length: 16, width: 2, color: 0x93c5fd, colorCss: "#93C5FD", muzzleX: 16 },
-  rocket: { length: 15, width: 5, color: 0x94a3b8, colorCss: "#94A3B8", muzzleX: 15 },
+  smg: { length: 16, width: 3, color: 0xe2e8f0, colorCss: "#E2E8F0", muzzleX: 16 },
+  rifle: { length: 18, width: 3, color: 0xfbbf24, colorCss: "#FBBF24", muzzleX: 18 },
+  shotgun: { length: 19, width: 4, color: 0xfb923c, colorCss: "#FB923C", muzzleX: 19 },
+  sniper: { length: 22, width: 2, color: 0x93c5fd, colorCss: "#93C5FD", muzzleX: 22 },
+  rocket: { length: 21, width: 5, color: 0x94a3b8, colorCss: "#94A3B8", muzzleX: 21 },
 };
 
 /** Gun geometry row for a weapon id (unknown ids fall back to pistol). */

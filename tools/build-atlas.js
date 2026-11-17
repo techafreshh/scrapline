@@ -391,4 +391,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { frameSize, pngSize, sizeBytes, collectRendererRefs, findMissingRefs, BUDGET_BYTES };
+module.exports = { frameSize, pngSize, sizeBytes, collectRendererRefs, findMissingRefs, BUDGET_BYTES, ATLAS_ALLOWLIST };

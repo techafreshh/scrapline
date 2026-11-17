@@ -171,6 +171,11 @@ import {
   tintSoldierPixel,
 } from "../render/soldier";
 import {
+  BOT_SETS,
+  botSpriteFile,
+  botSpriteKey,
+} from "../render/bots";
+import {
   weaponSpriteFile,
   weaponSpriteKey,
 } from "../render/weapons";
@@ -408,16 +413,23 @@ const soldierImageCache = new Map<string, unknown>();
 const soldierTintCache = new Map<string, unknown>();
 const soldierImageFailed = new Set<string>();
 
-/** Resolve the co-located atlas PNG URL for a soldier texture key. */
+/** Resolve the co-located atlas PNG URL for a soldier or bot texture key. */
 function soldierAtlasUrl(key: string): string | null {
   try {
-    const file = soldierSpriteFile(key);
+    const file = soldierSpriteFile(key) ?? botSpriteFile(key);
     if (file === null) {
       // Debug-family keys without a staged card paint the closest run
       // card while probes still read the forced family.
       const runPrefix = "soldier" + "." + "run";
       if (key.startsWith(runPrefix)) {
         return soldierAtlasUrl("soldier.run.3");
+      }
+      // Unstaged bot-family run keys paint that set's run.3 card while
+      // probes still read the forced set family.
+      for (const set of BOT_SETS) {
+        if (key.startsWith(set + "." + "run")) {
+          return soldierAtlasUrl(`${set}.run.3`);
+        }
       }
       return null;
     }
@@ -751,6 +763,43 @@ function liveSoldierTexture(
 }
 
 /**
+ * Resolve the live bot texture key for a frame player + anim pose. Bots
+ * always render their own silhouette set (never the soldier family and
+ * never the debug override, so soldier probes cannot collapse bot
+ * variety): the pose selects idle / `<set>.run.0..3` / jet / crouch /
+ * hurt / dead through render/bots.ts, and the run cycle advances with
+ * the same leg phase that drives the soldier stride. The roster tint
+ * (soldierTintHue/tintSoldierPixel) still applies at paint time, so bot
+ * torsos sample warm with dark outlines kept.
+ */
+function liveBotTexture(
+  p: FramePlayer,
+  anim: AnimPose | undefined,
+): string {
+  try {
+    const pose =
+      anim !== undefined
+        ? {
+            deadPose: anim.deadPose,
+            tuck: anim.tuck,
+            crouching: p.crouching,
+            heightScale: anim.heightScale,
+            legPhase: anim.legPhase,
+            swing: anim.swing,
+            hurtFlash: anim.hurtFlash,
+          }
+        : !p.alive
+          ? { deadPose: true }
+          : p.crouching
+            ? { crouching: true }
+            : {};
+    return botSpriteKey(pose, p.index);
+  } catch {
+    return botSpriteKey({}, p.index);
+  }
+}
+
+/**
  * Arm anchor world position for a frame player (the preserved pivot).
  * The composed pivot rides the body center (ARM_PIVOT 13,29 lands on the
  * standing center and squash-maps onto the crouch center), so the anchor
@@ -800,6 +849,26 @@ function publishSoldierSpriteProbes(
       return weaponSpriteKey("pistol");
     }
   };
+  // Live bot silhouette keys (issue #265): one pose-resolved texture
+  // per bot (players 1..n), read per call so the run cycle visibly
+  // advances between samples while bots run. Each key carries its own
+  // set family (adventurer/zombie/female/player), pairwise distinct
+  // across the roster order.
+  const botSprites = (): string[] => {
+    try {
+      const keys: string[] = [];
+      for (let i = 0; i < frame.players.length; i += 1) {
+        const p = frame.players[i];
+        if (p === undefined || p.index <= 0) {
+          continue;
+        }
+        keys.push(liveBotTexture(p, anims[i]));
+      }
+      return keys;
+    } catch {
+      return [];
+    }
+  };
   try {
     if (typeof window !== "undefined") {
       const scope = window as unknown as Record<string, unknown>;
@@ -833,6 +902,7 @@ function publishSoldierSpriteProbes(
           activeFrame: activeTexture,
           lastTexture: activeTexture,
           currentWeaponSprite,
+          botSprites,
         };
       } else {
         existing["debugFrame"] = debugFrame;
@@ -840,6 +910,7 @@ function publishSoldierSpriteProbes(
         existing["activeFrame"] = activeTexture;
         existing["lastTexture"] = activeTexture;
         existing["currentWeaponSprite"] = currentWeaponSprite;
+        existing["botSprites"] = botSprites;
       }
       // Aim-alignment + texture mirrors on the established surfaces.
       const first = frame.players[0];
@@ -1579,10 +1650,15 @@ function drawCharacter2D(
         : crouch
           ? "crouch"
           : "idle";
-  // Pack sprite texture for this pose (`platformer-characters` Soldier
-  // set via liveSoldierTexture): the debug override wins so
-  // window.__scrapline.debugFrame("soldier.run.3") forces a run card.
-  const textureKey = liveSoldierTexture(p, anim);
+  // Pack sprite texture for this pose: the local soldier renders the
+  // `platformer-characters` Soldier set via liveSoldierTexture (the
+  // debug override wins so
+  // window.__scrapline.debugFrame("soldier.run.3") forces a run card)
+  // while bots render their own silhouette set via liveBotTexture.
+  // Both paths tint per roster (warm enemies, dark outlines kept).
+  const textureKey = p.index === 0
+    ? liveSoldierTexture(p, anim)
+    : liveBotTexture(p, anim);
   const base = !p.alive ? "#475569" : soldierAccentFor(p.index);
   const paint =
     anim?.hurtFlash === true

@@ -119,6 +119,12 @@ function copyTree(src, dest) {
 // gate on its own, so full-tree ingest is out by design.
 const SOLDIER_POSES = "platformer-characters/PNG/Soldier/Poses";
 const SOLDIER_LIMBS = "platformer-characters/PNG/Soldier/Limbs";
+// Bot silhouette sets (issue #265): one Poses dir per
+// `platformer-characters` family backing the bot roster order.
+const ADVENTURER_POSES = "platformer-characters/PNG/Adventurer/Poses";
+const ZOMBIE_POSES = "platformer-characters/PNG/Zombie/Poses";
+const FEMALE_POSES = "platformer-characters/PNG/Female/Poses";
+const PLAYER_POSES = "platformer-characters/PNG/Player/Poses";
 const PLATFORMER_TILES = "simplified-platformer-pack/PNG/Tiles";
 const PARTICLES = "particle-pack/PNG";
 const UI_SMALL = "ui-pack-pixel-adventure/Tiles/Small tiles/Thick outline";
@@ -160,6 +166,45 @@ const ATLAS_ALLOWLIST = [
   { name: "soldier.limb.head.focus", from: `${SOLDIER_LIMBS}/head_focus.png` },
   { name: "soldier.limb.head.hurt", from: `${SOLDIER_LIMBS}/head_hurt.png` },
   { name: "soldier.limb.leg", from: `${SOLDIER_LIMBS}/leg.png` },
+  // Bots (issue #265): idle plus the walk1/walk2/stand/skid run cycle
+  // (run.0..run.3), jump (jet), duck (crouch), fall (hurt), and hurt
+  // (dead) per silhouette set, mirroring the soldier pose mapping.
+  { name: "adventurer.idle", from: `${ADVENTURER_POSES}/adventurer_idle.png` },
+  { name: "adventurer.run.0", from: `${ADVENTURER_POSES}/adventurer_walk1.png` },
+  { name: "adventurer.run.1", from: `${ADVENTURER_POSES}/adventurer_walk2.png` },
+  { name: "adventurer.run.2", from: `${ADVENTURER_POSES}/adventurer_stand.png` },
+  { name: "adventurer.run.3", from: `${ADVENTURER_POSES}/adventurer_skid.png` },
+  { name: "adventurer.jet", from: `${ADVENTURER_POSES}/adventurer_jump.png` },
+  { name: "adventurer.crouch", from: `${ADVENTURER_POSES}/adventurer_duck.png` },
+  { name: "adventurer.fall", from: `${ADVENTURER_POSES}/adventurer_fall.png` },
+  { name: "adventurer.dead", from: `${ADVENTURER_POSES}/adventurer_hurt.png` },
+  { name: "zombie.idle", from: `${ZOMBIE_POSES}/zombie_idle.png` },
+  { name: "zombie.run.0", from: `${ZOMBIE_POSES}/zombie_walk1.png` },
+  { name: "zombie.run.1", from: `${ZOMBIE_POSES}/zombie_walk2.png` },
+  { name: "zombie.run.2", from: `${ZOMBIE_POSES}/zombie_stand.png` },
+  { name: "zombie.run.3", from: `${ZOMBIE_POSES}/zombie_skid.png` },
+  { name: "zombie.jet", from: `${ZOMBIE_POSES}/zombie_jump.png` },
+  { name: "zombie.crouch", from: `${ZOMBIE_POSES}/zombie_duck.png` },
+  { name: "zombie.fall", from: `${ZOMBIE_POSES}/zombie_fall.png` },
+  { name: "zombie.dead", from: `${ZOMBIE_POSES}/zombie_hurt.png` },
+  { name: "female.idle", from: `${FEMALE_POSES}/female_idle.png` },
+  { name: "female.run.0", from: `${FEMALE_POSES}/female_walk1.png` },
+  { name: "female.run.1", from: `${FEMALE_POSES}/female_walk2.png` },
+  { name: "female.run.2", from: `${FEMALE_POSES}/female_stand.png` },
+  { name: "female.run.3", from: `${FEMALE_POSES}/female_skid.png` },
+  { name: "female.jet", from: `${FEMALE_POSES}/female_jump.png` },
+  { name: "female.crouch", from: `${FEMALE_POSES}/female_duck.png` },
+  { name: "female.fall", from: `${FEMALE_POSES}/female_fall.png` },
+  { name: "female.dead", from: `${FEMALE_POSES}/female_hurt.png` },
+  { name: "player.idle", from: `${PLAYER_POSES}/player_idle.png` },
+  { name: "player.run.0", from: `${PLAYER_POSES}/player_walk1.png` },
+  { name: "player.run.1", from: `${PLAYER_POSES}/player_walk2.png` },
+  { name: "player.run.2", from: `${PLAYER_POSES}/player_stand.png` },
+  { name: "player.run.3", from: `${PLAYER_POSES}/player_skid.png` },
+  { name: "player.jet", from: `${PLAYER_POSES}/player_jump.png` },
+  { name: "player.crouch", from: `${PLAYER_POSES}/player_duck.png` },
+  { name: "player.fall", from: `${PLAYER_POSES}/player_fall.png` },
+  { name: "player.dead", from: `${PLAYER_POSES}/player_hurt.png` },
   // Tiles: four kinds per theme (tile.kilima.solid first), each theme on
   // its own tile run so kilima/dune/frostbite stay visually distinct.
   { name: "tile.kilima.solid", from: `${PLATFORMER_TILES}/platformPack_tile001.png` },
@@ -220,7 +265,13 @@ const WEAPON_MUZZLES = {
 // Per-family PixiJS atlas file plus the on-disk subdir for one logical
 // name. Tiles fan out per theme; everything else is one file per family.
 function familyOf(name) {
-  if (name.startsWith("soldier.")) {
+  if (
+    name.startsWith("soldier.") ||
+    name.startsWith("adventurer.") ||
+    name.startsWith("zombie.") ||
+    name.startsWith("female.") ||
+    name.startsWith("player.")
+  ) {
     return { dir: "characters", json: "characters.json" };
   }
   if (name.startsWith("tile.")) {
@@ -236,7 +287,7 @@ function familyOf(name) {
   if (name.startsWith("ui.")) {
     return { dir: "ui", json: "ui.json" };
   }
-  fail(`atlas allowlist name ${name} matches no family (soldier/tile/fx/ui).`);
+  fail(`atlas allowlist name ${name} matches no family (characters/tile/fx/ui).`);
 }
 
 const SRC_CLIENT = path.join(ROOT, "packages", "client", "src");
@@ -245,7 +296,7 @@ const SRC_CLIENT = path.join(ROOT, "packages", "client", "src");
 // property access (fx.muzzle, soldier.style) and prose (theme tile) also
 // match a raw dot pattern but are not frame names, so only a quoted
 // dotted token counts as a manifest reference.
-const REF_PATTERN = /["'`](soldier|tile|fx)\.[A-Za-z0-9_.-]+["'`]/g;
+const REF_PATTERN = /["'`](soldier|adventurer|zombie|female|player|tile|fx)\.[A-Za-z0-9_.-]+["'`]/g;
 
 // Every quoted soldier./tile./fx. token under packages/client/src.
 function collectRendererRefs(dir) {
@@ -376,9 +427,10 @@ function main() {
   }
   fs.writeFileSync(ATLAS_MANIFEST, JSON.stringify(manifest, null, 2) + "\n");
 
-  // Renderer-reference validation: every quoted soldier./tile./fx.
-  // token in runtime sources must resolve to a manifest key, so later
-  // sprite swaps paint only frames the atlas actually ships.
+  // Renderer-reference validation: every quoted
+  // soldier./adventurer./zombie./female./player./tile./fx. token in
+  // runtime sources must resolve to a manifest key, so later sprite
+  // swaps paint only frames the atlas actually ships.
   const refs = collectRendererRefs(SRC_CLIENT);
   const missing = findMissingRefs(refs, manifest);
   if (missing.length > 0) {

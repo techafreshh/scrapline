@@ -21,6 +21,8 @@ declare global {
       lastTexture?: string;
       /** Live in-hand weapon sprite key (`weapon.<id>`, issue #264). */
       currentWeaponSprite: () => string;
+      /** Live bot silhouette keys (one `<set>.*` texture per bot, issue #265). */
+      botSprites?: () => string[];
     };
     __scraplineFonts?: {
       displayFamily: string;

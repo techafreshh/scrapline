@@ -438,6 +438,10 @@ try {
       return weaponSpriteKey("pistol");
     }
   };
+  // Pre-draw bot silhouette keys (issue #265): no bots exist before
+  // the first draw, so the seed reads empty; the renderer replaces
+  // the closure every draw. Never throws.
+  const botSprites = (): string[] => [];
   if (seed === undefined || seed === null || typeof seed !== "object") {
     scope["__scrapline"] = {
       debugFrame,
@@ -445,6 +449,7 @@ try {
       activeFrame: debugTextureOverride() ?? "soldier.idle",
       lastTexture: debugTextureOverride() ?? "soldier.idle",
       currentWeaponSprite,
+      botSprites,
     };
   } else {
     seed["debugFrame"] = debugFrame;
@@ -456,6 +461,9 @@ try {
     }
     if (seed["currentWeaponSprite"] === undefined) {
       seed["currentWeaponSprite"] = currentWeaponSprite;
+    }
+    if (seed["botSprites"] === undefined) {
+      seed["botSprites"] = botSprites;
     }
   }
   void activeSoldierTexture;

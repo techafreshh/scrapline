@@ -197,6 +197,222 @@
     "w": 21,
     "h": 23
   },
+  "adventurer.idle": {
+    "file": "characters/adventurer_idle.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "adventurer.run.0": {
+    "file": "characters/adventurer_walk1.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "adventurer.run.1": {
+    "file": "characters/adventurer_walk2.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "adventurer.run.2": {
+    "file": "characters/adventurer_stand.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "adventurer.run.3": {
+    "file": "characters/adventurer_skid.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "adventurer.jet": {
+    "file": "characters/adventurer_jump.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "adventurer.crouch": {
+    "file": "characters/adventurer_duck.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "adventurer.fall": {
+    "file": "characters/adventurer_fall.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "adventurer.dead": {
+    "file": "characters/adventurer_hurt.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "zombie.idle": {
+    "file": "characters/zombie_idle.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "zombie.run.0": {
+    "file": "characters/zombie_walk1.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "zombie.run.1": {
+    "file": "characters/zombie_walk2.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "zombie.run.2": {
+    "file": "characters/zombie_stand.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "zombie.run.3": {
+    "file": "characters/zombie_skid.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "zombie.jet": {
+    "file": "characters/zombie_jump.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "zombie.crouch": {
+    "file": "characters/zombie_duck.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "zombie.fall": {
+    "file": "characters/zombie_fall.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "zombie.dead": {
+    "file": "characters/zombie_hurt.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "female.idle": {
+    "file": "characters/female_idle.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "female.run.0": {
+    "file": "characters/female_walk1.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "female.run.1": {
+    "file": "characters/female_walk2.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "female.run.2": {
+    "file": "characters/female_stand.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "female.run.3": {
+    "file": "characters/female_skid.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "female.jet": {
+    "file": "characters/female_jump.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "female.crouch": {
+    "file": "characters/female_duck.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "female.fall": {
+    "file": "characters/female_fall.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "female.dead": {
+    "file": "characters/female_hurt.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "player.idle": {
+    "file": "characters/player_idle.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "player.run.0": {
+    "file": "characters/player_walk1.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "player.run.1": {
+    "file": "characters/player_walk2.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "player.run.2": {
+    "file": "characters/player_stand.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "player.run.3": {
+    "file": "characters/player_skid.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "player.jet": {
+    "file": "characters/player_jump.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "player.crouch": {
+    "file": "characters/player_duck.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "player.fall": {
+    "file": "characters/player_fall.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
+  "player.dead": {
+    "file": "characters/player_hurt.png",
+    "atlas": "characters.json",
+    "w": 80,
+    "h": 110
+  },
   "tile.kilima.solid": {
     "file": "tiles/platformPack_tile001.png",
     "atlas": "tiles-kilima.json",

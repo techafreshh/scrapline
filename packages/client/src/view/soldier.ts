@@ -35,6 +35,25 @@ export const SOLDIER_FRAME_FILES: Record<SoldierFrameId, string> = {
   dead: "soldier-dead",
 };
 
+/**
+ * Vendor atlas dot-name per soldier frame id (tools/build-atlas.js
+ * manifest keys). The run pair rides run.0/run.1 so later sprite swaps
+ * resolve through the manifest; no runtime file imports vendor art.
+ */
+export const SOLDIER_MANIFEST_FRAMES: Record<SoldierFrameId, string> = {
+  idle: "soldier.idle",
+  "run-a": "soldier.run.0",
+  "run-b": "soldier.run.1",
+  jet: "soldier.jet",
+  crouch: "soldier.crouch",
+  dead: "soldier.dead",
+};
+
+/** Vendor atlas dot-name for one soldier frame id. Pure. */
+export function soldierManifestFrame(frame: SoldierFrameId): string {
+  return SOLDIER_MANIFEST_FRAMES[frame] ?? SOLDIER_MANIFEST_FRAMES["idle"];
+}
+
 /** Pose fields the frame selector reads (AnimPose-compatible). */
 export interface SoldierPoseInput {
   /** Burst pose wins over every other frame. */

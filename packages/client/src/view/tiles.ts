@@ -461,6 +461,48 @@ function themeNameOf(value: unknown): unknown {
 }
 
 /**
+ * Vendor atlas dot-name per theme per kind (tools/build-atlas.js
+ * manifest keys): every kind resolves to a shipped tile frame, so
+ * later sprite swaps resolve through the manifest; no runtime file
+ * imports vendor art.
+ */
+export const TILE_MANIFEST_KEYS: Record<string, Record<TileKind, string>> = {
+  kilima: {
+    solid: "tile.kilima.solid",
+    oneway: "tile.kilima.oneway",
+    bounce: "tile.kilima.bounce",
+    backwall: "tile.kilima.backwall",
+    empty: "tile.kilima.solid",
+  },
+  dune: {
+    solid: "tile.dune.solid",
+    oneway: "tile.dune.oneway",
+    bounce: "tile.dune.bounce",
+    backwall: "tile.dune.backwall",
+    empty: "tile.dune.solid",
+  },
+  frostbite: {
+    solid: "tile.frostbite.solid",
+    oneway: "tile.frostbite.oneway",
+    bounce: "tile.frostbite.bounce",
+    backwall: "tile.frostbite.backwall",
+    empty: "tile.frostbite.solid",
+  },
+};
+
+/**
+ * Vendor atlas dot-name for one tile kind under one theme. Unknown
+ * kinds read as solid and unknown themes fall back to kilima via
+ * themeFor, so bad input resolves instead of crashing paint. Pure.
+ */
+export function tileManifestKey(kind: unknown, theme: unknown): string {
+  const resolved = themeFor(themeNameOf(theme));
+  const table = TILE_MANIFEST_KEYS[resolved.name] ?? TILE_MANIFEST_KEYS["kilima"];
+  const key = kind === "oneway" || kind === "bounce" || kind === "backwall" ? kind : "solid";
+  return table[key as TileKind] ?? table["solid"];
+}
+
+/**
  * Tileset entry for one tile kind under one theme. Hazard kinds
  * (`oneway`, `bounce`) resolve to the per-theme hazard pair; every
  * other kind falls back to the solid paint. Unknown themes fall back

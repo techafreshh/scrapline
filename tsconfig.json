@@ -14,5 +14,5 @@
     { "path": "./packages/env" },
     { "path": "./packages/server" }
   ],
-  "exclude": ["packages/*/test", "packages/*/tests"]
+  "exclude": ["packages/*/test", "packages/*/tests", "packages/client/assets"]
 }

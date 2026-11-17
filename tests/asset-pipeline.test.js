@@ -96,7 +96,9 @@ test("packages/client/assets holds only CC0 SVG sources", () => {
   for (const name of names) {
     // The OFL display webfont lives under fonts/ (issue #151), not as a
     // top-level sprite: its own manifest entry covers it below.
-    if (name === "fonts") {
+    // Committed CC0 vendor packs live under vendor/ with their own
+    // packages/client/assets/LICENSES.md manifest (PRD v6 sprite milestone).
+    if (name === "fonts" || name === "vendor" || name === "LICENSES.md") {
       continue;
     }
     assert.match(name, /\.svg$/, `${name} must be an SVG source`);

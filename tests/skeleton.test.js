@@ -180,7 +180,9 @@ test("repo ships zero *.png/*.jpg images (docs/benchmark/*.png excepted)", () =>
   const hits = [];
   // Allowlisted exception (#161, #205): committed benchmark references
   // live under docs/benchmark/ (plus the per-map themes/ captures);
-  // every other image still fails the walk.
+  // committed CC0 vendor packs live under packages/client/assets/vendor/
+  // (see packages/client/assets/LICENSES.md); every other image fails.
+  const vendorRoot = path.join("packages", "client", "assets", "vendor") + path.sep;
   const isBenchmarkRef = (rel) =>
     rel.toLowerCase().endsWith(".png") &&
     (rel === path.join("docs", "benchmark", path.basename(rel)) ||
@@ -198,7 +200,7 @@ test("repo ships zero *.png/*.jpg images (docs/benchmark/*.png excepted)", () =>
         const lower = entry.name.toLowerCase();
         if (lower.endsWith(".png") || lower.endsWith(".jpg")) {
           const rel = path.relative(root, full);
-          if (!isBenchmarkRef(rel)) {
+          if (!isBenchmarkRef(rel) && !rel.startsWith(vendorRoot)) {
             hits.push(rel);
           }
         }

@@ -32,6 +32,17 @@ export interface AtlasManifestEntry {
   h: number;
 }
 
+/**
+ * Pivot-relative muzzle offset for one weapon id (`weapon.<id>.muzzle`):
+ * data-only `{x, y}` in world px at rest aim, no image file (issue #264).
+ */
+export interface WeaponMuzzleOffset {
+  /** Muzzle distance from the arm pivot in local px. */
+  x: number;
+  /** Rest-pose vertical offset (0: the gun rides the aim axis). */
+  y: number;
+}
+
 /** Built vendor atlas manifest: logical dot-name to frame entry. */
 export type AtlasManifest = Record<string, AtlasManifestEntry>;
 
@@ -111,6 +122,20 @@ export function isAtlasManifestEntry(value: unknown): value is AtlasManifestEntr
   );
 }
 
+/** True when the value parses as one muzzle offset (`{x, y}` numerics). */
+export function isWeaponMuzzleOffset(value: unknown): value is WeaponMuzzleOffset {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry["x"] === "number" &&
+    Number.isFinite(entry["x"] as number) &&
+    typeof entry["y"] === "number" &&
+    Number.isFinite(entry["y"] as number)
+  );
+}
+
 /** True when the value parses as a usable vendor manifest (entries present). */
 export function isAtlasManifest(value: unknown): value is AtlasManifest {
   if (value === null || typeof value !== "object") {
@@ -122,7 +147,7 @@ export function isAtlasManifest(value: unknown): value is AtlasManifest {
     return false;
   }
   for (const key of keys) {
-    if (!isAtlasManifestEntry(rec[key])) {
+    if (!isAtlasManifestEntry(rec[key]) && !isWeaponMuzzleOffset(rec[key])) {
       return false;
     }
   }
@@ -143,6 +168,28 @@ export function manifestFrame(manifest: unknown, name: unknown): AtlasManifestEn
     }
     const entry = (manifest as Record<string, unknown>)[name];
     return isAtlasManifestEntry(entry) ? entry : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Look up one weapon muzzle offset (`weapon.<id>.muzzle`) in a parsed
+ * manifest. Null when absent or unusable. Never throws.
+ */
+export function manifestMuzzle(manifest: unknown, name: unknown): WeaponMuzzleOffset | null {
+  try {
+    if (manifest === null || typeof manifest !== "object") {
+      return null;
+    }
+    if (typeof name !== "string" || name.length === 0) {
+      return null;
+    }
+    const entry = (manifest as Record<string, unknown>)[name];
+    if (!isWeaponMuzzleOffset(entry)) {
+      return null;
+    }
+    return { x: entry.x, y: entry.y };
   } catch {
     return null;
   }

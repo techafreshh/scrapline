@@ -128,6 +128,7 @@ import {
   debugSoldierFrame,
   debugTextureOverride,
 } from "./render/soldier";
+import { weaponSpriteKey } from "./render/weapons";
 import { loadAtlas } from "./atlas";
 import { registerServiceWorker } from "./pwa";
 import {
@@ -424,12 +425,26 @@ try {
       return "soldier.idle";
     }
   };
+  // Pre-draw in-hand sprite key (issue #264): reads the live world so
+  // the probe exists before the first draw; the renderer refreshes the
+  // closure every draw. Never throws.
+  const currentWeaponSprite = (): string => {
+    try {
+      const world = scope["__scraplineWorld"] as unknown as {
+        players?: readonly { weapon?: unknown }[];
+      } | null;
+      return weaponSpriteKey(world?.players?.[0]?.weapon ?? "pistol");
+    } catch {
+      return weaponSpriteKey("pistol");
+    }
+  };
   if (seed === undefined || seed === null || typeof seed !== "object") {
     scope["__scrapline"] = {
       debugFrame,
       activeTexture: debugTextureOverride() ?? "soldier.idle",
       activeFrame: debugTextureOverride() ?? "soldier.idle",
       lastTexture: debugTextureOverride() ?? "soldier.idle",
+      currentWeaponSprite,
     };
   } else {
     seed["debugFrame"] = debugFrame;
@@ -438,6 +453,9 @@ try {
       seed["activeTexture"] = current;
       seed["activeFrame"] = current;
       seed["lastTexture"] = current;
+    }
+    if (seed["currentWeaponSprite"] === undefined) {
+      seed["currentWeaponSprite"] = currentWeaponSprite;
     }
   }
   void activeSoldierTexture;

@@ -19,6 +19,8 @@ declare global {
       activeTexture: string;
       activeFrame?: string;
       lastTexture?: string;
+      /** Live in-hand weapon sprite key (`weapon.<id>`, issue #264). */
+      currentWeaponSprite: () => string;
     };
     __scraplineFonts?: {
       displayFamily: string;

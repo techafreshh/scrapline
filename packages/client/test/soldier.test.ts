@@ -237,7 +237,7 @@ describe("tracer-muzzle coincidence", () => {
   });
 
   it("shot event flashes land on the barrel tip and the spawnShots muzzle", () => {
-    for (const weapon of ["pistol", "rifle", "sniper"] as const) {
+    for (const weapon of ["pistol", "smg", "rifle", "shotgun", "sniper"] as const) {
       const { frame, details } = fireOnce(weapon);
       const flashes: Flash[] = [];
       pushFlashes(flashes, frame, ["shot"]);
@@ -253,6 +253,41 @@ describe("tracer-muzzle coincidence", () => {
       expect(flashes[0].x).toBe(muzzles[0].x);
       expect(flashes[0].y).toBe(muzzles[0].y);
     }
+  });
+
+  it("rocket shot flashes land on the barrel tip (projectile delivery emits no ShotDetails)", () => {
+    const world = new World({ seed: 5 });
+    world.addPlayer({ x: 100, y: floorY() });
+    world.players[0].weapon = "rocket";
+    world.players[0].magAmmo = WEAPONS["rocket"].mag;
+    world.step([{ fire: true, aim: 0 }]);
+    expect(world.drainShotDetails()).toHaveLength(0);
+    const frame = describeFrame(world.state, world.map);
+    const tip = (frame.players[0] as Frame["players"][number]).barrel;
+    const flashes: Flash[] = [];
+    pushFlashes(flashes, frame, ["shot"]);
+    expect(flashes).toHaveLength(1);
+    expect(flashes[0].kind).toBe("shot");
+    expect(flashes[0].x).toBe(tip.x);
+    expect(flashes[0].y).toBe(tip.y);
+    // A rocket detail still spawns its tracer muzzle at the same tip.
+    const tracers: Tracer[] = [];
+    const muzzles: Muzzle[] = [];
+    spawnShots(tracers, muzzles, frame, [
+      {
+        ox: tip.x,
+        oy: tip.y,
+        x: tip.x + 10,
+        y: tip.y,
+        weapon: "rocket",
+        shooterId: 0,
+        shooter: 0,
+        tick: 0,
+      },
+    ]);
+    expect(muzzles).toHaveLength(1);
+    expect(flashes[0].x).toBe(muzzles[0].x);
+    expect(flashes[0].y).toBe(muzzles[0].y);
   });
 
   it("dead-player shot flashes fall back to the body center", () => {

@@ -35,6 +35,10 @@ declare global {
       padGlow?: () => number;
       /** Alias of padGlowAlpha (probe tolerance). */
       glowAlpha?: () => number;
+      /** Particle-pack emitter totals (issue #269): muzzle/impact plus
+       *  explosion flash/smoke/debris, trail, death, pickup, and the
+       *  last wall surface tint. Read per call from the latest draw. */
+      emitterCounts?: () => Record<string, number | string>;
     };
     __scraplineFonts?: {
       displayFamily: string;
@@ -184,6 +188,8 @@ declare global {
       backdropMidFactor?: number;
       /** Declared parallax layer ids for the active theme (probe list). */
       backdropLayers?: string[];
+      /** Particle-pack emitter totals (issue #269, additive). */
+      emitterCounts?: () => Record<string, number | string>;
       /** Renderer fps exponential moving average (one decimal). */
       fps: number;
     };
@@ -273,6 +279,8 @@ declare global {
       particleCap: number;
       /** Per-emitter live-particle caps (Pixi pixi-v8-particles side). */
       fxCaps: Record<string, number>;
+      /** Particle-pack emitter totals (issue #269, additive). */
+      emitterCounts?: () => Record<string, number | string>;
       /** Per-player paint color in Pixi hex (victim red while flashing). */
       tints: number[];
       /** Structured per-player style node: rect, jet, blink, and flame. */

@@ -120,7 +120,7 @@ describe("frame selector", () => {
 
 describe("per-weapon muzzle table", () => {
   it("keeps the pistol row on the canonical BARREL_LENGTH", () => {
-    expect(BARREL_LENGTH).toBe(8);
+    expect(BARREL_LENGTH).toBe(14);
     expect(WEAPON_DEFS["pistol"].length).toBe(BARREL_LENGTH);
     expect(weaponLength("pistol")).toBe(BARREL_LENGTH);
     expect(WEAPON_DEFS["pistol"].muzzleX).toBe(BARREL_LENGTH);
@@ -189,7 +189,7 @@ describe("describeFrame weapon plumbing", () => {
     );
   });
 
-  it("carries the equipped rifle into a 12px barrel tip", () => {
+  it("carries the equipped rifle into the rifle-length barrel tip", () => {
     const world = new World({ seed: 12 });
     world.addPlayer({ x: 100, y: floorY() });
     world.players[0].weapon = "rifle";

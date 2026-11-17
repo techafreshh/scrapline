@@ -133,13 +133,13 @@ describe("team palettes", () => {
 
 describe("weapon muzzle coincidence", () => {
   it("delegates characterMuzzle to the shared barrel tip on cardinal aims", () => {
-    expect(BARREL_LENGTH).toBe(8);
+    expect(BARREL_LENGTH).toBe(14);
     for (const aim of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
       expect(characterMuzzle(100, 100, aim)).toEqual(
         barrelEndpoint(100, 100, aim),
       );
       const tip = characterMuzzle(100, 100, aim);
-      expect(Math.hypot(tip.x - 100, tip.y - 100)).toBeCloseTo(8, 10);
+      expect(Math.hypot(tip.x - 100, tip.y - 100)).toBeCloseTo(BARREL_LENGTH, 10);
     }
   });
 

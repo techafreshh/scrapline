@@ -76,10 +76,10 @@ describe("atlas-weight", () => {
 
   it("manifest boxes match the PNG IHDR headers on disk", () => {
     const manifest = readManifest();
-    const entry = manifestFrame(manifest, "tile.kilima.solid");
-    expect(entry).not.toBeNull();
-    const buf = fs.readFileSync(path.join(ATLAS_DIR, entry?.file ?? ""));
-    expect(pngSize(buf)).toEqual({ w: entry?.w, h: entry?.h });
+    for (const [name, entry] of Object.entries(manifest)) {
+      const buf = fs.readFileSync(path.join(ATLAS_DIR, entry.file));
+      expect(pngSize(buf), name).toEqual({ w: entry.w, h: entry.h });
+    }
   });
 
   it("every renderer frame reference resolves to a manifest key", () => {

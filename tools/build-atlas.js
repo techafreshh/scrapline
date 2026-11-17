@@ -198,8 +198,8 @@ const ATLAS_ALLOWLIST = [
   { name: "ui.icon.1", from: `${UI_SMALL}/tile_0006.png` },
   { name: "ui.icon.2", from: `${UI_SMALL}/tile_0007.png` },
   { name: "ui.corner.0", from: `${UI_SMALL}/tile_0008.png` },
-  { name: "ui.tilesheet.small", from: `${UI_SHEETS}/Small tiles/Thick outline/tilemap.png` },
-  { name: "ui.tilesheet.large", from: `${UI_SHEETS}/Large tiles/Thick outline/tilemap.png` },
+  { name: "ui.tilesheet.small", from: `${UI_SHEETS}/Small tiles/Thick outline/tilemap.png`, to: "ui/tilemap-small.png" },
+  { name: "ui.tilesheet.large", from: `${UI_SHEETS}/Large tiles/Thick outline/tilemap.png`, to: "ui/tilemap-large.png" },
 ];
 
 // Per-family PixiJS atlas file plus the on-disk subdir for one logical
@@ -318,6 +318,10 @@ function main() {
   // packages/client/assets/atlas/, size each PNG from IHDR, and emit
   // the per-family PixiJS frame maps plus the flat manifest.json.
   // A missing source file fails here, never ships a partial atlas.
+  // The output dir is cleared first so shrinking the allowlist cannot
+  // leave orphan PNG/JSON bytes behind to phantom-count the 6 MB gate.
+  fs.rmSync(ATLAS_SRC, { recursive: true, force: true });
+  fs.mkdirSync(ATLAS_SRC, { recursive: true });
   const manifest = {};
   const families = {};
   for (const entry of ATLAS_ALLOWLIST) {
@@ -330,7 +334,9 @@ function main() {
     }
     const { w, h } = pngSize(buf);
     const { dir, json } = familyOf(entry.name);
-    const file = `${dir}/${path.basename(entry.from)}`;
+    // Per-entry dest override (the two UI tilesheets share a vendor
+    // basename, so they pin distinct files instead of overwriting).
+    const file = entry.to ?? `${dir}/${path.basename(entry.from)}`;
     fs.mkdirSync(path.join(ATLAS_SRC, dir), { recursive: true });
     fs.copyFileSync(from, path.join(ATLAS_SRC, file));
     manifest[entry.name] = { file, atlas: json, w, h };

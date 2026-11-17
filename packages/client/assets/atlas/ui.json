@@ -69,14 +69,14 @@
       "h": 16
     },
     "ui.tilesheet.small": {
-      "file": "ui/tilemap.png",
+      "file": "ui/tilemap-small.png",
       "x": 0,
       "y": 0,
       "w": 390,
       "h": 118
     },
     "ui.tilesheet.large": {
-      "file": "ui/tilemap.png",
+      "file": "ui/tilemap-large.png",
       "x": 0,
       "y": 0,
       "w": 428,

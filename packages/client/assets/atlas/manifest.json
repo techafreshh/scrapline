@@ -396,13 +396,13 @@
     "h": 16
   },
   "ui.tilesheet.small": {
-    "file": "ui/tilemap.png",
+    "file": "ui/tilemap-small.png",
     "atlas": "ui.json",
     "w": 390,
     "h": 118
   },
   "ui.tilesheet.large": {
-    "file": "ui/tilemap.png",
+    "file": "ui/tilemap-large.png",
     "atlas": "ui.json",
     "w": 428,
     "h": 230

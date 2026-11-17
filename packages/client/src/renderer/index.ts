@@ -171,6 +171,10 @@ import {
   tintSoldierPixel,
 } from "../render/soldier";
 import {
+  weaponSpriteFile,
+  weaponSpriteKey,
+} from "../render/weapons";
+import {
   updateAnimState,
   type AnimInput,
   type AnimPose,
@@ -467,6 +471,114 @@ function soldierImageFor(key: string): unknown {
 }
 
 /**
+ * In-hand weapon sprite cache (canvas2d backend): the hand-authored
+ * weapon-*.svg cards keyed by weapon id. Same guarded-async-Image idiom
+ * as soldierImageFor: node unit tests (no document/Image) resolve null
+ * and keep the vector gun; failures never throw.
+ */
+const weaponImageCache = new Map<string, unknown>();
+const weaponImageFailed = new Set<string>();
+
+/** Resolve the client-root-relative SVG URL for a held weapon. */
+function weaponSpriteUrl(weapon: WeaponId): string | null {
+  try {
+    const file = weaponSpriteFile(weapon);
+    const rel = file.startsWith("./") ? file.slice(2) : file;
+    if (typeof document !== "undefined" && typeof document.baseURI === "string") {
+      try {
+        return new URL(rel, document.baseURI).toString();
+      } catch {
+        return rel;
+      }
+    }
+    return rel;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Paint the per-weapon in-hand silhouette for the canvas2d backend: the
+ * hand-authored SVG card drawn grip-behind-pivot so it spans the vector
+ * gun segment it overlays. The caller holds the ARM_PIVOT-translated,
+ * aim-rotated transform; local px match the gun geometry above. A cache
+ * miss or an undecoded image is a silent no-op (the vector gun stays).
+ * Never throws.
+ */
+function paintWeaponSprite(
+  ctx: CanvasRenderingContext2D,
+  weapon: WeaponId,
+  gunLength: number,
+): void {
+  try {
+    const img = weaponImageFor(weapon) as
+      | {
+          complete?: boolean;
+          naturalWidth?: number;
+          naturalHeight?: number;
+          width?: number;
+          height?: number;
+        }
+      | null;
+    if (img === null || img === undefined) {
+      return;
+    }
+    const w = img.naturalWidth ?? img.width ?? 0;
+    const h = img.naturalHeight ?? img.height ?? 0;
+    const ready =
+      (img.complete === true && w > 0 && h > 0) ||
+      ((img.width ?? 0) > 0 && (img.height ?? 0) > 0);
+    if (!ready || !Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+      return;
+    }
+    const dw = gunLength + 4;
+    const dh = (dw * h) / w;
+    const draw = (
+      ctx as unknown as {
+        drawImage?: (img: unknown, x: number, y: number, w: number, h: number) => void;
+      }
+    ).drawImage;
+    if (typeof draw !== "function") {
+      return;
+    }
+    draw.call(ctx, img, -4, -dh / 2, dw, dh);
+  } catch {
+    // Undecoded or hostile shims: the vector gun stays.
+  }
+}
+
+/** Live Image element for a held weapon (null until decoded). */
+function weaponImageFor(weapon: WeaponId): unknown {
+  try {
+    if (weaponImageCache.has(weapon)) {
+      return weaponImageCache.get(weapon) ?? null;
+    }
+    if (weaponImageFailed.has(weapon)) {
+      return null;
+    }
+    if (typeof document === "undefined" || typeof Image === "undefined") {
+      return null;
+    }
+    const url = weaponSpriteUrl(weapon);
+    if (url === null) {
+      return null;
+    }
+    const img = new Image();
+    (img as { decoding?: string }).decoding = "async";
+    try {
+      (img as { src: string }).src = url;
+    } catch {
+      weaponImageFailed.add(weapon);
+      return null;
+    }
+    weaponImageCache.set(weapon, img);
+    return img;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Tinted canvas for a soldier texture + roster index. Re-colors every
  * non-outline pixel toward the roster hue (local cyan 170-200, enemies
  * warm 0-50) while dark outlines pass through, so torso samplers read
@@ -679,6 +791,15 @@ function publishSoldierSpriteProbes(
     liveKey = "soldier.idle";
   }
   const activeTexture = liveKey;
+  // Live in-hand sprite key for player 0 (issue #264): read per call
+  // so a weapon switch is visible instantly on the next draw.
+  const currentWeaponSprite = (): string => {
+    try {
+      return weaponSpriteKey(frame.players[0]?.weapon ?? "pistol");
+    } catch {
+      return weaponSpriteKey("pistol");
+    }
+  };
   try {
     if (typeof window !== "undefined") {
       const scope = window as unknown as Record<string, unknown>;
@@ -711,12 +832,14 @@ function publishSoldierSpriteProbes(
           activeTexture,
           activeFrame: activeTexture,
           lastTexture: activeTexture,
+          currentWeaponSprite,
         };
       } else {
         existing["debugFrame"] = debugFrame;
         existing["activeTexture"] = activeTexture;
         existing["activeFrame"] = activeTexture;
         existing["lastTexture"] = activeTexture;
+        existing["currentWeaponSprite"] = currentWeaponSprite;
       }
       // Aim-alignment + texture mirrors on the established surfaces.
       const first = frame.players[0];
@@ -1560,6 +1683,9 @@ function drawCharacter2D(
       ctx.beginPath();
       ctx.arc(gun.muzzleX, 0, Math.max(minPx, MUZZLE_DOT_R), 0, Math.PI * 2);
       ctx.fill();
+      // In-hand silhouette (issue #264): the per-weapon SVG card spans
+      // the vector gun segment above; a pending decode keeps the vector.
+      paintWeaponSprite(ctx, p.weapon, gun.length);
       ctx.strokeStyle = paint;
       ctx.fillStyle = paint;
     }

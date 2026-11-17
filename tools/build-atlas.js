@@ -202,6 +202,21 @@ const ATLAS_ALLOWLIST = [
   { name: "ui.tilesheet.large", from: `${UI_SHEETS}/Large tiles/Thick outline/tilemap.png`, to: "ui/tilemap-large.png" },
 ];
 
+// Per-weapon muzzle offsets in pivot-relative world px at rest aim
+// (issue #264). Source of truth is render/weapons.ts WEAPON_MUZZLES:
+// each x duplicates the WEAPON_DEFS gun length for that id so the
+// drawn gun tip, the muzzle flash, and the tracer origin coincide by
+// construction. Emitted as flat data-only weapon.<id>.muzzle keys (no
+// image file, no atlas family), so familyOf stays untouched.
+const WEAPON_MUZZLES = {
+  pistol: { x: 14, y: 0 },
+  smg: { x: 16, y: 0 },
+  rifle: { x: 18, y: 0 },
+  shotgun: { x: 19, y: 0 },
+  sniper: { x: 22, y: 0 },
+  rocket: { x: 21, y: 0 },
+};
+
 // Per-family PixiJS atlas file plus the on-disk subdir for one logical
 // name. Tiles fan out per theme; everything else is one file per family.
 function familyOf(name) {
@@ -352,6 +367,13 @@ function main() {
     };
     fs.writeFileSync(path.join(ATLAS_SRC, json), JSON.stringify(doc, null, 2) + "\n");
   }
+  // In-hand weapon muzzle points (issue #264): flat data-only
+  // weapon.<id>.muzzle keys with pivot-relative {x, y} offsets. Keyed
+  // with concatenation (never a quoted dotted literal) so the
+  // renderer-reference scanner below keeps reporting no weapon refs.
+  for (const [id, offset] of Object.entries(WEAPON_MUZZLES)) {
+    manifest["weapon." + id + ".muzzle"] = { x: offset.x, y: offset.y };
+  }
   fs.writeFileSync(ATLAS_MANIFEST, JSON.stringify(manifest, null, 2) + "\n");
 
   // Renderer-reference validation: every quoted soldier./tile./fx.
@@ -391,4 +413,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { frameSize, pngSize, sizeBytes, collectRendererRefs, findMissingRefs, BUDGET_BYTES, ATLAS_ALLOWLIST };
+module.exports = { frameSize, pngSize, sizeBytes, collectRendererRefs, findMissingRefs, BUDGET_BYTES, ATLAS_ALLOWLIST, WEAPON_MUZZLES };

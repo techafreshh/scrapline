@@ -77,8 +77,26 @@ describe("atlas-weight", () => {
   it("manifest boxes match the PNG IHDR headers on disk", () => {
     const manifest = readManifest();
     for (const [name, entry] of Object.entries(manifest)) {
+      // Muzzle points (issue #264) are data-only {x, y} offsets with
+      // no image file; the muzzle test below validates them instead.
+      if (name.endsWith(".muzzle")) {
+        continue;
+      }
       const buf = fs.readFileSync(path.join(ATLAS_DIR, entry.file));
       expect(pngSize(buf), name).toEqual({ w: entry.w, h: entry.h });
+    }
+  });
+
+  it("manifest carries all six weapon.<id>.muzzle offsets as {x, y} numerics", () => {
+    const manifest = readManifest() as unknown as Record<string, unknown>;
+    for (const id of ["pistol", "smg", "rifle", "shotgun", "sniper", "rocket"]) {
+      const name = `weapon.${id}.muzzle`;
+      const entry = manifest[name] as { x?: unknown; y?: unknown } | undefined;
+      expect(entry, name).toBeDefined();
+      expect(typeof entry?.x, `${name}.x`).toBe("number");
+      expect(Number.isFinite(entry?.x as number), `${name}.x`).toBe(true);
+      expect(typeof entry?.y, `${name}.y`).toBe("number");
+      expect(Number.isFinite(entry?.y as number), `${name}.y`).toBe(true);
     }
   });
 

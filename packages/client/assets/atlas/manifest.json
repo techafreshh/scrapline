@@ -406,5 +406,29 @@
     "atlas": "ui.json",
     "w": 428,
     "h": 230
+  },
+  "weapon.pistol.muzzle": {
+    "x": 14,
+    "y": 0
+  },
+  "weapon.smg.muzzle": {
+    "x": 16,
+    "y": 0
+  },
+  "weapon.rifle.muzzle": {
+    "x": 18,
+    "y": 0
+  },
+  "weapon.shotgun.muzzle": {
+    "x": 19,
+    "y": 0
+  },
+  "weapon.sniper.muzzle": {
+    "x": 22,
+    "y": 0
+  },
+  "weapon.rocket.muzzle": {
+    "x": 21,
+    "y": 0
   }
 }

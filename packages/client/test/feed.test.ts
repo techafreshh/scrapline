@@ -8,6 +8,7 @@ import {
   buildFeed,
   buildFeedEntry,
   feedIconFor,
+  feedIconKeyFor,
   KILLFEED_FADE_MS,
   KILLFEED_HOLD_MS,
   KILLFEED_MAX_ENTRIES,
@@ -15,6 +16,10 @@ import {
   type FeedHandles,
   type FeedModel,
 } from "../src/ui/feed";
+import {
+  weaponSpriteFile,
+  weaponSpriteKey,
+} from "../src/render/weapons";
 
 /** Fake timer capture: { fn, ms } in scheduled order. */
 interface FakeTimers {
@@ -289,5 +294,60 @@ describe("pushFeed tolerance", () => {
     expect(
       buildFeed({} as unknown as Document),
     ).toEqual({ feed: null });
+  });
+});
+
+describe("feedIconFor weapon delegation (issue #270)", () => {
+  it("equals weaponSpriteFile for all six gun ids including rifle", () => {
+    for (const id of [
+      "pistol",
+      "smg",
+      "rifle",
+      "shotgun",
+      "sniper",
+      "rocket",
+    ] as const) {
+      expect(feedIconFor(id)).toBe(weaponSpriteFile(id));
+    }
+    expect(feedIconFor("rifle")).toBe("./assets/weapon-rifle.svg");
+  });
+
+  it("keeps the grenade art plus null/unknown behavior identical", () => {
+    expect(feedIconFor("grenade")).toBe("./assets/pickup-grenade.svg");
+    expect(feedIconFor(null)).toBe(null);
+    expect(feedIconFor("")).toBe(null);
+    expect(feedIconFor("banana")).toBe(null);
+  });
+
+  it("feedIconKeyFor reads the weapon key for guns, null otherwise", () => {
+    expect(feedIconKeyFor("rifle")).toBe("weapon.rifle");
+    expect(feedIconKeyFor("smg")).toBe(weaponSpriteKey("smg"));
+    expect(feedIconKeyFor("Hornet")).toBe("weapon.smg");
+    expect(feedIconKeyFor("grenade")).toBe(null);
+    expect(feedIconKeyFor(null)).toBe(null);
+    expect(feedIconKeyFor("banana")).toBe(null);
+  });
+});
+
+describe("pushFeed data-icon (issue #270)", () => {
+  it("stamps the gun icon with its `weapon.<id>` key", () => {
+    const doc = makeDoc();
+    const { handles, feed } = makeFeed(doc);
+    pushFeed(handles, buildFeedEntry("Raptor", "You", "rifle", 1, 0));
+    const node = feed.children[0] as FakeEl;
+    const icon = node.children[1] as FakeEl;
+    expect(icon.tag).toBe("img");
+    expect(icon.getAttribute("src")).toBe("./assets/weapon-rifle.svg");
+    expect(icon.getAttribute("data-icon")).toBe("weapon.rifle");
+  });
+
+  it("carries no data-icon on grenade icons", () => {
+    const doc = makeDoc();
+    const { handles, feed } = makeFeed(doc);
+    pushFeed(handles, buildFeedEntry("Raptor", "You", "grenade", 1, 0));
+    const node = feed.children[0] as FakeEl;
+    const icon = node.children[1] as FakeEl;
+    expect(icon.getAttribute("src")).toBe("./assets/pickup-grenade.svg");
+    expect(icon.getAttribute("data-icon")).toBe(null);
   });
 });

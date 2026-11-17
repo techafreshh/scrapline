@@ -73,6 +73,12 @@ import {
 import { setLocalAccent } from "./view/soldier";
 import { bindSettings, loadQuality, loadShowNameTags, parseVolume } from "./settings";
 import { bindMenuScene } from "./menu/scene";
+import {
+  applyHudChrome,
+  bindMenuChrome,
+  buildHudSnapshot,
+  buildMenuSnapshot,
+} from "./ui/chrome";
 import { bindOnline } from "./net/online";
 import { bindCarousel } from "./menu/carousel";
 import { bindMenuTips } from "./menu/tips";
@@ -441,8 +447,51 @@ try {
   };
   // Pre-draw bot silhouette keys (issue #265): no bots exist before
   // the first draw, so the seed reads empty; the renderer replaces
-  // the closure every draw. Never throws.
+  // the closure every draw with live data. Never throws.
   const botSprites = (): string[] => [];
+  // Live HUD chrome snapshot (issue #270): ceiled HP plus clamped mag
+  // digits with the `ui.*` frame key. Reads the live world when a
+  // match runs; pre-match (or on hostile shims) falls back to the
+  // bitmap/DOM digits, then to zeros. Never throws.
+  const hudSnapshot = (): {
+    healthText: string;
+    ammoText: string;
+    hudFrameKey: string;
+  } => {
+    try {
+      const world = scope["__scraplineWorld"] as unknown as {
+        players?: readonly { hp?: unknown; magAmmo?: unknown }[];
+      } | null;
+      const first = world?.players?.[0];
+      if (first !== undefined && first !== null) {
+        return buildHudSnapshot(first.hp, first.magAmmo);
+      }
+    } catch {
+      // World unreadable: the DOM fallback below still carries digits.
+    }
+    try {
+      if (typeof document !== "undefined") {
+        const healthEl = document.getElementById("hud-health");
+        const ammoEl = document.getElementById("ammo-counts");
+        const hpText =
+          healthEl?.getAttribute?.("data-value") ??
+          healthEl?.textContent ??
+          "";
+        const ammoText = (ammoEl?.textContent ?? "").split("/")[0] ?? "";
+        return buildHudSnapshot(Number(hpText), Number(ammoText.trim()));
+      }
+    } catch {
+      // Shorn DOM: the zero snapshot below stands.
+    }
+    return buildHudSnapshot(0, 0);
+  };
+  // Live menu chrome snapshot (issue #270): the `ui.*` panel plus
+  // button frame keys, the button key flipping to the hover tile
+  // while any menu button hovers. Pure; never throws.
+  const menuSnapshot = (): {
+    panelFrameKey: string;
+    buttonFrameKey: string;
+  } => buildMenuSnapshot();
   // Pre-draw themed tile frame probe (issue #266): resolves the live
   // world map (null before the first match reads theme-prefixed solid)
   // with the live theme mirrors; the renderer replaces the closure
@@ -492,6 +541,8 @@ try {
       botSprites,
       tileFrameAt: tileFrameAtSeed,
       emitterCounts: emitterCountsSeed,
+      hudSnapshot,
+      menuSnapshot,
     };
   } else {
     seed["debugFrame"] = debugFrame;
@@ -512,6 +563,12 @@ try {
     }
     if (seed["emitterCounts"] === undefined) {
       seed["emitterCounts"] = emitterCountsSeed;
+    }
+    if (seed["hudSnapshot"] === undefined) {
+      seed["hudSnapshot"] = hudSnapshot;
+    }
+    if (seed["menuSnapshot"] === undefined) {
+      seed["menuSnapshot"] = menuSnapshot;
     }
   }
   void activeSoldierTexture;
@@ -1484,6 +1541,14 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   world = match;
   window.__scraplineWorld = world;
   hud = buildHud(document);
+  // Pixel-pack HUD frame (issue #270): re-stamp the fresh handles so
+  // the new match opens on the `ui.*` tiles (updateHud re-stamps the
+  // same keys change-guarded every 3rd frame thereafter).
+  try {
+    applyHudChrome(hud);
+  } catch {
+    // Chrome stamping best-effort: the HUD digits still mirror.
+  }
   nametags = buildNametags(document);
   // Backstop (issue #184): pick up a mid-session external write to the
   // persisted name-tag flag at match start; steady-state frames use the
@@ -1578,6 +1643,14 @@ try {
 // stays owned by the match renderer; the soldier rides above it.
 const menuScene = bindMenuScene(document, storage);
 void menuScene;
+// Pixel-pack menu chrome (issue #270): stamp the menu/setup panels
+// plus every menu button with their `ui.*` tiles and wire the hover
+// swaps; bitmap digits and the scene hover loop stay untouched.
+try {
+  bindMenuChrome(document);
+} catch {
+  // Chrome optional: the menu still binds above.
+}
 // Honest-mode online room (issue #216): `Play online` hides the menu,
 // hellos the same-origin /room endpoint, sends quantized inputs at
 // 60 Hz, and paints snapshot-interpolated states through the live

@@ -8,6 +8,7 @@ import { JETPACK_FUEL_MAX, TICK_HZ } from "../../../core/src/constants";
 import { standingsFor } from "../../../core/src/match";
 import { updateAmmo } from "../ui/ammo";
 import { buildFeedEntry, pushFeed } from "../ui/feed";
+import { applyHudChrome } from "../ui/chrome";
 import { teamCss } from "../view/character";
 import { setBitmapText } from "../ui/fonts";
 
@@ -400,6 +401,10 @@ export function updateHud(
     // rects (no anti-aliased vector text) keep Sobel edge energy flat.
     setBitmapText(handles.health, String(Math.ceil(snapshot.hp)));
   }
+  // Pixel-pack frame chrome (issue #270): HUD container plus ammo
+  // module read their `ui.*` tiles (change-guarded, never throws);
+  // the bitmap health/timer/grenade writes above stay untouched.
+  applyHudChrome(handles);
   if (handles.fuel !== null) {
     const pct = Math.min(100, Math.max(0, (snapshot.fuel / JETPACK_FUEL_MAX) * 100));
     handles.fuel.style.width = `${pct}%`;

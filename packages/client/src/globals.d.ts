@@ -21,6 +21,23 @@ declare global {
       lastTexture?: string;
       /** Live in-hand weapon sprite key (`weapon.<id>`, issue #264). */
       currentWeaponSprite: () => string;
+      /**
+       * Live HUD chrome snapshot: ceiled HP plus clamped mag digits
+       * with the `ui.*` frame key (issue #270).
+       */
+      hudSnapshot?: () => {
+        healthText: string;
+        ammoText: string;
+        hudFrameKey: string;
+      };
+      /**
+       * Live menu chrome snapshot: the `ui.*` panel plus button frame
+       * keys, the button key flipping to hover while hovered (issue #270).
+       */
+      menuSnapshot?: () => {
+        panelFrameKey: string;
+        buttonFrameKey: string;
+      };
       /** Live bot silhouette keys (one `<set>.*` texture per bot, issue #265). */
       botSprites?: () => string[];
       /** Themed tile frame key for one ASCII cell (issue #266). */

@@ -186,6 +186,11 @@ import {
   type TileProbeMap,
 } from "../render/tiles";
 import {
+  applyThemeGrade,
+  atlasTintFor,
+  normalizePaletteTheme,
+} from "../render/palette";
+import {
   padGlowAlphaAt,
   padSpriteFile,
   padSpriteKey,
@@ -503,8 +508,29 @@ function paintTileSprite(
   x: number,
   y: number,
   size: number,
+  theme?: unknown,
 ): void {
   try {
+    // Palette grade pass (issue #268): the per-(key, theme) tinted
+    // canvas paints first so graded pack pixels read in the theme hue
+    // band; a cache miss or undecoded source falls through to the raw
+    // image below (the vector quad stays when that misses too).
+    try {
+      const graded = tintedTileFor(key, theme);
+      if (graded !== null && graded !== undefined) {
+        const gradedDraw = (
+          ctx as unknown as {
+            drawImage?: (img: unknown, x: number, y: number, w: number, h: number) => void;
+          }
+        ).drawImage;
+        if (typeof gradedDraw === "function") {
+          gradedDraw.call(ctx, graded, x, y, size, size);
+          return;
+        }
+      }
+    } catch {
+      // Graded miss: fall through to the raw image.
+    }
     const img = tileImageFor(key) as
       | {
         complete?: boolean;
@@ -832,9 +858,144 @@ function padImageFor(key: string): unknown {
 }
 
 /**
+ * Palette-graded sprite caches (canvas2d backend): per-(key, theme)
+ * tinted copies of the staged tile/prop/pad PNGs, built by running
+ * source pixels through applyThemeGrade with the active theme's row.
+ * Same guarded-canvas idiom as tintedSoldierFor: node unit tests (no
+ * document) resolve null and keep the raw/vector paint; failures never
+ * throw, they resolve null and the caller falls back.
+ */
+const tileTintCache = new Map<string, unknown>();
+const propTintCache = new Map<string, unknown>();
+const padTintCache = new Map<string, unknown>();
+
+/**
+ * Graded canvas for one staged sprite key under one theme. Re-colors
+ * every non-outline pixel toward the theme grade target (kilima dusk,
+ * dune golden, frostbite cold) while dark outlines and transparent
+ * pixels pass through, so graded sprite zones sample inside the
+ * backdrop hue band. Null when the DOM/canvas surface is unavailable
+ * or the source has not decoded yet (caller falls back). Never throws.
+ */
+function tintedSpriteFor(
+  cache: Map<string, unknown>,
+  imageFor: (key: string) => unknown,
+  key: string,
+  theme: unknown,
+  strength: number,
+): unknown {
+  try {
+    const name = normalizePaletteTheme(theme);
+    const cacheKey = `${key}|${name}`;
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey) ?? null;
+    }
+    if (typeof document === "undefined") {
+      return null;
+    }
+    const img = imageFor(key) as
+      | {
+        complete?: boolean;
+        naturalWidth?: number;
+        naturalHeight?: number;
+        width?: number;
+        height?: number;
+      }
+      | null;
+    if (img === null || img === undefined) {
+      return null;
+    }
+    const w = img.naturalWidth ?? img.width ?? 0;
+    const h = img.naturalHeight ?? img.height ?? 0;
+    const ready =
+      (img.complete === true && w > 0 && h > 0) ||
+      ((img.width ?? 0) > 0 && (img.height ?? 0) > 0);
+    if (!ready || !Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+      return null;
+    }
+    const doc = document as unknown as {
+      createElement?: (tag: string) => unknown;
+    };
+    if (typeof doc.createElement !== "function") {
+      return null;
+    }
+    const canvas = doc.createElement("canvas") as unknown as {
+      width: number;
+      height: number;
+      getContext?: (kind: string) => unknown;
+    } | null;
+    if (canvas === null || canvas === undefined) {
+      return null;
+    }
+    canvas.width = w;
+    canvas.height = h;
+    const tintCtx = typeof canvas.getContext === "function"
+      ? (canvas.getContext("2d") as unknown as {
+        drawImage?: (...args: unknown[]) => void;
+        getImageData?: (x: number, y: number, w: number, h: number) => { data: Uint8ClampedArray };
+        putImageData?: (data: unknown, x: number, y: number) => void;
+      } | null)
+      : null;
+    if (tintCtx === null || tintCtx === undefined) {
+      return null;
+    }
+    try {
+      tintCtx.drawImage?.(img, 0, 0, w, h);
+    } catch {
+      return null;
+    }
+    try {
+      const data = tintCtx.getImageData?.(0, 0, w, h);
+      if (data === undefined || data === null) {
+        return null;
+      }
+      const px = data.data;
+      for (let i = 0; i < px.length; i += 4) {
+        const [nr, ng, nb, na] = applyThemeGrade(
+          px[i] ?? 0,
+          px[i + 1] ?? 0,
+          px[i + 2] ?? 0,
+          px[i + 3] ?? 0,
+          name,
+          strength,
+        );
+        px[i] = nr;
+        px[i + 1] = ng;
+        px[i + 2] = nb;
+        px[i + 3] = na;
+      }
+      tintCtx.putImageData?.(data, 0, 0);
+    } catch {
+      return null;
+    }
+    cache.set(cacheKey, canvas);
+    return canvas;
+  } catch {
+    return null;
+  }
+}
+
+/** Graded canvas for one tile frame key under one theme (null when unavailable). */
+function tintedTileFor(key: string, theme: unknown): unknown {
+  return tintedSpriteFor(tileTintCache, tileImageFor, key, theme, atlasTintFor(key));
+}
+
+/** Graded canvas for one prop frame key under one theme (null when unavailable). */
+function tintedPropFor(key: string, theme: unknown): unknown {
+  return tintedSpriteFor(propTintCache, propImageFor, key, theme, atlasTintFor(key));
+}
+
+/** Graded canvas for one pad frame key under one theme (null when unavailable). */
+function tintedPadFor(key: string, theme: unknown): unknown {
+  return tintedSpriteFor(padTintCache, padImageFor, key, theme, atlasTintFor(key));
+}
+
+/**
  * Paint one prop pack sprite over its vector quad: the staged PNG drawn
- * 1:1 over the sim AABB box. A cache miss or an undecoded image is a
- * silent no-op (the vector quad stays). Never throws.
+ * 1:1 over the sim AABB box, palette-graded for the active theme when
+ * a graded canvas is ready (raw image while it decodes). A cache miss
+ * or an undecoded image is a silent no-op (the vector quad stays).
+ * Never throws.
  */
 function paintPropSprite(
   ctx: CanvasRenderingContext2D,
@@ -843,8 +1004,27 @@ function paintPropSprite(
   y: number,
   w: number,
   h: number,
+  theme?: unknown,
 ): void {
   try {
+    // Palette grade pass (issue #268): graded canvas first, raw image
+    // while it decodes, vector quad when neither is ready.
+    try {
+      const graded = tintedPropFor(key, theme);
+      if (graded !== null && graded !== undefined) {
+        const gradedDraw = (
+          ctx as unknown as {
+            drawImage?: (img: unknown, x: number, y: number, w: number, h: number) => void;
+          }
+        ).drawImage;
+        if (typeof gradedDraw === "function") {
+          gradedDraw.call(ctx, graded, x, y, w, h);
+          return;
+        }
+      }
+    } catch {
+      // Graded miss: fall through to the raw image.
+    }
     const img = propImageFor(key) as
       | {
         complete?: boolean;
@@ -881,8 +1061,10 @@ function paintPropSprite(
 
 /**
  * Paint one pad pack sprite over its vector pad: the staged PNG drawn
- * centered on the pickup point at the pad box size. A cache miss or an
- * undecoded image is a silent no-op (the vector pad stays). Never throws.
+ * centered on the pickup point at the pad box size, palette-graded for
+ * the active theme when a graded canvas is ready (raw image while it
+ * decodes). A cache miss or an undecoded image is a silent no-op (the
+ * vector pad stays). Never throws.
  */
 function paintPadSprite(
   ctx: CanvasRenderingContext2D,
@@ -891,8 +1073,27 @@ function paintPadSprite(
   cy: number,
   w: number,
   h: number,
+  theme?: unknown,
 ): void {
   try {
+    // Palette grade pass (issue #268): graded canvas first, raw image
+    // while it decodes, vector pad when neither is ready.
+    try {
+      const graded = tintedPadFor(key, theme);
+      if (graded !== null && graded !== undefined) {
+        const gradedDraw = (
+          ctx as unknown as {
+            drawImage?: (img: unknown, x: number, y: number, w: number, h: number) => void;
+          }
+        ).drawImage;
+        if (typeof gradedDraw === "function") {
+          gradedDraw.call(ctx, graded, cx - w / 2, cy - h / 2, w, h);
+          return;
+        }
+      }
+    } catch {
+      // Graded miss: fall through to the raw image.
+    }
     const img = padImageFor(key) as
       | {
         complete?: boolean;
@@ -1831,6 +2032,7 @@ function paintTileSprites2D(
       px(cell.tx * TILE_SIZE),
       py(cell.ty * TILE_SIZE),
       tileSize + 1,
+      themeName,
     );
   }
   for (const cell of layers.solids) {
@@ -1840,6 +2042,7 @@ function paintTileSprites2D(
       px(cell.tx * TILE_SIZE),
       py(cell.ty * TILE_SIZE),
       tileSize + 1,
+      themeName,
     );
   }
   for (const cell of layers.oneWays) {
@@ -1849,6 +2052,7 @@ function paintTileSprites2D(
       px(cell.tx * TILE_SIZE),
       py(cell.ty * TILE_SIZE),
       tileSize + 1,
+      themeName,
     );
   }
   for (const cell of layers.bounces) {
@@ -1858,6 +2062,7 @@ function paintTileSprites2D(
       px(cell.tx * TILE_SIZE),
       py(cell.ty * TILE_SIZE),
       tileSize + 1,
+      themeName,
     );
   }
 }
@@ -2484,6 +2689,7 @@ function paintFrame2D(
         py(prop.y),
         prop.w * cam.scale,
         prop.h * cam.scale,
+        activeTheme.name,
       );
     } catch {
       // Overlay best-effort only.
@@ -2501,7 +2707,7 @@ function paintFrame2D(
       const padKey = padSpriteKey(pickup.kind);
       const padW = 40 * cam.scale;
       const padH = 16 * cam.scale;
-      paintPadSprite(ctx, padKey, px(pickup.x), py(pickup.y), padW, padH);
+      paintPadSprite(ctx, padKey, px(pickup.x), py(pickup.y), padW, padH, activeTheme.name);
       const pulse = padGlowAlphaAt(nowMs);
       if (Number.isFinite(pulse) && pulse > 0) {
         ctx.save();

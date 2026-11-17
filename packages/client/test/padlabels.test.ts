@@ -116,10 +116,10 @@ describe("padlabel model", () => {
     expect(labelTextFor("weapon", "shotgun")).toBe("Shotgun");
   });
 
-  it("labels health pads + and grenade pads Grenade", () => {
-    expect(labelTextFor("health", undefined)).toBe("+");
-    expect(labelTextFor("grenades", undefined)).toBe("Grenade");
-    expect(labelTextFor("grenade", undefined)).toBe("Grenade");
+  it("labels health pads HP and grenade pads GREN (issue #267)", () => {
+    expect(labelTextFor("health", undefined)).toBe("HP");
+    expect(labelTextFor("grenades", undefined)).toBe("GREN");
+    expect(labelTextFor("grenade", undefined)).toBe("GREN");
   });
 
   it("falls back to the pistol label for unknown weapons", () => {
@@ -162,11 +162,11 @@ describe("updatePadlabels shown", () => {
     const health = container.children.find(
       (kid) => kid.getAttribute("data-pickup") === "1",
     ) as FakeEl;
-    expect(health.textContent).toBe("+");
+    expect(health.textContent).toBe("HP");
     const grenades = container.children.find(
       (kid) => kid.getAttribute("data-pickup") === "2",
     ) as FakeEl;
-    expect(grenades.textContent).toBe("Grenade");
+    expect(grenades.textContent).toBe("GREN");
     expect(container.style["display"]).toBe("");
   });
 

@@ -186,6 +186,15 @@ import {
   type TileProbeMap,
 } from "../render/tiles";
 import {
+  padGlowAlphaAt,
+  padSpriteFile,
+  padSpriteKey,
+  propFramesFor,
+  propSpriteFile,
+  propSpriteKey,
+} from "../render/props";
+import { labelTextFor } from "../ui/padlabels";
+import {
   updateAnimState,
   type AnimInput,
   type AnimPose,
@@ -708,6 +717,217 @@ function weaponImageFor(weapon: WeaponId): unknown {
 }
 
 /**
+ * Prop/pad sprite caches (canvas2d backend): staged `props/` + `pads/`
+ * pack PNGs keyed by manifest key. Same guarded-async-Image idiom as
+ * tileImageFor: node unit tests (no document/Image) resolve null and
+ * keep the vector props/pads; failures never throw.
+ */
+const propImageCache = new Map<string, unknown>();
+const propImageFailed = new Set<string>();
+const padImageCache = new Map<string, unknown>();
+const padImageFailed = new Set<string>();
+
+/** Resolve the co-located atlas PNG URL for a prop texture key. */
+function propAtlasUrl(key: string): string | null {
+  try {
+    const file = propSpriteFile(key);
+    if (file === null) {
+      return null;
+    }
+    const rel = `assets/atlas/${file}`;
+    if (typeof document !== "undefined" && typeof document.baseURI === "string") {
+      try {
+        return new URL(rel, document.baseURI).toString();
+      } catch {
+        return rel;
+      }
+    }
+    return rel;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve the co-located atlas PNG URL for a pad texture key. */
+function padAtlasUrl(key: string): string | null {
+  try {
+    const file = padSpriteFile(key);
+    if (file === null) {
+      return null;
+    }
+    const rel = `assets/atlas/${file}`;
+    if (typeof document !== "undefined" && typeof document.baseURI === "string") {
+      try {
+        return new URL(rel, document.baseURI).toString();
+      } catch {
+        return rel;
+      }
+    }
+    return rel;
+  } catch {
+    return null;
+  }
+}
+
+/** Live Image element for a prop texture key (null until loaded). */
+function propImageFor(key: string): unknown {
+  try {
+    if (propImageCache.has(key)) {
+      return propImageCache.get(key) ?? null;
+    }
+    if (propImageFailed.has(key)) {
+      return null;
+    }
+    if (typeof document === "undefined" || typeof Image === "undefined") {
+      return null;
+    }
+    const url = propAtlasUrl(key);
+    if (url === null) {
+      return null;
+    }
+    const img = new Image();
+    (img as { decoding?: string }).decoding = "async";
+    try {
+      (img as { src: string }).src = url;
+    } catch {
+      propImageFailed.add(key);
+      return null;
+    }
+    propImageCache.set(key, img);
+    return img;
+  } catch {
+    return null;
+  }
+}
+
+/** Live Image element for a pad texture key (null until loaded). */
+function padImageFor(key: string): unknown {
+  try {
+    if (padImageCache.has(key)) {
+      return padImageCache.get(key) ?? null;
+    }
+    if (padImageFailed.has(key)) {
+      return null;
+    }
+    if (typeof document === "undefined" || typeof Image === "undefined") {
+      return null;
+    }
+    const url = padAtlasUrl(key);
+    if (url === null) {
+      return null;
+    }
+    const img = new Image();
+    (img as { decoding?: string }).decoding = "async";
+    try {
+      (img as { src: string }).src = url;
+    } catch {
+      padImageFailed.add(key);
+      return null;
+    }
+    padImageCache.set(key, img);
+    return img;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Paint one prop pack sprite over its vector quad: the staged PNG drawn
+ * 1:1 over the sim AABB box. A cache miss or an undecoded image is a
+ * silent no-op (the vector quad stays). Never throws.
+ */
+function paintPropSprite(
+  ctx: CanvasRenderingContext2D,
+  key: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
+  try {
+    const img = propImageFor(key) as
+      | {
+        complete?: boolean;
+        naturalWidth?: number;
+        naturalHeight?: number;
+        width?: number;
+        height?: number;
+      }
+      | null;
+    if (img === null || img === undefined) {
+      return;
+    }
+    const w0 = img.naturalWidth ?? img.width ?? 0;
+    const h0 = img.naturalHeight ?? img.height ?? 0;
+    const ready =
+      (img.complete === true && w0 > 0 && h0 > 0) ||
+      ((img.width ?? 0) > 0 && (img.height ?? 0) > 0);
+    if (!ready || !Number.isFinite(w0) || !Number.isFinite(h0) || w0 <= 0 || h0 <= 0) {
+      return;
+    }
+    const draw = (
+      ctx as unknown as {
+        drawImage?: (img: unknown, x: number, y: number, w: number, h: number) => void;
+      }
+    ).drawImage;
+    if (typeof draw !== "function") {
+      return;
+    }
+    draw.call(ctx, img, x, y, w, h);
+  } catch {
+    // Undecoded or hostile shims: the vector quad stays.
+  }
+}
+
+/**
+ * Paint one pad pack sprite over its vector pad: the staged PNG drawn
+ * centered on the pickup point at the pad box size. A cache miss or an
+ * undecoded image is a silent no-op (the vector pad stays). Never throws.
+ */
+function paintPadSprite(
+  ctx: CanvasRenderingContext2D,
+  key: string,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+): void {
+  try {
+    const img = padImageFor(key) as
+      | {
+        complete?: boolean;
+        naturalWidth?: number;
+        naturalHeight?: number;
+        width?: number;
+        height?: number;
+      }
+      | null;
+    if (img === null || img === undefined) {
+      return;
+    }
+    const w0 = img.naturalWidth ?? img.width ?? 0;
+    const h0 = img.naturalHeight ?? img.height ?? 0;
+    const ready =
+      (img.complete === true && w0 > 0 && h0 > 0) ||
+      ((img.width ?? 0) > 0 && (img.height ?? 0) > 0);
+    if (!ready || !Number.isFinite(w0) || !Number.isFinite(h0) || w0 <= 0 || h0 <= 0) {
+      return;
+    }
+    const draw = (
+      ctx as unknown as {
+        drawImage?: (img: unknown, x: number, y: number, w: number, h: number) => void;
+      }
+    ).drawImage;
+    if (typeof draw !== "function") {
+      return;
+    }
+    draw.call(ctx, img, cx - w / 2, cy - h / 2, w, h);
+  } catch {
+    // Undecoded or hostile shims: the vector pad stays.
+  }
+}
+
+/**
  * Tinted canvas for a soldier texture + roster index. Re-colors every
  * non-outline pixel toward the roster hue (local cyan 170-200, enemies
  * warm 0-50) while dark outlines pass through, so torso samplers read
@@ -949,6 +1169,8 @@ function publishSoldierSpriteProbes(
   frame: Frame,
   anims: readonly AnimPose[],
   map?: TileProbeMap | null,
+  padSquash?: number,
+  nowMs?: number,
 ): { activeTexture: string; liveKey: string } {
   let liveKey = "soldier.idle";
   try {
@@ -1002,6 +1224,51 @@ function publishSoldierSpriteProbes(
       return tileSpriteKey("solid", "kilima");
     }
   };
+  // Live prop/pad frame keys (issue #267): one crate key, one barrel
+  // key, one weapon pad key, one health/grenade pad key, and one bounce
+  // pad key (squash-aware), read per call from the latest drawn frame
+  // so damage/crack/explode transitions are visible on the next draw.
+  // Every entry carries `prop.` or `pad.` and none contains `vector`.
+  const propFrames = (): string[] => {
+    try {
+      return propFramesFor(frame.props, frame.pickups, padSquash ?? 1);
+    } catch {
+      return propFramesFor(null, null, 1);
+    }
+  };
+  // Live pad labels (issue #267): one floating label per active pickup
+  // via the same labelTextFor the overlay reconciler uses, so the probe
+  // reads HP, GREN, and the weapon name exactly as the pads show them.
+  const padLabels = (): string[] => {
+    try {
+      const labels: string[] = [];
+      for (const pickup of frame.pickups) {
+        if (pickup === undefined || pickup.active !== true) {
+          continue;
+        }
+        labels.push(labelTextFor(pickup.kind, pickup.weapon));
+      }
+      return labels;
+    } catch {
+      return [];
+    }
+  };
+  // Live pad glow pulse alpha (issue #267): sine pulse over 800ms so
+  // samples 400ms apart (half a period) always differ. Read per call
+  // off the draw clock when available, else wall clock.
+  const padGlowAlpha = (): number => {
+    try {
+      if (typeof nowMs === "number" && Number.isFinite(nowMs)) {
+        return padGlowAlphaAt(nowMs);
+      }
+      if (typeof performance !== "undefined" && typeof performance.now === "function") {
+        return padGlowAlphaAt(performance.now());
+      }
+      return padGlowAlphaAt(Date.now());
+    } catch {
+      return padGlowAlphaAt(NaN);
+    }
+  };
   try {
     if (typeof window !== "undefined") {
       const scope = window as unknown as Record<string, unknown>;
@@ -1037,6 +1304,11 @@ function publishSoldierSpriteProbes(
           currentWeaponSprite,
           botSprites,
           tileFrameAt: tileFrameAtProbe,
+          propFrames,
+          padLabels,
+          padGlowAlpha,
+          padGlow: padGlowAlpha,
+          glowAlpha: padGlowAlpha,
         };
       } else {
         existing["debugFrame"] = debugFrame;
@@ -1046,6 +1318,11 @@ function publishSoldierSpriteProbes(
         existing["currentWeaponSprite"] = currentWeaponSprite;
         existing["botSprites"] = botSprites;
         existing["tileFrameAt"] = tileFrameAtProbe;
+        existing["propFrames"] = propFrames;
+        existing["padLabels"] = padLabels;
+        existing["padGlowAlpha"] = padGlowAlpha;
+        existing["padGlow"] = padGlowAlpha;
+        existing["glowAlpha"] = padGlowAlpha;
       }
       // Aim-alignment + texture mirrors on the established surfaces.
       const first = frame.players[0];
@@ -2196,12 +2473,48 @@ function paintFrame2D(
       prop.kind,
       prop.hp,
     );
+    // Pack sprite overlay (issue #267): the `props/` card over the vector
+    // quad at the same box, so measured size stays while pixels read as
+    // pack art. Undecoded art is a silent no-op (vector stays).
+    try {
+      paintPropSprite(
+        ctx,
+        propSpriteKey(prop.kind, prop.hp),
+        px(prop.x),
+        py(prop.y),
+        prop.w * cam.scale,
+        prop.h * cam.scale,
+      );
+    } catch {
+      // Overlay best-effort only.
+    }
   }
   for (const pickup of frame.pickups) {
     if (!pickup.active) {
       continue;
     }
     paintPickup2D(ctx, px(pickup.x), py(pickup.y), cam.scale, pickup.kind, pickup.weapon);
+    // Pack pad overlay plus the glow pulse (issue #267): the `pads/`
+    // card over the vector pad, then a pulsing halo whose alpha rides
+    // padGlowAlphaAt(nowMs) so samples 400ms apart always differ.
+    try {
+      const padKey = padSpriteKey(pickup.kind);
+      const padW = 40 * cam.scale;
+      const padH = 16 * cam.scale;
+      paintPadSprite(ctx, padKey, px(pickup.x), py(pickup.y), padW, padH);
+      const pulse = padGlowAlphaAt(nowMs);
+      if (Number.isFinite(pulse) && pulse > 0) {
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, Math.max(0, pulse - 0.35));
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(px(pickup.x), py(pickup.y), Math.max(2, padW / 2 + 6 * cam.scale), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    } catch {
+      // Overlay best-effort only.
+    }
   }
   for (const proj of frame.projectiles) {
     ctx.fillStyle = proj.kind === "grenade" ? "#a3e635" : "#f97316";
@@ -3247,8 +3560,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     }
     // Sprite-swap probe surface (`platformer-characters` textures,
     // roster tints, arm anchor + muzzle): patches the fresh mirrors
-    // above and owns window.__scrapline.debugFrame.
-    publishSoldierSpriteProbes(frame, anims, tileMapForDecor);
+    // above and owns window.__scrapline.debugFrame. Also owns the
+    // prop/pad probe surface (issue #267): propFrames, padLabels, and
+    // the glow pulse alpha, all read per call from the latest frame.
+    publishSoldierSpriteProbes(frame, anims, tileMapForDecor, padSquash, now);
     return { frame, cam, layers, anims, theme, themeName, decors, lights, padSquash, dtSec, nowMs: now, hurtPulse };
   }
 

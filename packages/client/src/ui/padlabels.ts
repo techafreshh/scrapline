@@ -80,18 +80,18 @@ export interface PadlabelsFrame {
 
 /**
  * Label text for a pad: the plaque display name for weapon pads (the
- * SMG reads Hornet, matching its weapon-hornet art alias), "+" for
- * health pads, "Grenade" for grenade pads. Plain ASCII keeps the
+ * SMG reads Hornet, matching its weapon-hornet art alias), "HP" for
+ * health pads, "GREN" for grenade pads. Plain ASCII keeps the
  * labels OCR-safe with no webfont dependency.
  */
 export function labelTextFor(kind: unknown, weapon: unknown): string {
   if (typeof kind === "string") {
     const key = kind.trim().toLowerCase();
     if (key === "health") {
-      return "+";
+      return "HP";
     }
     if (key === "grenades" || key === "grenade") {
-      return "Grenade";
+      return "GREN";
     }
   }
   const plaque = weaponPlaqueFor(weapon);

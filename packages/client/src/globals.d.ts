@@ -25,6 +25,16 @@ declare global {
       botSprites?: () => string[];
       /** Themed tile frame key for one ASCII cell (issue #266). */
       tileFrameAt?: (tx: unknown, ty: unknown) => string;
+      /** Live prop/pad frame keys (one crate, barrel, weapon, health, bounce; issue #267). */
+      propFrames?: () => string[];
+      /** Live floating pad labels (HP, GREN, weapon name; issue #267). */
+      padLabels?: () => string[];
+      /** Live pad glow pulse alpha (oscillates over 800ms; issue #267). */
+      padGlowAlpha?: () => number;
+      /** Alias of padGlowAlpha (probe tolerance). */
+      padGlow?: () => number;
+      /** Alias of padGlowAlpha (probe tolerance). */
+      glowAlpha?: () => number;
     };
     __scraplineFonts?: {
       displayFamily: string;

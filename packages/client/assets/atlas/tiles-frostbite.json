@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "app": "scrapline",
+    "version": 1,
+    "family": "tiles-frostbite"
+  },
+  "frames": {
+    "tile.frostbite.solid": {
+      "file": "tiles/platformPack_tile009.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "tile.frostbite.oneway": {
+      "file": "tiles/platformPack_tile010.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "tile.frostbite.bounce": {
+      "file": "tiles/platformPack_tile011.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    },
+    "tile.frostbite.backwall": {
+      "file": "tiles/platformPack_tile012.png",
+      "x": 0,
+      "y": 0,
+      "w": 64,
+      "h": 64
+    }
+  }
+}

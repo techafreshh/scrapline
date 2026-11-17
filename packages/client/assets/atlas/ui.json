@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "app": "scrapline",
+    "version": 1,
+    "family": "ui"
+  },
+  "frames": {
+    "ui.panel": {
+      "file": "ui/tile_0000.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "ui.button": {
+      "file": "ui/tile_0001.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "ui.button.hover": {
+      "file": "ui/tile_0002.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "ui.slot": {
+      "file": "ui/tile_0003.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "ui.bar": {
+      "file": "ui/tile_0004.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "ui.icon.0": {
+      "file": "ui/tile_0005.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "ui.icon.1": {
+      "file": "ui/tile_0006.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "ui.icon.2": {
+      "file": "ui/tile_0007.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "ui.corner.0": {
+      "file": "ui/tile_0008.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "ui.tilesheet.small": {
+      "file": "ui/tilemap.png",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 118
+    },
+    "ui.tilesheet.large": {
+      "file": "ui/tilemap.png",
+      "x": 0,
+      "y": 0,
+      "w": 428,
+      "h": 230
+    }
+  }
+}

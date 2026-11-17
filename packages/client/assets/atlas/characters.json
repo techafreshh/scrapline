@@ -1,0 +1,240 @@
+{
+  "meta": {
+    "app": "scrapline",
+    "version": 1,
+    "family": "characters"
+  },
+  "frames": {
+    "soldier.idle": {
+      "file": "characters/soldier_idle.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.run.0": {
+      "file": "characters/soldier_walk1.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.run.1": {
+      "file": "characters/soldier_walk2.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.run.2": {
+      "file": "characters/soldier_stand.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.run.3": {
+      "file": "characters/soldier_skid.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.jet": {
+      "file": "characters/soldier_jump.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.crouch": {
+      "file": "characters/soldier_duck.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.dead": {
+      "file": "characters/soldier_hurt.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.action.0": {
+      "file": "characters/soldier_action1.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.action.1": {
+      "file": "characters/soldier_action2.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.back": {
+      "file": "characters/soldier_back.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.cheer.0": {
+      "file": "characters/soldier_cheer1.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.cheer.1": {
+      "file": "characters/soldier_cheer2.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.climb.0": {
+      "file": "characters/soldier_climb1.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.climb.1": {
+      "file": "characters/soldier_climb2.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.fall": {
+      "file": "characters/soldier_fall.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.hang": {
+      "file": "characters/soldier_hang.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.hold.0": {
+      "file": "characters/soldier_hold1.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.hold.1": {
+      "file": "characters/soldier_hold2.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.kick": {
+      "file": "characters/soldier_kick.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.slide": {
+      "file": "characters/soldier_slide.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.swim.0": {
+      "file": "characters/soldier_swim1.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.swim.1": {
+      "file": "characters/soldier_swim2.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.talk": {
+      "file": "characters/soldier_talk.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 110
+    },
+    "soldier.limb.arm": {
+      "file": "characters/arm.png",
+      "x": 0,
+      "y": 0,
+      "w": 17,
+      "h": 33
+    },
+    "soldier.limb.body.back": {
+      "file": "characters/body_back.png",
+      "x": 0,
+      "y": 0,
+      "w": 39,
+      "h": 31
+    },
+    "soldier.limb.body.front": {
+      "file": "characters/body_front.png",
+      "x": 0,
+      "y": 0,
+      "w": 39,
+      "h": 31
+    },
+    "soldier.limb.hand": {
+      "file": "characters/hand.png",
+      "x": 0,
+      "y": 0,
+      "w": 17,
+      "h": 15
+    },
+    "soldier.limb.head": {
+      "file": "characters/head.png",
+      "x": 0,
+      "y": 0,
+      "w": 52,
+      "h": 54
+    },
+    "soldier.limb.head.back": {
+      "file": "characters/head_back.png",
+      "x": 0,
+      "y": 0,
+      "w": 52,
+      "h": 53
+    },
+    "soldier.limb.head.focus": {
+      "file": "characters/head_focus.png",
+      "x": 0,
+      "y": 0,
+      "w": 52,
+      "h": 53
+    },
+    "soldier.limb.head.hurt": {
+      "file": "characters/head_hurt.png",
+      "x": 0,
+      "y": 0,
+      "w": 52,
+      "h": 53
+    },
+    "soldier.limb.leg": {
+      "file": "characters/leg.png",
+      "x": 0,
+      "y": 0,
+      "w": 21,
+      "h": 23
+    }
+  }
+}

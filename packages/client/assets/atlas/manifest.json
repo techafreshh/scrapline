@@ -414,76 +414,76 @@
     "h": 110
   },
   "tile.kilima.solid": {
-    "file": "tiles/platformPack_tile001.png",
+    "file": "tiles/tile-kilima-solid.png",
     "atlas": "tiles-kilima.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.kilima.oneway": {
-    "file": "tiles/platformPack_tile002.png",
+    "file": "tiles/tile-kilima-oneway.png",
     "atlas": "tiles-kilima.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.kilima.bounce": {
-    "file": "tiles/platformPack_tile003.png",
+    "file": "tiles/tile-kilima-bounce.png",
     "atlas": "tiles-kilima.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.kilima.backwall": {
-    "file": "tiles/platformPack_tile004.png",
+    "file": "tiles/tile-kilima-backwall.png",
     "atlas": "tiles-kilima.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.dune.solid": {
-    "file": "tiles/platformPack_tile005.png",
+    "file": "tiles/tile-dune-solid.png",
     "atlas": "tiles-dune.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.dune.oneway": {
-    "file": "tiles/platformPack_tile006.png",
+    "file": "tiles/tile-dune-oneway.png",
     "atlas": "tiles-dune.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.dune.bounce": {
-    "file": "tiles/platformPack_tile007.png",
+    "file": "tiles/tile-dune-bounce.png",
     "atlas": "tiles-dune.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.dune.backwall": {
-    "file": "tiles/platformPack_tile008.png",
+    "file": "tiles/tile-dune-backwall.png",
     "atlas": "tiles-dune.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.frostbite.solid": {
-    "file": "tiles/platformPack_tile009.png",
+    "file": "tiles/tile-frostbite-solid.png",
     "atlas": "tiles-frostbite.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.frostbite.oneway": {
-    "file": "tiles/platformPack_tile010.png",
+    "file": "tiles/tile-frostbite-oneway.png",
     "atlas": "tiles-frostbite.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.frostbite.bounce": {
-    "file": "tiles/platformPack_tile011.png",
+    "file": "tiles/tile-frostbite-bounce.png",
     "atlas": "tiles-frostbite.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "tile.frostbite.backwall": {
-    "file": "tiles/platformPack_tile012.png",
+    "file": "tiles/tile-frostbite-backwall.png",
     "atlas": "tiles-frostbite.json",
-    "w": 64,
-    "h": 64
+    "w": 18,
+    "h": 18
   },
   "fx.smoke.0": {
     "file": "particles/smoke_01.png",

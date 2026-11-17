@@ -6,32 +6,32 @@
   },
   "frames": {
     "tile.dune.solid": {
-      "file": "tiles/platformPack_tile005.png",
+      "file": "tiles/tile-dune-solid.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     },
     "tile.dune.oneway": {
-      "file": "tiles/platformPack_tile006.png",
+      "file": "tiles/tile-dune-oneway.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     },
     "tile.dune.bounce": {
-      "file": "tiles/platformPack_tile007.png",
+      "file": "tiles/tile-dune-bounce.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     },
     "tile.dune.backwall": {
-      "file": "tiles/platformPack_tile008.png",
+      "file": "tiles/tile-dune-backwall.png",
       "x": 0,
       "y": 0,
-      "w": 64,
-      "h": 64
+      "w": 18,
+      "h": 18
     }
   }
 }

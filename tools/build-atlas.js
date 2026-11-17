@@ -87,6 +87,178 @@ function pngSize(buf) {
   return { w, h };
 }
 
+// CRC-32 (ISO 3309) over a buffer: the PNG chunk checksum primitive.
+// Table-driven, zero dependencies (zlib covers compression only).
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(buf) {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i += 1) {
+    c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type, data) {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
+  const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body), 0);
+  return Buffer.concat([len, body, crc]);
+}
+
+// Decode a vendor sheet PNG to RGBA bytes. The Kenney packed sheets are
+// 8-bit palette PNGs (color type 3) with PLTE/tRNS and no interlacing;
+// anything else fails loudly so a corrupt sheet never crops silently.
+function decodeSheetPng(buf, label) {
+  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  for (let i = 0; i < sig.length; i += 1) {
+    if (buf[i] !== sig[i]) {
+      fail(`decodeSheetPng: bad PNG signature for ${label}.`);
+    }
+  }
+  let w = 0;
+  let h = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  let interlace = 0;
+  let palette = null;
+  let alpha = null;
+  const idat = [];
+  let off = 8;
+  while (off + 8 <= buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString("latin1", off + 4, off + 8);
+    const data = buf.subarray(off + 8, off + 8 + len);
+    if (type === "IHDR") {
+      w = data.readUInt32BE(0);
+      h = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colorType = data[9];
+      interlace = data[12];
+    } else if (type === "PLTE") {
+      palette = Buffer.from(data);
+    } else if (type === "tRNS") {
+      alpha = Buffer.from(data);
+    } else if (type === "IDAT") {
+      idat.push(Buffer.from(data));
+    } else if (type === "IEND") {
+      break;
+    }
+    off += 12 + len;
+  }
+  if (colorType !== 3 || bitDepth !== 8 || interlace !== 0) {
+    fail(`decodeSheetPng: ${label} must be an 8-bit non-interlaced palette PNG.`);
+  }
+  if (palette === null) {
+    fail(`decodeSheetPng: ${label} is missing its PLTE chunk.`);
+  }
+  let raw;
+  try {
+    raw = require("node:zlib").inflateSync(Buffer.concat(idat));
+  } catch {
+    fail(`decodeSheetPng: ${label} has unreadable IDAT data.`);
+  }
+  const stride = w + 1;
+  if (raw.length !== stride * h) {
+    fail(`decodeSheetPng: ${label} has an unexpected scanline size.`);
+  }
+  // Unfilter scanlines (bpp 1: palette indices) into a flat index plane.
+  const indices = Buffer.alloc(w * h);
+  let prev = Buffer.alloc(w, 0);
+  for (let y = 0; y < h; y += 1) {
+    const row = raw.subarray(y * stride, (y + 1) * stride);
+    const filter = row[0];
+    const cur = Buffer.alloc(w, 0);
+    for (let x = 0; x < w; x += 1) {
+      const a = x > 0 ? cur[x - 1] : 0;
+      const b = prev[x];
+      const c = x > 0 ? prev[x - 1] : 0;
+      let v = row[x + 1];
+      if (filter === 1) {
+        v = (v + a) & 0xff;
+      } else if (filter === 2) {
+        v = (v + b) & 0xff;
+      } else if (filter === 3) {
+        v = (v + ((a + b) >> 1)) & 0xff;
+      } else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        const pr = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+        v = (v + pr) & 0xff;
+      } else if (filter !== 0) {
+        fail(`decodeSheetPng: ${label} uses an unknown filter ${filter}.`);
+      }
+      cur[x] = v;
+    }
+    cur.copy(indices, y * w);
+    prev = cur;
+  }
+  const rgba = Buffer.alloc(w * h * 4);
+  for (let i = 0; i < w * h; i += 1) {
+    const idx = indices[i];
+    rgba[i * 4] = palette[idx * 3] ?? 0;
+    rgba[i * 4 + 1] = palette[idx * 3 + 1] ?? 0;
+    rgba[i * 4 + 2] = palette[idx * 3 + 2] ?? 0;
+    rgba[i * 4 + 3] = alpha !== null && idx < alpha.length ? alpha[idx] : 255;
+  }
+  return { w, h, rgba };
+}
+
+// Crop one cell out of a decoded sheet and encode it as an RGBA PNG.
+// `darken` multiplies RGB (backwalls pre-darken to 0.6); alpha passes
+// through untouched so platform silhouettes keep their cutouts.
+function cropCellPng(sheet, crop, darken) {
+  if (!Number.isInteger(crop.x) || !Number.isInteger(crop.y) ||
+    !Number.isInteger(crop.w) || !Number.isInteger(crop.h) ||
+    crop.w <= 0 || crop.h <= 0 ||
+    crop.x < 0 || crop.y < 0 ||
+    crop.x + crop.w > sheet.w || crop.y + crop.h > sheet.h) {
+    fail(`cropCellPng: crop ${JSON.stringify(crop)} is outside the ${sheet.w}x${sheet.h} sheet.`);
+  }
+  const factor = darken === undefined ? 1 : darken;
+  if (!(factor > 0) || factor > 1) {
+    fail(`cropCellPng: darken ${darken} must be in (0, 1].`);
+  }
+  const out = Buffer.alloc(crop.w * crop.h * 4);
+  for (let y = 0; y < crop.h; y += 1) {
+    for (let x = 0; x < crop.w; x += 1) {
+      const src = ((crop.y + y) * sheet.w + (crop.x + x)) * 4;
+      const dst = (y * crop.w + x) * 4;
+      out[dst] = Math.round(sheet.rgba[src] * factor);
+      out[dst + 1] = Math.round(sheet.rgba[src + 1] * factor);
+      out[dst + 2] = Math.round(sheet.rgba[src + 2] * factor);
+      out[dst + 3] = sheet.rgba[src + 3];
+    }
+  }
+  const rawRows = Buffer.alloc((crop.w * 4 + 1) * crop.h);
+  for (let y = 0; y < crop.h; y += 1) {
+    rawRows[y * (crop.w * 4 + 1)] = 0;
+    out.copy(rawRows, y * (crop.w * 4 + 1) + 1, y * crop.w * 4, (y + 1) * crop.w * 4);
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(crop.w, 0);
+  ihdr.writeUInt32BE(crop.h, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const idat = require("node:zlib").deflateSync(rawRows);
+  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  return Buffer.concat([sig, pngChunk("IHDR", ihdr), pngChunk("IDAT", idat), pngChunk("IEND", Buffer.alloc(0))]);
+}
+
 function sizeBytes(dir) {
   let total = 0;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -125,7 +297,13 @@ const ADVENTURER_POSES = "platformer-characters/PNG/Adventurer/Poses";
 const ZOMBIE_POSES = "platformer-characters/PNG/Zombie/Poses";
 const FEMALE_POSES = "platformer-characters/PNG/Female/Poses";
 const PLAYER_POSES = "platformer-characters/PNG/Player/Poses";
-const PLATFORMER_TILES = "simplified-platformer-pack/PNG/Tiles";
+// Themed tileset sheets (issue #266): Kenney `pixel-platformer` plus the
+// `pixel-platformer-industrial-expansion` for dune/frostbite. Both packed
+// sheets are 18px grids with no spacing (360x162 = 20x9, 288x126 = 16x7).
+const PIXEL_SHEET = "pixel-platformer/Tilemap/tilemap_packed.png";
+const INDUSTRIAL_SHEET = "pixel-platformer-industrial-expansion/Tilemap/tilemap_packed.png";
+/** Vendor sheet cell in px (both packed sheets share the 18px grid). */
+const VENDOR_CELL = 18;
 const PARTICLES = "particle-pack/PNG";
 const UI_SMALL = "ui-pack-pixel-adventure/Tiles/Small tiles/Thick outline";
 const UI_SHEETS = "ui-pack-pixel-adventure/Tilesheets";
@@ -205,20 +383,28 @@ const ATLAS_ALLOWLIST = [
   { name: "player.crouch", from: `${PLAYER_POSES}/player_duck.png` },
   { name: "player.fall", from: `${PLAYER_POSES}/player_fall.png` },
   { name: "player.dead", from: `${PLAYER_POSES}/player_hurt.png` },
-  // Tiles: four kinds per theme (tile.kilima.solid first), each theme on
-  // its own tile run so kilima/dune/frostbite stay visually distinct.
-  { name: "tile.kilima.solid", from: `${PLATFORMER_TILES}/platformPack_tile001.png` },
-  { name: "tile.kilima.oneway", from: `${PLATFORMER_TILES}/platformPack_tile002.png` },
-  { name: "tile.kilima.bounce", from: `${PLATFORMER_TILES}/platformPack_tile003.png` },
-  { name: "tile.kilima.backwall", from: `${PLATFORMER_TILES}/platformPack_tile004.png` },
-  { name: "tile.dune.solid", from: `${PLATFORMER_TILES}/platformPack_tile005.png` },
-  { name: "tile.dune.oneway", from: `${PLATFORMER_TILES}/platformPack_tile006.png` },
-  { name: "tile.dune.bounce", from: `${PLATFORMER_TILES}/platformPack_tile007.png` },
-  { name: "tile.dune.backwall", from: `${PLATFORMER_TILES}/platformPack_tile008.png` },
-  { name: "tile.frostbite.solid", from: `${PLATFORMER_TILES}/platformPack_tile009.png` },
-  { name: "tile.frostbite.oneway", from: `${PLATFORMER_TILES}/platformPack_tile010.png` },
-  { name: "tile.frostbite.bounce", from: `${PLATFORMER_TILES}/platformPack_tile011.png` },
-  { name: "tile.frostbite.backwall", from: `${PLATFORMER_TILES}/platformPack_tile012.png` },
+  // Tiles (issue #266): four kinds per theme (tile.kilima.solid first),
+  // cropped 1:1 from the vendor sheets at 18px per cell and painted at
+  // 32px per ASCII cell. kilima draws only on `pixel-platformer`;
+  // dune/frostbite draw solids/backwalls on the industrial expansion
+  // sheet and one-way/bounce cells on `pixel-platformer`, so every theme
+  // stays visually distinct. Solids come from each sheet's ground-block
+  // cluster (the heavily-used GIDs in the Tiled example map); one-way
+  // and bounce come from distinct non-ground runs so the three shapes
+  // never alias. Backwalls reuse the theme solid cell pre-darkened to
+  // 60% (the BACKWALL_BRIGHTNESS contract) for the behind-playfield read.
+  { name: "tile.kilima.solid", from: PIXEL_SHEET, crop: { x: 36, y: 108, w: 18, h: 18 }, to: "tiles/tile-kilima-solid.png" },
+  { name: "tile.kilima.oneway", from: PIXEL_SHEET, crop: { x: 54, y: 18, w: 18, h: 18 }, to: "tiles/tile-kilima-oneway.png" },
+  { name: "tile.kilima.bounce", from: PIXEL_SHEET, crop: { x: 126, y: 54, w: 18, h: 18 }, to: "tiles/tile-kilima-bounce.png" },
+  { name: "tile.kilima.backwall", from: PIXEL_SHEET, crop: { x: 36, y: 108, w: 18, h: 18 }, darken: 0.6, to: "tiles/tile-kilima-backwall.png" },
+  { name: "tile.dune.solid", from: INDUSTRIAL_SHEET, crop: { x: 54, y: 54, w: 18, h: 18 }, to: "tiles/tile-dune-solid.png" },
+  { name: "tile.dune.oneway", from: PIXEL_SHEET, crop: { x: 144, y: 18, w: 18, h: 18 }, to: "tiles/tile-dune-oneway.png" },
+  { name: "tile.dune.bounce", from: PIXEL_SHEET, crop: { x: 216, y: 72, w: 18, h: 18 }, to: "tiles/tile-dune-bounce.png" },
+  { name: "tile.dune.backwall", from: INDUSTRIAL_SHEET, crop: { x: 54, y: 54, w: 18, h: 18 }, darken: 0.6, to: "tiles/tile-dune-backwall.png" },
+  { name: "tile.frostbite.solid", from: INDUSTRIAL_SHEET, crop: { x: 162, y: 36, w: 18, h: 18 }, to: "tiles/tile-frostbite-solid.png" },
+  { name: "tile.frostbite.oneway", from: PIXEL_SHEET, crop: { x: 90, y: 18, w: 18, h: 18 }, to: "tiles/tile-frostbite-oneway.png" },
+  { name: "tile.frostbite.bounce", from: PIXEL_SHEET, crop: { x: 252, y: 90, w: 18, h: 18 }, to: "tiles/tile-frostbite-bounce.png" },
+  { name: "tile.frostbite.backwall", from: INDUSTRIAL_SHEET, crop: { x: 162, y: 36, w: 18, h: 18 }, darken: 0.6, to: "tiles/tile-frostbite-backwall.png" },
   // Particles: smoke/muzzle/spark/fire runs plus one flame head.
   { name: "fx.smoke.0", from: `${PARTICLES}/smoke_01.png` },
   { name: "fx.smoke.1", from: `${PARTICLES}/smoke_02.png` },
@@ -288,6 +474,26 @@ function familyOf(name) {
     return { dir: "ui", json: "ui.json" };
   }
   fail(`atlas allowlist name ${name} matches no family (characters/tile/fx/ui).`);
+}
+
+// Decoded-sheet cache for cropped entries: one decode per vendor sheet
+// no matter how many tile cells it contributes.
+const sheetCache = new Map();
+
+function decodedSheetFor(absPath, label) {
+  const hit = sheetCache.get(absPath);
+  if (hit !== undefined) {
+    return hit;
+  }
+  let buf;
+  try {
+    buf = fs.readFileSync(absPath);
+  } catch {
+    fail(`atlas source missing: ${label}.`);
+  }
+  const decoded = decodeSheetPng(buf, label);
+  sheetCache.set(absPath, decoded);
+  return decoded;
 }
 
 const SRC_CLIENT = path.join(ROOT, "packages", "client", "src");
@@ -398,13 +604,31 @@ function main() {
     } catch {
       fail(`atlas source missing: ${entry.from} for ${entry.name}.`);
     }
-    const { w, h } = pngSize(buf);
+    // Cropped entries (issue #266 tiles): one 18px cell out of a vendor
+    // sheet, optionally pre-darkened, encoded as its own RGBA PNG so the
+    // manifest box always matches the file IHDR. Sheets decode once and
+    // are shared across entries. Everything else copies through verbatim.
+    let w;
+    let h;
     const { dir, json } = familyOf(entry.name);
     // Per-entry dest override (the two UI tilesheets share a vendor
-    // basename, so they pin distinct files instead of overwriting).
+    // basename, so they pin distinct files instead of overwriting; every
+    // cropped tile pins its own file since sheets would otherwise collide).
     const file = entry.to ?? `${dir}/${path.basename(entry.from)}`;
     fs.mkdirSync(path.join(ATLAS_SRC, dir), { recursive: true });
-    fs.copyFileSync(from, path.join(ATLAS_SRC, file));
+    if (entry.crop !== undefined && entry.crop !== null) {
+      const decoded = decodedSheetFor(from, entry.from);
+      const cell = cropCellPng(decoded, entry.crop, entry.darken);
+      const box = pngSize(cell);
+      w = box.w;
+      h = box.h;
+      fs.writeFileSync(path.join(ATLAS_SRC, file), cell);
+    } else {
+      const box = pngSize(buf);
+      w = box.w;
+      h = box.h;
+      fs.copyFileSync(from, path.join(ATLAS_SRC, file));
+    }
     manifest[entry.name] = { file, atlas: json, w, h };
     if (!families[json]) {
       families[json] = { dir, frames: {} };
@@ -465,4 +689,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { frameSize, pngSize, sizeBytes, collectRendererRefs, findMissingRefs, BUDGET_BYTES, ATLAS_ALLOWLIST, WEAPON_MUZZLES };
+module.exports = { frameSize, pngSize, sizeBytes, collectRendererRefs, findMissingRefs, BUDGET_BYTES, ATLAS_ALLOWLIST, WEAPON_MUZZLES, decodeSheetPng, cropCellPng, VENDOR_CELL };

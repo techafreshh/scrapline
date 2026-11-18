@@ -1090,6 +1090,29 @@ const server = http.createServer((req, res) => {
     send(req, res, 404, "text/plain; charset=utf-8", "not found");
     return;
   }
+  if (readable && url.pathname.startsWith("/components/")) {
+    // Panel/button primitives (issue #312): same staged-first fallback chain.
+    const rel = path.normalize(url.pathname.slice("/components/".length));
+    const dirs = [
+      path.join(ROOT_DIST, "components"),
+      path.join(DIST, "components"),
+      path.join(ROOT, "packages", "client", "public", "components"),
+    ];
+    for (const componentsBase of dirs) {
+      const file = path.join(componentsBase, rel);
+      if (file !== componentsBase && !file.startsWith(componentsBase + path.sep)) {
+        send(req, res, 404, "text/plain; charset=utf-8", "not found");
+        return;
+      }
+      const body = tryRead(file);
+      if (body !== null) {
+        send(req, res, 200, contentTypeFor(file), body);
+        return;
+      }
+    }
+    send(req, res, 404, "text/plain; charset=utf-8", "not found");
+    return;
+  }
   if (readable && url.pathname.startsWith("/assets/")) {
     const rel = path.normalize(url.pathname.slice("/assets/".length));
     // Same staged-first chain as the page/bundle routes above.

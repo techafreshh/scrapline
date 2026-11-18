@@ -1,0 +1,44 @@
+/* Button primitive (issue #312): default/hover/pressed/disabled states plus
+  a visible keyboard focus ring and a consistent hit area for every overlay
+  button. Native <button disabled> semantics own the click suppression; the
+  :disabled rule only supplies the visual dim. Consumes token variables
+  only — no raw colors. */
+.sl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 10px 22px;
+  font-size: 14px;
+  letter-spacing: 0.4px;
+  background: var(--color-bg);
+  color: var(--color-cyan);
+  border: 1px solid var(--color-cyan);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sl-btn:hover {
+  background: var(--color-elevated);
+  box-shadow: var(--shadow-lift);
+}
+
+.sl-btn:active {
+  background: var(--color-track);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.sl-btn:focus-visible {
+  outline: 2px solid var(--color-cyan);
+  outline-offset: 2px;
+  background: var(--color-chip);
+  box-shadow: var(--shadow-glow);
+}
+
+.sl-btn:disabled,
+.sl-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

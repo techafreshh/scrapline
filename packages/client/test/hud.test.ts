@@ -465,3 +465,65 @@ describe("playerColor", () => {
     expect(playerColor(Number.NaN)).toBe(null);
   });
 });
+
+describe("updateHud pixel chrome snapshot (issue #270)", () => {
+  /** Fake handles with text, attr capture, and a style bag. */
+  function chromeHandles(): {
+    handles: HudHandles;
+    hud: { attrs: Map<string, string>; style: Record<string, string> };
+    health: { textContent: string | null };
+    ammo: { textContent: string | null };
+  } {
+    const hud = { attrs: new Map<string, string>(), style: {} as Record<string, string> };
+    const hudEl = {
+      setAttribute: (k: string, v: string): void => {
+        hud.attrs.set(k, v);
+      },
+      getAttribute: (k: string): string | null => hud.attrs.get(k) ?? null,
+      style: hud.style,
+    };
+    const health = { textContent: "" as string | null };
+    const ammo = { textContent: "" as string | null };
+    const handles = {
+      hud: hudEl,
+      health,
+      fuel: null,
+      grenades: null,
+      weapon: null,
+      ammo,
+      score: null,
+      timer: null,
+      killfeed: null,
+      respawn: null,
+      endScreen: null,
+      endStandings: null,
+      ammoModule: null,
+      ammoIcon: null,
+      ammoName: null,
+      ammoCounts: null,
+      ammoPips: null,
+    } as unknown as HudHandles;
+    return { handles, hud, health, ammo };
+  }
+
+  it("mirrors 75 HP / 12 mag digits with the `ui.` HUD frame key", () => {
+    const { handles, hud, health, ammo } = chromeHandles();
+    updateHud(handles, {
+      hp: 75,
+      fuel: 100,
+      magAmmo: 12,
+      weaponName: "rifle",
+      grenades: 3,
+      killedBy: null,
+      scores: [0],
+      ids: [0],
+      tick: 0,
+      timeLimitTicks: 18000,
+      localAlive: true,
+      respawnTicks: 0,
+    } as HudSnapshot);
+    expect(health.textContent).toBe("75");
+    expect(ammo.textContent).toContain("12");
+    expect(hud.attrs.get("data-frame")).toContain("ui.");
+  });
+});

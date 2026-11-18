@@ -6,7 +6,7 @@
 // without builders and never throws.
 
 import { teamCss } from "../view/character";
-import { iconFor } from "./ammo";
+import { weaponSpriteFile, weaponSpriteKey } from "../render/weapons";
 
 /** Feed hold in ms: entries stay fully visible this long, then fade. */
 export const KILLFEED_HOLD_MS = 6000;
@@ -40,9 +40,10 @@ const KNOWN_IDS: readonly string[] = [
 
 /**
  * Weapon icon for a feed entry: grenade kills reuse the pickup art,
- * gun kills reuse the weapon cards (the SMG reads the Hornet card via
- * iconFor). Null, empty, and unknown readings yield null so unattributed
- * deaths stay text-only (`X died`) instead of showing a wrong icon.
+ * gun kills reuse the in-hand weapon cards (issue #264: the SMG reads
+ * the Hornet card via the shared weaponSpriteFile mapping). Null,
+ * empty, and unknown readings yield null so unattributed deaths stay
+ * text-only (`X died`) instead of showing a wrong icon.
  */
 export function feedIconFor(weapon: unknown): string | null {
   if (typeof weapon !== "string") {
@@ -56,10 +57,30 @@ export function feedIconFor(weapon: unknown): string | null {
     return "./assets/pickup-grenade.svg";
   }
   if (key.includes("hornet")) {
-    return iconFor("smg");
+    return weaponSpriteFile("smg");
   }
   if (KNOWN_IDS.includes(key)) {
-    return iconFor(key);
+    return weaponSpriteFile(key);
+  }
+  return null;
+}
+
+/**
+ * Logical in-hand sprite key for a feed entry icon (`weapon.<id>`,
+ * the weaponSpriteKey family from render/weapons.ts). Gun ids read
+ * their key; grenade/null/empty/unknown readings yield null so only
+ * gun icons carry the `data-icon` probe attribute. Pure.
+ */
+export function feedIconKeyFor(weapon: unknown): string | null {
+  if (typeof weapon !== "string") {
+    return null;
+  }
+  const key = weapon.trim().toLowerCase();
+  if (key === "" || key.includes("grenade")) {
+    return null;
+  }
+  if (key.includes("hornet") || KNOWN_IDS.includes(key)) {
+    return weaponSpriteKey(weapon);
   }
   return null;
 }
@@ -72,6 +93,8 @@ export interface FeedModel {
   victim: string;
   /** Weapon icon path (null for text-only entries). */
   icon: string | null;
+  /** Raw weapon reading (drives the icon `data-icon` probe key). */
+  weapon: unknown;
   /** Killer name CSS color (null when the killer index is unknown). */
   killerColor: string | null;
   /** Victim name CSS color (null when the victim index is unknown). */
@@ -97,6 +120,7 @@ export function buildFeedEntry(
       killer: null,
       victim,
       icon: null,
+      weapon,
       killerColor: null,
       victimColor: null,
       suicide: true,
@@ -106,6 +130,7 @@ export function buildFeedEntry(
     killer,
     victim,
     icon: feedIconFor(weapon),
+    weapon,
     killerColor:
       typeof killerIndex === "number" && Number.isFinite(killerIndex)
         ? teamCss(killerIndex)
@@ -451,6 +476,13 @@ export function pushFeed(
       writeAttr(icon, "class", "kill-weapon");
       writeAttr(icon, "src", entry.icon as string);
       writeAttr(icon, "alt", "weapon icon");
+      // Probe key: gun icons carry their in-hand sprite key
+      // (`weapon.rifle`) so kill-feed entries read the same weapon
+      // family as the HUD cards; grenade icons carry no data-icon.
+      const iconKey = feedIconKeyFor(entry.weapon);
+      if (iconKey !== null) {
+        writeAttr(icon, "data-icon", iconKey);
+      }
       // Separator span: the structured entry's textContent reads the
       // same `Killer ▸ Victim` line as the flat fallback (probes read
       // textContent, which concatenates the spans around the icon).

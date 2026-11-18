@@ -1419,6 +1419,7 @@ function showEndScreen(): void {
     hud.endStandings.replaceChildren();
     const doc = hud.endStandings.ownerDocument;
     const table = doc.createElement("table");
+    table.setAttribute("class", "standings");
     const head = doc.createElement("thead");
     const headRow = doc.createElement("tr");
     for (const label of ["Player", "Kills", "Deaths"]) {
@@ -1431,9 +1432,7 @@ function showEndScreen(): void {
     const body = doc.createElement("tbody");
     for (const row of rows) {
       const tr = doc.createElement("tr");
-      if (row.winner) {
-        tr.setAttribute("class", "winner");
-      }
+      tr.setAttribute("class", row.winner ? "standings-row winner" : "standings-row");
       const nameCell = doc.createElement("td");
       nameCell.textContent = row.name;
       const killsCell = doc.createElement("td");

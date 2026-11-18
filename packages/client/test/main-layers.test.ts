@@ -85,6 +85,9 @@ describe("main.ts layer wiring (issue #313)", () => {
     );
     expect(body).toContain("ensureStandings(document)");
     expect(body).toContain('showOverlay("end-screen")');
+    expect(body).toContain('"standings"');
+    expect(body).toContain("standings-row");
+    expect(body).toContain("standings-row winner");
   });
 
   it("destroys standings (never hides) on the Menu return path", () => {

@@ -43,8 +43,11 @@ export interface WeaponMuzzleOffset {
   y: number;
 }
 
-/** Built vendor atlas manifest: logical dot-name to frame entry. */
-export type AtlasManifest = Record<string, AtlasManifestEntry>;
+/** One manifest value: a sprite frame entry or a pivot-relative muzzle offset. */
+export type AtlasManifestValue = AtlasManifestEntry | WeaponMuzzleOffset;
+
+/** Built vendor atlas manifest: logical dot-name to frame-or-muzzle entry. */
+export type AtlasManifest = Record<string, AtlasManifestValue>;
 
 /** Fetch surface for loadAtlas (defaults to the global fetch). */
 export type AtlasFetch = (

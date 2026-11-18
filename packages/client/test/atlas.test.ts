@@ -10,7 +10,9 @@ import {
   isAtlasManifestEntry,
   loadAtlas,
   manifestFrame,
+  manifestMuzzle,
 } from "../src/atlas";
+import type { AtlasManifest } from "../src/atlas";
 
 afterEach(() => {
   delete (globalThis as unknown as Record<string, unknown>)["document"];
@@ -107,6 +109,29 @@ describe("manifest validation", () => {
         broken: { file: "b.png", atlas: "characters.json", w: 1 },
       }),
     ).toBe(false);
+  });
+
+  it("accepts a mixed frame-plus-muzzle manifest", () => {
+    const mixed = {
+      "soldier.run.3": {
+        file: "characters/soldier_skid.png",
+        atlas: "characters.json",
+        w: 80,
+        h: 110,
+      },
+      "weapon.rifle.muzzle": { x: 14, y: 0 },
+    };
+    const typed: AtlasManifest = mixed;
+    expect(isAtlasManifest(typed)).toBe(true);
+    expect(manifestFrame(typed, "soldier.run.3")).toEqual({
+      file: "characters/soldier_skid.png",
+      atlas: "characters.json",
+      w: 80,
+      h: 110,
+    });
+    expect(manifestFrame(typed, "weapon.rifle.muzzle")).toBeNull();
+    expect(manifestMuzzle(typed, "weapon.rifle.muzzle")).toEqual({ x: 14, y: 0 });
+    expect(manifestMuzzle(typed, "soldier.run.3")).toBeNull();
   });
 
   it("manifestFrame resolves logical names without throwing", () => {

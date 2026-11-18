@@ -11,6 +11,7 @@ import {
   TRACER_TTL,
   ageFx,
   describeFrame,
+  firstShotPerShooter,
   spawnShots,
   tracerOpacity,
   type Frame,
@@ -88,6 +89,44 @@ describe("spawnShots", () => {
     spawnShots(tracers, muzzles, frame, details);
     expect(tracers).toHaveLength(8);
     expect(muzzles).toHaveLength(1);
+  });
+});
+
+describe("firstShotPerShooter", () => {
+  it("dedupes an 8-pellet shotgun volley to one muzzle shot with tracers intact", () => {
+    const { details } = shotgunShots();
+    expect(details).toHaveLength(WEAPONS.shotgun.pellets);
+    const muzzleShots = firstShotPerShooter(details);
+    expect(muzzleShots).toHaveLength(1);
+    expect(muzzleShots[0]).toBe(details[0]);
+  });
+
+  it("returns one shot for a single rifle pellet", () => {
+    const { details } = rifleShot();
+    expect(firstShotPerShooter(details)).toHaveLength(1);
+  });
+
+  it("returns two shots for two shooters firing, preserving first-seen order", () => {
+    const { details: volleyA } = shotgunShots();
+    const { details: volleyB } = shotgunShots();
+    const second = volleyB.map((detail) => ({ ...detail, shooter: detail.shooter + 1 }));
+    const combined = [...volleyA, ...second];
+    const muzzleShots = firstShotPerShooter(combined);
+    expect(muzzleShots).toHaveLength(2);
+    expect(muzzleShots[0]).toBe(volleyA[0]);
+    expect(muzzleShots[1]).toBe(second[0]);
+  });
+
+  it("returns empty for empty input", () => {
+    expect(firstShotPerShooter([])).toHaveLength(0);
+  });
+
+  it("preserves the shooter-absent ox/oy fallback coordinates", () => {
+    const { details } = rifleShot();
+    const muzzleShots = firstShotPerShooter(details);
+    expect(muzzleShots).toHaveLength(1);
+    expect(muzzleShots[0].ox).toBe(details[0].ox);
+    expect(muzzleShots[0].oy).toBe(details[0].oy);
   });
 
   it("falls back to the shot origin when the shooter left the frame", () => {

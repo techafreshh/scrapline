@@ -3323,6 +3323,27 @@ export function tracerOpacity(fx: { ttl: number; life: number }): number {
 }
 
 /**
+ * First shot detail per firing shooter (order-preserving dedupe).
+ * One shotgun tick emits one detail per pellet sharing a single
+ * `shooter`, so muzzle paths (pooled and Pixi) iterate this helper
+ * to emit one burst per firing shooter instead of one per pellet.
+ * Pure: no DOM, no clock, so unit-testable under node.
+ */
+export function firstShotPerShooter(
+  shots: ReadonlyArray<ShotDetail>,
+): ShotDetail[] {
+  const seen = new Set<number>();
+  const out: ShotDetail[] = [];
+  for (const shot of shots) {
+    if (!seen.has(shot.shooter)) {
+      seen.add(shot.shooter);
+      out.push(shot);
+    }
+  }
+  return out;
+}
+
+/**
  * Convert sim shot details into tracer segments (one per pellet) plus
  * one muzzle entry per firing shooter at the weapon-aware barrel tip.
  * Each tracer origin is overridden to the shooter's frame barrel tip
@@ -3857,12 +3878,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     // perf on shotguns) so the 24px probe always finds >= 4. Counts
     // accumulate per pooled burst for the emitterCounts probe.
     {
-      const muzzled = new Set<number>();
-      for (const shot of shots ?? []) {
-        if (muzzled.has(shot.shooter)) {
-          continue;
-        }
-        muzzled.add(shot.shooter);
+      for (const shot of firstShotPerShooter(shots ?? [])) {
         const shooter = frame.players[shot.shooter];
         const tip =
           shooter !== undefined ? shooter.barrel : { x: shot.ox, y: shot.oy };
@@ -4531,7 +4547,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           if (fx !== null && fx !== undefined) {
             const toScreen = (x: number, y: number): { x: number; y: number } =>
               projectCamera(cam, logicalW, logicalH, x, y);
-            for (const shot of shots ?? []) {
+            for (const shot of firstShotPerShooter(shots ?? [])) {
               const shooter = frame.players[shot.shooter];
               const tip =
                 shooter !== undefined ? shooter.barrel : { x: shot.ox, y: shot.oy };

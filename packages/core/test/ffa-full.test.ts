@@ -45,5 +45,6 @@ describe("ffa full match", () => {
     const total = world.scores.reduce((sum, score) => sum + score, 0);
     expect(total).toBeGreaterThanOrEqual(1);
     expect(world.hash()).toMatch(/^[0-9a-f]{8}$/);
+    console.log("scenarios green");
   });
 });

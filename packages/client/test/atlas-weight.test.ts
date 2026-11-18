@@ -111,6 +111,7 @@ describe("atlas-weight", () => {
     const bytes = sizeBytesRecursive(ATLAS_DIR);
     expect(bytes).toBeGreaterThan(0);
     expect(bytes).toBeLessThanOrEqual(BUDGET_BYTES);
+    console.log("atlas-weight green");
   });
 
   it("no runtime source imports vendor art directly", () => {

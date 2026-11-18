@@ -235,6 +235,20 @@ const server = http.createServer((req, res) => {
     send(req, res, 404, "text/plain; charset=utf-8", "not found");
     return;
   }
+  if (readable && url.pathname === "/menu.css") {
+    // Menu layout hierarchy (issue #314): same staged-first fallback chain.
+    const built = tryReadFirst(
+      path.join(ROOT_DIST, "menu.css"),
+      path.join(DIST, "menu.css"),
+      path.join(ROOT, "packages", "client", "public", "menu.css"),
+    );
+    if (built !== null) {
+      send(req, res, 200, "text/css; charset=utf-8", built);
+      return;
+    }
+    send(req, res, 404, "text/plain; charset=utf-8", "not found");
+    return;
+  }
   if (readable && url.pathname.startsWith("/components/")) {
     // Panel/button primitives (issue #312): same staged-first chain as
     // /tokens.css, plus the public/ source so dev-without-build answers.

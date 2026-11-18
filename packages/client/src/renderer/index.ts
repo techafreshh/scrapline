@@ -1355,7 +1355,7 @@ function liveBotTexture(
  * through this helper so WebGL nodes and canvas2d cards name the same
  * art for the same pose. Never throws.
  */
-function textureKeyForPlayer(
+export function textureKeyForPlayer(
   p: FramePlayer,
   anim: AnimPose | undefined,
 ): string {

@@ -137,6 +137,13 @@ import {
 import { weaponSpriteKey } from "./render/weapons";
 import { tileFrameAt } from "./render/tiles";
 import { loadAtlas } from "./atlas";
+import {
+  advanceLoading,
+  fpsAvg,
+  loadAtlasFamilies,
+  loadProgress,
+  renderLoadingProgress,
+} from "./loading";
 import { registerServiceWorker } from "./pwa";
 import {
   hasWebGLSupport,
@@ -543,6 +550,10 @@ try {
       emitterCounts: emitterCountsSeed,
       hudSnapshot,
       menuSnapshot,
+      // Atlas-family loader progress + fps guardrail (issue #271):
+      // published synchronously so cold-load polls see 0..100.
+      loadProgress,
+      fpsAvg,
     };
   } else {
     seed["debugFrame"] = debugFrame;
@@ -569,6 +580,15 @@ try {
     }
     if (seed["menuSnapshot"] === undefined) {
       seed["menuSnapshot"] = menuSnapshot;
+    }
+    // Atlas-family loader progress + fps guardrail (issue #271):
+    // attach on the existing-mirror path too so reloaded harnesses
+    // that pre-seed __scrapline still poll a monotonic 0..100.
+    if (seed["loadProgress"] === undefined) {
+      seed["loadProgress"] = loadProgress;
+    }
+    if (seed["fpsAvg"] === undefined) {
+      seed["fpsAvg"] = fpsAvg;
     }
   }
   void activeSoldierTexture;
@@ -725,7 +745,7 @@ function revealCanvas(): void {
 try {
   const loading = document.getElementById("loading");
   if (loading instanceof HTMLElement) {
-    loading.textContent = "Loading PixiJS engine...";
+    loading.textContent = "Loading PixiJS engine... 0%";
   }
 } catch {
   // Non-DOM harnesses: the renderer bootstrap below still proceeds.
@@ -733,10 +753,18 @@ try {
 try {
   const loading = document.getElementById("loading");
   if (loading instanceof HTMLElement) {
-    loading.textContent = "Loading sprite atlas...";
+    loading.textContent = "Loading sprite atlas... 0%";
   }
 } catch {
   // Non-DOM harnesses: the atlas fetch below still proceeds.
+}
+// Atlas families stream behind the same loading screen (issue #271):
+// paint the monotonic percent immediately so the `#loading` element
+// carries `%` text from 0% until the loader reaches 100%.
+try {
+  renderLoadingProgress();
+} catch {
+  // Overlay paint never gates boot.
 }
 // Noscript fallback (issue #160): the static "JavaScript is disabled"
 // paragraph renders before any JS runs, so hide it the moment the client
@@ -750,7 +778,52 @@ try {
 // Atlas preload races renderer init behind the same loading screen: the
 // assets/atlas.json fetch fires before the first frame, and the canvas
 // only reveals once both settle (either may fail without hanging boot).
-void Promise.allSettled([createRenderer(canvas), loadAtlas()]).then(
+// Atlas families (issue #271) stream through the same gate: the legacy
+// index plus the per-family characters/tiles/particles/props/pads/UI
+// jsons share LOADER_TOTAL_STEPS with the engine chunk, so
+// window.__scrapline.loadProgress() climbs 0..100 monotonically and the
+// #loading element keeps `%` text plus the progress bar until 100.
+void Promise.allSettled([createRenderer(canvas).then(
+  (r) => {
+    try {
+      advanceLoading(1);
+    } catch {
+      // Progress best-effort only.
+    }
+    return r;
+  },
+  (err) => {
+    try {
+      advanceLoading(1);
+    } catch {
+      // Progress best-effort only.
+    }
+    throw err;
+  },
+), loadAtlas().then(
+  (index) => {
+    try {
+      advanceLoading(1);
+    } catch {
+      // Progress best-effort only.
+    }
+    return index;
+  },
+  (err) => {
+    try {
+      advanceLoading(1);
+    } catch {
+      // Progress best-effort only.
+    }
+    throw err;
+  },
+), loadAtlasFamilies(undefined, () => {
+  try {
+    renderLoadingProgress();
+  } catch {
+    // Overlay paint never gates boot.
+  }
+})]).then(
   ([rendererResult]) => {
     if (rendererResult.status === "fulfilled") {
       const r: Renderer = rendererResult.value;

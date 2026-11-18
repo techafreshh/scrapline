@@ -17,6 +17,11 @@ export default defineConfig({
     // No sourcemaps in the shipped bundle: keeps dist/ small for the
     // <50MB static-hosting budget and server.js routes stable.
     sourcemap: false,
+    // Atlas families stay as separate files behind the loading screen
+    // (issue #271): never inline images/fonts into main.js so the 6 MB
+    // budget gate measures real shipped bytes and the loader streams
+    // characters/tiles/particles/UI families with progress.
+    assetsInlineLimit: 0,
     rollupOptions: {
       output: {
         // Fixed entry name so the server.js /main.js route stays stable

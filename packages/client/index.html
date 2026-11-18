@@ -52,13 +52,25 @@
         position: absolute;
         inset: 0;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        gap: 8px;
         font-size: 18px;
         letter-spacing: 1px;
         color: #7df9ff;
         background: #0b1020;
         z-index: 5;
+      }
+      /* Atlas-family progress bar (issue #271): thin fill under the
+        loading percent, width driven by loading.ts per family. */
+      #loading-bar {
+        width: 0%;
+        max-width: 240px;
+        height: 4px;
+        background: #7df9ff;
+        border-radius: 2px;
+        transition: width 0.2s ease-out;
       }
       #menu {
         position: absolute;
@@ -852,7 +864,7 @@
   <body>
     <div id="stage">
       <canvas id="game"></canvas>
-      <div id="loading">Loading...</div>
+      <div id="loading">Loading... 0%<div id="loading-bar"></div></div>
       <div id="menu">
         <h1>Scrapline</h1>
         <div id="profile-row">

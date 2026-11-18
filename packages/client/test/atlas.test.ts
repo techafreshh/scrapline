@@ -75,10 +75,10 @@ describe("manifest validation", () => {
       isAtlasManifest({
         "soldier.run.3": { file: "characters/soldier_skid.png", atlas: "characters.json", w: 80, h: 110 },
         "tile.kilima.solid": {
-          file: "tiles/platformPack_tile001.png",
+          file: "tiles/tile-kilima-solid.png",
           atlas: "tiles-kilima.json",
-          w: 64,
-          h: 64,
+          w: 18,
+          h: 18,
         },
       }),
     ).toBe(true);

@@ -229,6 +229,8 @@ const MENU_PANEL_IDS: readonly string[] = [
   "setup",
   "settings",
   "howto",
+  "challenges",
+  "locker",
   "end-screen",
 ];
 
@@ -242,6 +244,7 @@ const MENU_BUTTON_IDS: readonly string[] = [
   "challenges-open",
   "locker-open",
   "btn-start",
+  "setup-close",
   "settings-close",
   "howto-close",
   "btn-fullscreen",

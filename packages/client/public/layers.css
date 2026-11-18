@@ -30,10 +30,14 @@
 #setup,
 #settings,
 #howto,
+#challenges,
+#locker,
 #end-screen,
 #stage #setup,
 #stage #settings,
 #stage #howto,
+#stage #challenges,
+#stage #locker,
 #stage #end-screen {
   position: absolute;
   z-index: 20;

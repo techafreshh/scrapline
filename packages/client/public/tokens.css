@@ -10,6 +10,7 @@
   --color-panel: rgba(13, 18, 32, 0.92);
   --color-border: #2a3550;
   --color-cyan: #00E5FF;
+  --accent: #00E5FF; /* Quick Play CTA fill alias (issue #315). */
   --color-warm: #FF6B35;
   --color-text: #e8ecf4;
   --color-muted: #8a94a8;

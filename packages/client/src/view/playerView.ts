@@ -144,11 +144,16 @@ function nodeName(node: PlayerNode): string {
   return node.name;
 }
 
-/** Draw one part descriptor into a Graphics child (Pixi local coords). */
+/** Draw one part descriptor into a Graphics child (Pixi local coords).
+ *  armR bakes two tones: the limb takes `armColor` (team/victim/hurt
+ *  paint, mirroring the canvas `paint`) while the gun segment plus
+ *  muzzle dot take the per-weapon `WEAPON_DEFS` row (mirroring the
+ *  canvas `gun.colorCss` override). */
 function drawPartInto(
   graphics: GraphicsLike,
   partName: PartName,
   weapon: WeaponId = "pistol",
+  armColor: number = 0xffffff,
 ): void {
   const parts = characterParts(false);
   for (const part of parts) {
@@ -168,14 +173,14 @@ function drawPartInto(
       // muzzle dot at the per-weapon length from the pivot.
       graphics.moveTo(part.x1, part.y1);
       graphics.lineTo(part.x2, part.y2);
-      graphics.stroke({ width: part.width, color: 0xffffff });
+      graphics.stroke({ width: part.width, color: armColor });
       if (partName === "armR") {
         const gun = weaponDef(weapon);
         graphics.moveTo(5, 0);
         graphics.lineTo(gun.length, 0);
-        graphics.stroke({ width: gun.width, color: 0xffffff });
+        graphics.stroke({ width: gun.width, color: gun.color });
         graphics.circle(gun.muzzleX, 0, 2);
-        graphics.fill(0xffffff);
+        graphics.fill(gun.color);
       }
     }
   }
@@ -376,14 +381,18 @@ export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
       gfx.tint = tint;
     } else if (gfx.label === "armL" || gfx.label === "armR") {
       gfx.rotation = aim;
-      gfx.tint = tint;
-      if (
-        gfx.label === "armR" &&
-        pose.weapon !== undefined &&
-        typeof gfx.clear === "function"
-      ) {
+      if (gfx.label === "armL") {
+        gfx.tint = tint;
+      } else if (typeof gfx.clear === "function") {
+        // Two-tone armR (issue #283): identity tint shows the baked
+        // colors verbatim — arm in the pose tint, gun in the per-weapon
+        // color — mirroring the canvas paint vs gun.colorCss split.
+        // Clear-less fakes keep the legacy whole-child tint below.
+        gfx.tint = 0xffffff;
         gfx.clear();
-        drawPartInto(gfx, "armR", pose.weapon);
+        drawPartInto(gfx, "armR", pose.weapon ?? "pistol", tint);
+      } else {
+        gfx.tint = tint;
       }
     } else if (gfx.label === "visor") {
       gfx.tint = 0xffffff;

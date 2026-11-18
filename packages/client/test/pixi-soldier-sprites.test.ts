@@ -24,6 +24,8 @@ import {
   type SpriteLike,
 } from "../src/view/playerView";
 import { PART_NAMES, teamColor } from "../src/view/character";
+import { WEAPON_DEFS } from "../src/view/soldier";
+import type { WeaponId } from "../../../core/src/weapons";
 
 function installWindow(): void {
   (globalThis as unknown as Record<string, unknown>)["window"] = {
@@ -57,6 +59,8 @@ class FakeGraphics implements GraphicsLike {
   rotation = 0;
   tint: number | string = 0xffffff;
   visible = true;
+  strokes: (number | undefined)[] = [];
+  fills: (number | undefined)[] = [];
   rect(): unknown {
     return undefined;
   }
@@ -69,13 +73,17 @@ class FakeGraphics implements GraphicsLike {
   lineTo(): unknown {
     return undefined;
   }
-  stroke(): unknown {
+  stroke(style?: { width?: number; color?: number }): unknown {
+    this.strokes.push(style?.color);
     return undefined;
   }
-  fill(): unknown {
+  fill(style?: number | { color?: number }): unknown {
+    this.fills.push(typeof style === "number" ? style : style?.color);
     return undefined;
   }
   clear(): unknown {
+    this.strokes.length = 0;
+    this.fills.length = 0;
     return undefined;
   }
 }
@@ -240,7 +248,14 @@ describe("pixi soldier-card overlay", () => {
     expect(sprite.visible).toBe(false);
     for (const part of graphicsOf(node)) {
       expect(part.visible).toBe(true);
-      if (part.label !== "visor") {
+      if (part.label === "visor") {
+        continue;
+      }
+      if (part.label === "armR") {
+        // Two-tone armR (issue #283): the red arm is baked into the
+        // geometry under an identity tint, so the child reads white.
+        expect(part.tint).toBe(0xffffff);
+      } else {
         expect(part.tint).toBe(0xff0000);
       }
     }
@@ -268,10 +283,71 @@ describe("pixi soldier-card overlay", () => {
       }
       if (child.label === "visor") {
         expect(child.tint).toBe(0xffffff);
+      } else if (child.label === "armR") {
+        // Two-tone armR (issue #283): the recording fake supports
+        // clear, so every sync repaints armR under an identity tint.
+        expect(child.tint).toBe(0xffffff);
       } else {
         expect(child.tint).toBe(teamColor(1));
       }
     }
+  });
+
+  it("bakes the armR gun in the per-weapon color (issue #283)", () => {
+    const weapons: WeaponId[] = [
+      "pistol",
+      "smg",
+      "rifle",
+      "shotgun",
+      "sniper",
+      "rocket",
+    ];
+    const team = teamColor(0);
+    for (const weapon of weapons) {
+      const node = buildPlayerNode(spritePixi(), 0);
+      syncPlayerNode(node, {
+        x: 0,
+        y: 0,
+        scale: 1,
+        aim: 0,
+        colorHex: team,
+        alpha: 1,
+        squash: 1,
+        visible: true,
+        weapon,
+      });
+      const armR = graphicsOf(node).find((part) => part.label === "armR");
+      expect(armR).toBeDefined();
+      // Identity tint: the baked geometry carries both tones verbatim.
+      expect(armR?.tint).toBe(0xffffff);
+      const gun = WEAPON_DEFS[weapon];
+      // Hex and CSS rows of the same WEAPON_DEFS row agree.
+      expect(gun.color).toBe(Number.parseInt(gun.colorCss.slice(1), 16));
+      // Limb stroke in the team paint, gun stroke plus muzzle fill in
+      // the per-weapon color — the canvas gun.colorCss override.
+      expect(armR?.strokes).toEqual([team, gun.color]);
+      expect(armR?.fills).toEqual([gun.color]);
+    }
+    // Hurt flash whitens the baked arm but leaves the gun color alone,
+    // mirroring the canvas path where paint flashes and gun.colorCss
+    // does not.
+    const node = buildPlayerNode(spritePixi(), 0);
+    syncPlayerNode(node, {
+      x: 0,
+      y: 0,
+      scale: 1,
+      aim: 0,
+      colorHex: team,
+      alpha: 1,
+      squash: 1,
+      visible: true,
+      weapon: "rifle",
+      hurtFlash: true,
+    });
+    const armR = graphicsOf(node).find((part) => part.label === "armR");
+    expect(armR?.tint).toBe(0xffffff);
+    expect(armR?.strokes).toEqual([0xffffff, WEAPON_DEFS["rifle"].color]);
+    expect(armR?.fills).toEqual([WEAPON_DEFS["rifle"].color]);
   });
 });
 

@@ -248,7 +248,6 @@ export function setLocalAccent(css: unknown): void {
   try {
     if (isHexPalette(typeof css === "string" ? css.trim() : css)) {
       const key = (css as string).trim();
-      localAccentCss = key.toUpperCase() === key.toLowerCase() ? key : key;
       // Preserve the authored casing for probe equality (upper/lower
       // both compare case-insensitively) while normalizing the hex.
       localAccentCss = key;

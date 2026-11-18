@@ -107,6 +107,37 @@
   max-width: 100%;
   overflow-x: auto;
 }
+/* Map carousel cards (issue #316): fixed-size boxes side by side with a
+  synchronous `selected`-class state (accent border plus slight scale on
+  the selected card, dimmed unselected cards, `Best: N` line per card),
+  changing selection animates via a `transform` transition. Token
+  variables only; the `#stage`-qualified selectors outrank the legacy
+  inline block, and the constant 2px border plus border-box keeps every
+  card box equal while only the transform differentiates. */
+#stage #menu .map-card,
+.map-card {
+  width: 224px;
+  height: 172px;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border: 2px solid var(--color-border);
+  opacity: 0.62;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12);
+  transition: transform 180ms ease-out, border-color 180ms ease-out, opacity 180ms ease-out;
+}
+#stage #menu .map-card.selected,
+.map-card.selected {
+  border-color: var(--color-cyan);
+  opacity: 1;
+  transform: scale(1.05);
+}
+#stage #menu .map-card .map-best,
+.map-card .map-best {
+  font-size: var(--font-label);
+  min-height: var(--spacing-16);
+  color: var(--color-cyan-pale);
+}
 #stage #menu-tip,
 #menu-tip {
   position: absolute;

@@ -11,3 +11,4 @@ __pycache__/
 .factory/
 shots/
 artifacts/
+captures/

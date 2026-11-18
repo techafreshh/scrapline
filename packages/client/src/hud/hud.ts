@@ -4,7 +4,7 @@
 // The sim stays untouched: kill attribution diffs scores/alive flags
 // around stepOnce instead of extending the frozen WorldEvent contract.
 
-import { JETPACK_FUEL_MAX, TICK_HZ } from "../../../core/src/constants";
+import { HEALTH_MAX, JETPACK_FUEL_MAX, TICK_HZ } from "../../../core/src/constants";
 import { standingsFor } from "../../../core/src/match";
 import { updateAmmo } from "../ui/ammo";
 import { buildFeedEntry, pushFeed } from "../ui/feed";
@@ -345,6 +345,7 @@ export interface HudSnapshot {
 export interface HudHandles {
   hud: HTMLElement | null;
   health: HTMLElement | null;
+  hpFill: HTMLElement | null;
   fuel: HTMLElement | null;
   grenades: HTMLElement | null;
   weapon: HTMLElement | null;
@@ -372,6 +373,7 @@ export function buildHud(doc: Document): HudHandles {
   return {
     hud: byId(doc, "hud"),
     health: byId(doc, "hud-health"),
+    hpFill: byId(doc, "hud-hp"),
     fuel: byId(doc, "hud-fuel"),
     grenades: byId(doc, "hud-grenades"),
     weapon: byId(doc, "hud-weapon"),
@@ -408,6 +410,10 @@ export function updateHud(
   if (handles.fuel !== null) {
     const pct = Math.min(100, Math.max(0, (snapshot.fuel / JETPACK_FUEL_MAX) * 100));
     handles.fuel.style.width = `${pct}%`;
+  }
+  if (handles.hpFill !== null && handles.hpFill !== undefined) {
+    const pct = Math.min(100, Math.max(0, (snapshot.hp / HEALTH_MAX) * 100));
+    handles.hpFill.style.width = `${pct}%`;
   }
   if (handles.grenades !== null) {
     setBitmapText(handles.grenades, String(snapshot.grenades));
@@ -468,6 +474,14 @@ export function updateHud(
 export const KILLFEED_FLASH_MS = 700;
 /** Crosshair hitmarker hold in ms (inside the 100-400ms window). */
 export const CROSSHAIR_HIT_MS = 250;
+/** HP damage-flash hold in ms: the bar burns warm, then settles (under 1.5s). */
+export const HP_DAMAGE_FLASH_MS = 800;
+/** Latest damage-flash generation: stale timers never clear a re-armed flash. */
+let hpFlashSeq = 0;
+/** Pending damage-flash removal handle, cleared when damage re-fires. */
+let hpFlashTimer: ReturnType<typeof setTimeout> | null = null;
+/** View owning the pending damage-flash removal handle. */
+let hpFlashView: { clearTimeout?: unknown } | null = null;
 
 /**
  * Append one killfeed line, capping the feed at the last 5 entries.
@@ -543,5 +557,69 @@ export function flashCrosshair(doc: Document, ms: number = CROSSHAIR_HIT_MS): vo
     }, ms);
   } catch {
     // Missing timers in fake docs: the hit class simply stays.
+  }
+}
+
+/**
+ * Flash the HP bar warm for ms milliseconds (default the 800ms damage
+ * window). Null-safe: missing elements or timers are no-ops.
+ * Re-queries #hud-hp on every call so tests can use fake docs;
+ * re-damage re-arms the full window (stale timers never clear early).
+ */
+export function flashHpDamage(doc: Document, ms: number = HP_DAMAGE_FLASH_MS): void {
+  let target: { classList: { add(c: string): void; remove(c: string): void } } | null =
+    null;
+  try {
+    // Duck-typed (not instanceof): unit-test fake docs carry a classList
+    // without a real HTMLElement lineage.
+    const el = doc.getElementById("hud-hp") as unknown as {
+      classList?: { add(c: string): void; remove(c: string): void };
+    } | null;
+    if (
+      el !== null &&
+      el !== undefined &&
+      el.classList !== undefined &&
+      typeof el.classList.add === "function" &&
+      typeof el.classList.remove === "function"
+    ) {
+      target = el as {
+        classList: { add(c: string): void; remove(c: string): void };
+      };
+    }
+  } catch {
+    return;
+  }
+  if (target === null) {
+    return;
+  }
+  hpFlashSeq += 1;
+  const seen = hpFlashSeq;
+  target.classList.add("hurt");
+  try {
+    const view = doc.defaultView;
+    const timer = view?.setTimeout;
+    if (typeof timer !== "function") {
+      return;
+    }
+    try {
+      if (hpFlashTimer !== null && hpFlashView !== null) {
+        const clearer = hpFlashView.clearTimeout;
+        if (typeof clearer === "function") {
+          (clearer as (id: unknown) => void).call(hpFlashView, hpFlashTimer);
+        }
+      }
+    } catch {
+      // Clearing best-effort: the generation guard below still holds.
+    }
+    hpFlashView = view ?? null;
+    hpFlashTimer = timer.call(view, () => {
+      if (seen !== hpFlashSeq) {
+        return;
+      }
+      hpFlashTimer = null;
+      target.classList.remove("hurt");
+    }, ms) as ReturnType<typeof setTimeout>;
+  } catch {
+    // Missing timers in fake docs: the hurt class simply stays.
   }
 }

@@ -190,6 +190,7 @@ export function bindOnline(doc: Document, deps: OnlineBinderDeps = {}): OnlineBi
     hud = {
       hud: null,
       health: null,
+      hpFill: null,
       fuel: null,
       grenades: null,
       weapon: null,

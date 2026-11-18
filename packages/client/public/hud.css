@@ -97,3 +97,30 @@
   color: var(--color-cyan);
   border-color: var(--color-cyan);
 }
+/* HP fill plus damage flash and own-kill highlight (issue #318): the
+  HP bar fills from the success token and flashes the warm token while
+  hurt; the local player's kill-feed entries read cyan with a
+  guaranteed opacity fade. Token variables only — no module-border,
+  stacking, or image rules (issues #317/#270 contracts untouched). */
+#stage .hp-fill,
+.hp-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--color-success);
+  transition: width 0.2s ease-out;
+}
+#stage .hp-fill.hurt,
+.hp-fill.hurt {
+  background-color: var(--color-warm);
+}
+#stage #killfeed .kill-entry,
+#killfeed .kill-entry {
+  transition: opacity 0.5s ease-out;
+}
+#stage #killfeed .kill-entry.own,
+#killfeed .kill-entry.own {
+  color: var(--color-cyan);
+  background: var(--color-chip);
+  border-color: var(--color-cyan);
+}

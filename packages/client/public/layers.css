@@ -1,0 +1,63 @@
+/* Layer stacking authority (issue #313): the single numeric contract for
+  every surface — canvas 0, HUD 10, overlays 20, menu 30, transient chrome
+  above. The `#stage`-qualified selectors outrank the legacy inline style
+  block so this sheet stays authoritative regardless of link order, while
+  the plain-id selectors beside them keep static band scans literal.
+  Full-screen overlay roots carry a no-repeat guard with token scrim or
+  veil fills, never a tiled image. Consumes token variables only. */
+#game,
+#stage #game {
+  position: relative;
+  z-index: 0;
+}
+#hud,
+#ammo-module,
+#killfeed,
+#crosshair,
+#nametags,
+#padlabels,
+#respawn,
+#stage #hud,
+#stage #ammo-module,
+#stage #killfeed,
+#stage #crosshair,
+#stage #nametags,
+#stage #padlabels,
+#stage #respawn {
+  position: absolute;
+  z-index: 10;
+}
+#setup,
+#settings,
+#howto,
+#end-screen,
+#stage #setup,
+#stage #settings,
+#stage #howto,
+#stage #end-screen {
+  position: absolute;
+  z-index: 20;
+  background: var(--color-veil);
+  background-repeat: no-repeat;
+}
+#menu,
+.menu-root,
+#stage #menu,
+body .menu-root {
+  position: absolute;
+  z-index: 30;
+  background: var(--color-scrim);
+  background-repeat: no-repeat;
+}
+#toast,
+#loading,
+#stage #toast,
+#stage #loading {
+  position: absolute;
+  z-index: 40;
+  background-repeat: no-repeat;
+}
+#loading,
+#stage #loading {
+  background: var(--color-bg);
+}

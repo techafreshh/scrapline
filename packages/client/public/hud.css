@@ -1,0 +1,99 @@
+/* HUD module skin (issue #317): one shared translucent-panel module for
+  all four mid-match clusters (HP/fuel status top-left, timer/standings
+  center chip, killfeed top-right, ammo module bottom-right). Translucent
+  token background with alpha below 1.0, 2px token border on all four
+  sides, token radius/padding, and a cyan accent bar. Consumes token
+  variables only — no raw colors, no background images, no stacking
+  overrides (the layers.css band contract stays authoritative). The
+  `#stage`-qualified selectors outrank the legacy inline style block
+  (the layers.css/menu.css idiom) while the bare selectors keep static
+  scans literal. */
+.hud-module {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-panel);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-8);
+  color: var(--color-text);
+  text-shadow: var(--shadow-text);
+  pointer-events: none;
+}
+.hud-module::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--spacing-8);
+  right: var(--spacing-8);
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--color-cyan);
+  pointer-events: none;
+}
+#stage #hud-status.hud-module,
+#hud-status.hud-module {
+  flex-direction: row;
+  flex-wrap: wrap;
+  background: var(--color-panel);
+  border: 2px solid var(--color-border);
+}
+#stage #hud-center.hud-module,
+#hud-center.hud-module {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  flex-direction: row;
+  background: var(--color-panel);
+  border: 2px solid var(--color-border);
+  white-space: nowrap;
+}
+#stage #killfeed.hud-module,
+#killfeed.hud-module {
+  position: absolute;
+  top: var(--spacing-8);
+  right: var(--spacing-8);
+  bottom: auto;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  background: var(--color-panel);
+  border: 2px solid var(--color-border);
+}
+#stage #ammo-module.hud-module,
+#ammo-module.hud-module {
+  position: absolute;
+  right: var(--spacing-12);
+  bottom: var(--spacing-12);
+  flex-direction: row;
+  background: var(--color-panel);
+  border: 2px solid var(--color-border);
+}
+#stage #ammo-name.ammo-weapon,
+#ammo-name.ammo-weapon {
+  font-size: var(--font-label);
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: var(--color-cyan);
+  white-space: nowrap;
+}
+#stage #ammo-pips .pip.grenade-pip,
+#ammo-pips .pip.grenade-pip {
+  color: var(--color-cyan);
+  border-color: var(--color-cyan);
+}
+#stage #ammo-pips .pip.grenade-pip.filled,
+#ammo-pips .pip.grenade-pip.filled {
+  background-color: var(--color-cyan);
+  color: var(--color-cyan);
+  border-color: var(--color-cyan);
+}
+#stage #ammo-pips .pip.grenade-pip.empty,
+#ammo-pips .pip.grenade-pip.empty {
+  background-color: transparent;
+  color: var(--color-cyan);
+  border-color: var(--color-cyan);
+}

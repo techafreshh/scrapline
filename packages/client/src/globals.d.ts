@@ -86,6 +86,8 @@ declare global {
         frame?: string;
         /** Equipped weapon id (additive; defaults sensibly pre-draw). */
         weapon?: string;
+        /** Live pack-sprite texture (`soldier.*` / `<set>.*`, additive; issue #281). */
+        texture?: string;
       }[];
       /** Named sprite parts per player node (>= 6). */
       spritePartCount: number;

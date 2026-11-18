@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "build:atlas": "node tools/build-atlas.js",
+    "check:budget": "node tools/check-budget.js",
     "build:client": "npm run build --workspace=@scrapline/client",
     "dev": "npm run build:client && node server.js",
     "start": "node scripts/start-combined.js",

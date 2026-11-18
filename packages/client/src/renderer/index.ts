@@ -64,6 +64,7 @@ import {
 } from "../fx/filters";
 import { loadQuality, parseQuality } from "../settings";
 import type { SetupStorage } from "../setup";
+import { fpsAvg as loadingFpsAvg, loadProgress as loadingProgress, recordFpsSample } from "../loading";
 import { FX_EMITTER_CAPS } from "../fx/particles-config";
 import type { FxEmitters } from "../fx/emitters";
 import {
@@ -1518,6 +1519,10 @@ function publishSoldierSpriteProbes(
           padGlowAlpha,
           padGlow: padGlowAlpha,
           glowAlpha: padGlowAlpha,
+          // Atlas-family loader progress + fps guardrail (issue #271):
+          // re-seeded when the pre-draw mirror never ran.
+          loadProgress: loadingProgress,
+          fpsAvg: loadingFpsAvg,
         };
       } else {
         existing["debugFrame"] = debugFrame;
@@ -3499,6 +3504,31 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       }
     }
     lastNow = now;
+    // Fps guardrail probe (issue #271): feed every draw into the
+    // loading-module ring so window.__scrapline.fpsAvg(10) averages
+    // real per-draw samples; re-pin the hook when shorn harnesses
+    // wiped it. Never throws, never gates the frame.
+    try {
+      recordFpsSample(fpsEma);
+    } catch {
+      // Sampling best-effort only.
+    }
+    try {
+      if (typeof window !== "undefined") {
+        const scope = window as unknown as Record<string, unknown>;
+        const hook = scope["__scrapline"] as Record<string, unknown> | undefined;
+        if (hook !== undefined && hook !== null && typeof hook === "object") {
+          if (hook["loadProgress"] === undefined) {
+            hook["loadProgress"] = loadingProgress;
+          }
+          if (hook["fpsAvg"] === undefined) {
+            hook["fpsAvg"] = loadingFpsAvg;
+          }
+        }
+      }
+    } catch {
+      // Hook repair best-effort only.
+    }
     const animInputs: AnimInput[] = frame.players.map((p) => ({
       vx: p.vx,
       vy: p.vy,

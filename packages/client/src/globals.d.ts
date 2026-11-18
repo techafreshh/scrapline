@@ -56,6 +56,10 @@ declare global {
        *  explosion flash/smoke/debris, trail, death, pickup, and the
        *  last wall surface tint. Read per call from the latest draw. */
       emitterCounts?: () => Record<string, number | string>;
+      /** Atlas-family loader progress 0..100, monotonic (issue #271). */
+      loadProgress?: () => number;
+      /** Average fps over the trailing window (default 10s, issue #271). */
+      fpsAvg?: (windowSeconds?: unknown) => number;
     };
     __scraplineFonts?: {
       displayFamily: string;

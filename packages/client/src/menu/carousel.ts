@@ -70,6 +70,203 @@ export function parseCarouselMap(value: unknown): SetupMap {
   return DEFAULT_SETUP.map;
 }
 
+/** localStorage keys for the per-map best (max local kills). */
+export const BEST_KEYS = {
+  /** Canonical sparse JSON object (`{ kilima, dune, frostbite }`). */
+  canonical: "scrapline.best.v1",
+  /** Legacy JSON object tolerated on read (never written). */
+  legacy: "scrapline.best",
+  /** Per-map numeric-string fallback tolerated on read. */
+  perMap: (map: SetupMap): string => `scrapline.best.${map}`,
+} as const;
+
+/**
+ * Normalize an unknown best-score value: finite numbers (and numeric
+ * strings) floor to a non-negative int; anything else reads null so
+ * corrupt storage falls back to an absent best line. Never throws.
+ */
+export function parseBestScore(value: unknown): number | null {
+  try {
+    if (typeof value === "number") {
+      if (!Number.isFinite(value)) {
+        return null;
+      }
+      const floored = Math.floor(value);
+      return floored >= 0 ? floored : null;
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed === "") {
+        return null;
+      }
+      const parsed = Number(trimmed);
+      if (!Number.isFinite(parsed)) {
+        return null;
+      }
+      const floored = Math.floor(parsed);
+      return floored >= 0 ? floored : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Null-safe storage read for the best-score keys. */
+function bestStorageGet(
+  storage: SetupStorage | null | undefined,
+  key: string,
+): string | null {
+  if (storage === null || storage === undefined) {
+    return null;
+  }
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** Tolerantly merge one JSON best object, keeping valid per-map ints. */
+function readBestJson(
+  raw: string | null,
+  into: Record<SetupMap, number | null>,
+): void {
+  if (raw === null || raw.trim() === "") {
+    return;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (typeof parsed !== "object" || parsed === null) {
+      return;
+    }
+    const record = parsed as Record<string, unknown>;
+    for (const map of MAP_LIST) {
+      const candidate = parseBestScore(record[map]);
+      if (candidate !== null) {
+        into[map] = candidate;
+      }
+    }
+  } catch {
+    // Corrupt JSON: previously merged sources stand.
+  }
+}
+
+/**
+ * Load every map's best (max local kills): canonical JSON first, then
+ * the legacy JSON object, then per-map numeric strings (later valid
+ * sources win). Missing or corrupt values read null. Never throws.
+ */
+export function loadBestScores(
+  storage: SetupStorage | null | undefined,
+): Record<SetupMap, number | null> {
+  const bests: Record<SetupMap, number | null> = {
+    kilima: null,
+    dune: null,
+    frostbite: null,
+  };
+  try {
+    readBestJson(bestStorageGet(storage, BEST_KEYS.canonical), bests);
+    readBestJson(bestStorageGet(storage, BEST_KEYS.legacy), bests);
+    for (const map of MAP_LIST) {
+      const raw = bestStorageGet(storage, BEST_KEYS.perMap(map));
+      if (raw === null) {
+        continue;
+      }
+      const candidate = parseBestScore(raw);
+      if (candidate !== null) {
+        bests[map] = candidate;
+      }
+    }
+  } catch {
+    // Storage unreadable: absent bests stand.
+  }
+  return bests;
+}
+
+/**
+ * Load one map's best; unknown maps read null (never the kilima
+ * fallback: an unreadable map must not borrow another arena's best).
+ */
+export function loadBestScore(
+  storage: SetupStorage | null | undefined,
+  map: unknown,
+): number | null {
+  try {
+    if (typeof map !== "string") {
+      return null;
+    }
+    const key = map.trim().toLowerCase();
+    if (!(MAP_LIST as readonly string[]).includes(key)) {
+      return null;
+    }
+    return loadBestScores(storage)[key as SetupMap] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Record a local-kill best, keeping the max across calls and persisting
+ * the sparse canonical JSON. Corrupt scores and unknown maps are
+ * no-ops returning the current best (or null). Never throws.
+ */
+export function recordBestScore(
+  storage: SetupStorage | null | undefined,
+  map: unknown,
+  score: unknown,
+): number | null {
+  try {
+    if (typeof map !== "string") {
+      return null;
+    }
+    const key = map.trim().toLowerCase();
+    if (!(MAP_LIST as readonly string[]).includes(key)) {
+      return null;
+    }
+    const normalized = key as SetupMap;
+    const next = parseBestScore(score);
+    const current = loadBestScore(storage, normalized);
+    if (next === null) {
+      return current;
+    }
+    const best = current === null ? next : Math.max(current, next);
+    if (storage === null || storage === undefined) {
+      return best;
+    }
+    try {
+      const merged = loadBestScores(storage);
+      merged[normalized] = best;
+      const sparse: Record<string, number> = {};
+      for (const name of MAP_LIST) {
+        const value = merged[name];
+        if (value !== null) {
+          sparse[name] = value;
+        }
+      }
+      try {
+        storage.setItem(BEST_KEYS.canonical, JSON.stringify(sparse));
+      } catch {
+        // Private-mode storage: the returned best still stands.
+      }
+    } catch {
+      // Merge/write best-effort only.
+    }
+    return best;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Exact card best line: `Best: N` for a valid score, empty when absent
+ * (the card keeps a reserved empty line so heights stay equal).
+ */
+export function formatBestLine(score: unknown): string {
+  const parsed = parseBestScore(score);
+  return parsed === null ? "" : `Best: ${parsed}`;
+}
+
 /**
  * Live carousel config: the pressed card wins, otherwise the stored
  * setup. Tolerantly normalized, never throws.
@@ -288,6 +485,222 @@ function cardMap(card: unknown): SetupMap | null {
 }
 
 /**
+ * Sync the `selected` class tolerant of fake-doc surfaces: real buttons
+ * take the classList path while shorn docs fall back to the `class`
+ * attribute (backfilling `map-card` so heights stay stable). Never throws.
+ */
+function syncCardSelected(card: unknown, active: boolean): void {
+  try {
+    const list = (card as { classList?: unknown }).classList as
+      | { add?: unknown; remove?: unknown }
+      | undefined;
+    if (
+      list !== undefined &&
+      list !== null &&
+      typeof list.add === "function" &&
+      typeof list.remove === "function"
+    ) {
+      try {
+        if (active) {
+          (list.add as (name: string) => void).call(list, "selected");
+        } else {
+          (list.remove as (name: string) => void).call(list, "selected");
+        }
+      } catch {
+        // classList best-effort: the attribute fallback below lands.
+      }
+    }
+  } catch {
+    // Shorn classList: the attribute fallback below lands.
+  }
+  try {
+    const attr = asAttr(card);
+    if (attr === null) {
+      return;
+    }
+    let current: string | null = null;
+    try {
+      current = attr.getAttribute("class");
+    } catch {
+      current = null;
+    }
+    const parts =
+      typeof current === "string" && current.length > 0
+        ? current.split(/\s+/).filter((part) => part.length > 0)
+        : [];
+    if (!parts.includes("map-card")) {
+      parts.unshift("map-card");
+    }
+    const has = parts.includes("selected");
+    if (active && !has) {
+      parts.push("selected");
+    } else if (!active && has) {
+      const kept = parts.filter((part) => part !== "selected");
+      parts.length = 0;
+      for (const part of kept) {
+        parts.push(part);
+      }
+    }
+    const text = parts.join(" ");
+    try {
+      if (text !== (current ?? "")) {
+        attr.setAttribute("class", text);
+      } else if (typeof current !== "string") {
+        attr.setAttribute("class", text);
+      }
+    } catch {
+      // Class sync best-effort only.
+    }
+  } catch {
+    // Class-attribute sync best-effort only.
+  }
+}
+
+/** Find the card's `.map-best` line (null when absent). */
+function findBestSpan(card: unknown): unknown | null {
+  if (typeof card !== "object" || card === null) {
+    return null;
+  }
+  try {
+    const query = (card as { querySelector?: unknown }).querySelector;
+    if (typeof query === "function") {
+      try {
+        const found = (query as (sel: string) => unknown).call(
+          card,
+          ".map-best",
+        );
+        if (found !== null && typeof found === "object") {
+          return found;
+        }
+      } catch {
+        // Selector shorn: scan children below.
+      }
+    }
+  } catch {
+    // querySelector shorn: scan children below.
+  }
+  try {
+    const kids = (card as { children?: unknown }).children;
+    if (kids !== null && typeof kids === "object") {
+      const list = kids as ArrayLike<unknown>;
+      if (typeof list.length === "number") {
+        for (let i = 0; i < list.length; i += 1) {
+          const kid = list[i];
+          if (typeof kid !== "object" || kid === null) {
+            continue;
+          }
+          try {
+            const get = (kid as { getAttribute?: unknown }).getAttribute;
+            if (typeof get === "function") {
+              const cls = (get as (name: string) => unknown).call(
+                kid,
+                "class",
+              );
+              if (
+                typeof cls === "string" &&
+                cls.split(/\s+/).includes("map-best")
+              ) {
+                return kid;
+              }
+            }
+          } catch {
+            // Unreadable child: keep scanning.
+          }
+          try {
+            const name = (kid as { className?: unknown }).className;
+            if (
+              typeof name === "string" &&
+              name.split(/\s+/).includes("map-best")
+            ) {
+              return kid;
+            }
+          } catch {
+            // Unreadable child: keep scanning.
+          }
+        }
+      }
+    }
+  } catch {
+    // Children unreadable: no best line.
+  }
+  return null;
+}
+
+/**
+ * Repaint every card's `.map-best` line from storage (`Best: N` or empty
+ * when absent), creating missing lines best-effort so static skeletons
+ * without the span still converge. Never throws.
+ */
+export function refreshBestLines(
+  doc: Document,
+  storage: SetupStorage | null | undefined,
+): void {
+  try {
+    const bests = loadBestScores(storage);
+    for (const card of carouselCards(doc)) {
+      try {
+        const map = cardMap(card);
+        if (map === null) {
+          continue;
+        }
+        const text = formatBestLine(bests[map]);
+        const span = findBestSpan(card);
+        if (span !== null && typeof span === "object") {
+          try {
+            if ("textContent" in (span as object)) {
+              (span as { textContent?: unknown }).textContent = text;
+            }
+          } catch {
+            // One unreadable line never blocks the rest.
+          }
+          continue;
+        }
+        try {
+          const api = doc as unknown as { createElement?: unknown };
+          if (typeof api.createElement !== "function") {
+            continue;
+          }
+          const made = (api.createElement as (tag: string) => unknown).call(
+            doc,
+            "span",
+          );
+          if (made === null || typeof made !== "object") {
+            continue;
+          }
+          try {
+            const setAttr = (
+              made as { setAttribute?: (name: string, value: string) => void }
+            ).setAttribute;
+            if (typeof setAttr === "function") {
+              setAttr.call(made, "class", "map-best");
+            }
+          } catch {
+            // Best-line class best-effort only.
+          }
+          if ("textContent" in made) {
+            (made as { textContent?: unknown }).textContent = text;
+          }
+          try {
+            const appender = (card as { appendChild?: unknown }).appendChild;
+            if (typeof appender === "function") {
+              (appender as (kid: unknown) => void).call(card, made);
+            }
+          } catch {
+            // Best line optional: the name still selects.
+          }
+        } catch {
+          // Missing-line backfill best-effort only.
+        }
+      } catch {
+        // One bad card never blocks the rest.
+      }
+    }
+  } catch {
+    // Shorn document: boot continues without best lines.
+  }
+}
+
+/**
  * Ensure the carousel container exists inside #menu with one card per
  * arena. Each card is a `<button class="map-card" data-map-card>`
  * holding a `<canvas class="map-thumb" width height>` plus a
@@ -345,6 +758,7 @@ export function ensureCarousel(doc: Document): unknown {
         if (typeof setAttr === "function") {
           setAttr.call(card, CARD_ATTR, map);
           setAttr.call(card, "aria-pressed", "false");
+          setAttr.call(card, "aria-selected", "false");
           setAttr.call(card, "class", "map-card");
           setAttr.call(card, "role", "option");
           setAttr.call(card, "type", "button");
@@ -399,6 +813,30 @@ export function ensureCarousel(doc: Document): unknown {
           }
         } catch {
           // Label optional: the card still selects.
+        }
+      }
+      const best = make.call(doc, "span");
+      if (best !== null && typeof best === "object") {
+        try {
+          const setAttr = (
+            best as { setAttribute?: (name: string, value: string) => void }
+          ).setAttribute;
+          if (typeof setAttr === "function") {
+            setAttr.call(best, "class", "map-best");
+          }
+        } catch {
+          // Best-line class best-effort only.
+        }
+        if ("textContent" in best) {
+          (best as { textContent?: unknown }).textContent = "";
+        }
+        try {
+          const appender = (card as { appendChild?: unknown }).appendChild;
+          if (typeof appender === "function") {
+            (appender as (kid: unknown) => void).call(card, best);
+          }
+        } catch {
+          // Best line optional: the name still selects.
         }
       }
       try {
@@ -555,6 +993,7 @@ export function selectCarouselMap(
       const active = cardMap(card) === normalized;
       try {
         attr.setAttribute("aria-pressed", active ? "true" : "false");
+        attr.setAttribute("aria-selected", active ? "true" : "false");
         if (active) {
           attr.setAttribute("data-active", "true");
         } else {
@@ -563,6 +1002,7 @@ export function selectCarouselMap(
       } catch {
         // One unreadable card never blocks the rest.
       }
+      syncCardSelected(card, active);
     }
   } catch {
     // Card sync best-effort only.
@@ -666,6 +1106,11 @@ export function bindCarousel(
       } catch {
         // Pressed-state sync best-effort only.
       }
+      try {
+        refreshBestLines(doc, storage);
+      } catch {
+        // Best-line repaint best-effort only.
+      }
       return { ...live };
     } catch {
       return { ...binder.config };
@@ -676,6 +1121,7 @@ export function bindCarousel(
     // pressed state): a stored non-default map must survive reload.
     binder.config = loadSetup(storage);
     selectCarouselMap(doc, storage, binder.config.map);
+    refreshBestLines(doc, storage);
   } catch {
     // Stored-selection paint best-effort only.
   }

@@ -86,7 +86,7 @@ import {
   showOnly,
 } from "./ui/layers";
 import { bindOnline } from "./net/online";
-import { bindCarousel } from "./menu/carousel";
+import { bindCarousel, recordBestScore } from "./menu/carousel";
 import { bindMenuTips } from "./menu/tips";
 import {
   ensureAudioOnGesture,
@@ -1184,6 +1184,13 @@ function stepOnce(): string[] {
         bankChallengeXp(store);
       } catch {
         // Challenge banking best-effort: the end screen still shows.
+      }
+      // Map best (issue #316): persist the local player's max kills for
+      // the running arena so the carousel repaint shows `Best: N`.
+      try {
+        recordBestScore(storage, matchConfig.map, localKills);
+      } catch {
+        // Best-score persistence best-effort: the end screen still shows.
       }
     } catch {
       // Progression best-effort: the end screen still shows.

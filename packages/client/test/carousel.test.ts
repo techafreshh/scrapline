@@ -7,6 +7,7 @@ import { THEMES, themeFor } from "../src/view/theme";
 import { tilePaintFor } from "../src/view/tiles";
 import { MAP_LIST, loadSetup, saveSetup, type SetupStorage } from "../src/setup";
 import {
+  BEST_KEYS,
   CAROUSEL_ID,
   CAROUSEL_MAPS,
   THUMB_H,
@@ -14,9 +15,15 @@ import {
   bindCarousel,
   carouselConfigFor,
   ensureCarousel,
+  formatBestLine,
+  loadBestScore,
+  loadBestScores,
   paintAllThumbnails,
   paintMapThumbnail,
+  parseBestScore,
   parseCarouselMap,
+  recordBestScore,
+  refreshBestLines,
   selectCarouselMap,
 } from "../src/menu/carousel";
 
@@ -289,11 +296,10 @@ function makeDoc(opts?: FakeDocOpts): { doc: unknown; els: Record<string, FakeEl
     for (const name of MAP_LIST) {
       const card = makeEl("button");
       card.setAttribute("data-map-card", name);
-      card.setAttribute(
-        "aria-pressed",
-        name === legacyPressed ? "true" : "false",
-      );
-      card.setAttribute("class", "map-card");
+      const pressed = name === legacyPressed;
+      card.setAttribute("aria-pressed", pressed ? "true" : "false");
+      card.setAttribute("aria-selected", pressed ? "true" : "false");
+      card.setAttribute("class", pressed ? "map-card selected" : "map-card");
       const thumb = makeEl("canvas");
       thumb.setAttribute("class", "map-thumb");
       thumb.width = THUMB_W;
@@ -303,13 +309,34 @@ function makeDoc(opts?: FakeDocOpts): { doc: unknown; els: Record<string, FakeEl
       }
       card.appendChild(thumb);
       const label = makeEl("span");
+      label.setAttribute("class", "map-name");
       label.textContent = name;
       card.appendChild(label);
+      const best = makeEl("span");
+      best.setAttribute("class", "map-best");
+      best.textContent = "";
+      card.appendChild(best);
       container.appendChild(card);
     }
     menu.appendChild(container);
   }
   return { doc, els };
+}
+
+/** Card class tokens via the class-attr fallback (no classList in fakes). */
+function cardClasses(card: FakeEl): string[] {
+  const raw = card.getAttribute("class") ?? "";
+  return raw.split(/\s+/).filter((part) => part.length > 0);
+}
+
+/** Find a card's `.map-best` line by scanning children (no span selectors). */
+function cardBest(card: FakeEl): FakeEl | null {
+  for (const kid of card.children) {
+    if (kid.getAttribute("class") === "map-best") {
+      return kid;
+    }
+  }
+  return null;
 }
 
 describe("carousel constants", () => {
@@ -539,5 +566,138 @@ describe("bindCarousel", () => {
       nullContext: true,
     });
     expect(() => bindCarousel(nullDoc as Document, storage)).not.toThrow();
+  });
+});
+
+describe("carousel selected state", () => {
+  it("clicking the second card selects only it (class-attr fallback)", () => {
+    const { doc } = makeDoc({ withSkeleton: true });
+    const storage = fakeStorage();
+    bindCarousel(doc as Document, storage);
+    const cards = (doc as { querySelectorAll(sel: string): FakeEl[] }).querySelectorAll(
+      "[data-map-card]",
+    );
+    cards[1]?.click();
+    expect(cards[1]?.getAttribute("aria-selected")).toBe("true");
+    expect(cards[0]?.getAttribute("aria-selected")).toBe("false");
+    expect(cards[2]?.getAttribute("aria-selected")).toBe("false");
+    for (const [index, card] of cards.entries()) {
+      const classes = cardClasses(card as FakeEl);
+      expect(classes.includes("map-card")).toBe(true);
+      expect(classes.includes("selected")).toBe(index === 1);
+    }
+  });
+
+  it("selectCarouselMap syncs the selected class exclusively", () => {
+    const { doc } = makeDoc({ withSkeleton: true });
+    const storage = fakeStorage();
+    selectCarouselMap(doc as Document, storage, "frostbite");
+    const cards = (doc as { querySelectorAll(sel: string): FakeEl[] }).querySelectorAll(
+      "[data-map-card]",
+    );
+    for (const card of cards) {
+      const active = card.getAttribute("data-map-card") === "frostbite";
+      expect(cardClasses(card as FakeEl).includes("selected")).toBe(active);
+    }
+  });
+
+  it("binder boot repaints the stored selection as selected", () => {
+    const { doc } = makeDoc({ withSkeleton: true, legacyPressed: "kilima" });
+    const storage = fakeStorage();
+    saveSetup(storage, { ...loadSetup(storage), map: "dune" });
+    bindCarousel(doc as Document, storage);
+    const cards = (doc as { querySelectorAll(sel: string): FakeEl[] }).querySelectorAll(
+      "[data-map-card]",
+    );
+    for (const card of cards) {
+      const active = card.getAttribute("data-map-card") === "dune";
+      expect(cardClasses(card as FakeEl).includes("selected")).toBe(active);
+    }
+  });
+});
+
+describe("carousel best scores", () => {
+  it("parses finite numbers and numeric strings, rejecting corrupt values", () => {
+    expect(parseBestScore(7)).toBe(7);
+    expect(parseBestScore(7.9)).toBe(7);
+    expect(parseBestScore(" 12 ")).toBe(12);
+    expect(parseBestScore(-1)).toBeNull();
+    expect(parseBestScore(Number.NaN)).toBeNull();
+    expect(parseBestScore("many")).toBeNull();
+    expect(parseBestScore("")).toBeNull();
+    expect(parseBestScore(null)).toBeNull();
+  });
+
+  it("formats the exact `Best: N` line, empty when absent", () => {
+    expect(formatBestLine(25)).toBe("Best: 25");
+    expect(formatBestLine("3")).toBe("Best: 3");
+    expect(formatBestLine(null)).toBe("");
+    expect(formatBestLine("corrupt")).toBe("");
+  });
+
+  it("recordBestScore keeps the max and persists canonical JSON", () => {
+    const storage = fakeStorage();
+    expect(recordBestScore(storage, "dune", 5)).toBe(5);
+    expect(recordBestScore(storage, "dune", 3)).toBe(5);
+    expect(recordBestScore(storage, "dune", 9)).toBe(9);
+    expect(loadBestScore(storage, "dune")).toBe(9);
+    expect(loadBestScore(storage, "kilima")).toBeNull();
+    const raw = JSON.parse(
+      (storage.getItem(BEST_KEYS.canonical) ?? "{}") as string,
+    ) as Record<string, number>;
+    expect(raw["dune"]).toBe(9);
+  });
+
+  it("tolerates corrupt canonical and legacy JSON plus per-map strings", () => {
+    const storage = fakeStorage();
+    storage.setItem(BEST_KEYS.canonical, "{not json");
+    storage.setItem(BEST_KEYS.legacy, JSON.stringify({ frostbite: 4 }));
+    storage.setItem(BEST_KEYS.perMap("kilima"), "6");
+    storage.setItem(BEST_KEYS.perMap("dune"), "bogus");
+    const bests = loadBestScores(storage);
+    expect(bests).toEqual({ kilima: 6, dune: null, frostbite: 4 });
+    expect(loadBestScore(storage, "unknown-arena")).toBeNull();
+    expect(recordBestScore(storage, "unknown-arena", 3)).toBeNull();
+    expect(() => loadBestScores(null)).not.toThrow();
+  });
+
+  it("renders stored bests as `Best: <digits>` and reserves empty lines", () => {
+    const { doc } = makeDoc({ withSkeleton: true });
+    const storage = fakeStorage();
+    recordBestScore(storage, "dune", 25);
+    refreshBestLines(doc as Document, storage);
+    const cards = (doc as { querySelectorAll(sel: string): FakeEl[] }).querySelectorAll(
+      "[data-map-card]",
+    );
+    for (const card of cards) {
+      const line = cardBest(card as FakeEl)?.textContent ?? null;
+      if (card.getAttribute("data-map-card") === "dune") {
+        expect(line).toMatch(/^Best: \d+$/);
+      } else {
+        expect(line).toBe("");
+      }
+    }
+    // Refresh repaints storage changes without rebinding.
+    recordBestScore(storage, "kilima", 11);
+    const binder = bindCarousel(doc as Document, storage);
+    expect(() => binder.refresh()).not.toThrow();
+    const kilima = (
+      doc as { querySelector(sel: string): FakeEl | null }
+    ).querySelector('[data-map-card="kilima"]');
+    expect(kilima === null ? null : cardBest(kilima)?.textContent).toBe(
+      "Best: 11",
+    );
+  });
+
+  it("ensureCarousel builds a `.map-best` line per card", () => {
+    const { doc } = makeDoc();
+    ensureCarousel(doc as Document);
+    const cards = (doc as { querySelectorAll(sel: string): FakeEl[] }).querySelectorAll(
+      "[data-map-card]",
+    );
+    expect(cards).toHaveLength(3);
+    for (const card of cards) {
+      expect(cardBest(card as FakeEl)).not.toBeNull();
+    }
   });
 });

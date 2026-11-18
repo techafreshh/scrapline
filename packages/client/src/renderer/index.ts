@@ -154,6 +154,7 @@ import {
 import {
   ARM_PIVOT,
   CHARACTER_H,
+  CHARACTER_W,
   CROUCH_SQUASH,
   VISOR_CSS,
   characterParts,
@@ -2547,7 +2548,7 @@ function ensurePlayerNodes(
  * path then materializes the tinted card into a GPU texture in
  * syncPlayerSpriteTextures. Never throws.
  */
-function syncFramePlayers(
+export function syncFramePlayers(
   store: PlayerNode[],
   frame: Frame,
   cam: Camera,
@@ -2655,15 +2656,53 @@ function pixiTextureForCard(pixiMod: unknown, cacheKey: string, card: unknown): 
 }
 
 /**
+ * Set the vector body under the soldier-card overlay (issue #281).
+ * A decode/upload miss restores every part: canvas2d keeps vector
+ * paint until spritePainted is true, so without this the intent-hide in
+ * syncPlayerNode would leave floating arms over the hidden overlay. A
+ * confirmed upload hides everything but the aim-rotated arms, mirroring
+ * the spriteLive branch in syncPlayerNode so repeat runs after a miss
+ * restore converge back to card paint. Never throws.
+ */
+function setVectorBodyVisible(
+  children: Array<Record<string, unknown>>,
+  cardLive: boolean,
+): void {
+  try {
+    for (const child of children) {
+      if (child === null || typeof child !== "object") {
+        continue;
+      }
+      if (child["label"] === "soldierSprite" || "textureKey" in child) {
+        continue;
+      }
+      try {
+        if (cardLive) {
+          child["visible"] =
+            child["label"] === "armL" || child["label"] === "armR";
+        } else {
+          child["visible"] = true;
+        }
+      } catch {
+        // Shorn child: leave it as posed.
+      }
+    }
+  } catch {
+    // Best-effort only: vectors already cover every frame.
+  }
+}
+
+/**
  * Materialize the posed soldier cards into GPU textures (issue #281).
  * syncFramePlayers records the live manifest key on each node's overlay
  * child; this pass uploads the matching tintedSoldierFor canvas (the
  * exact card drawCharacter2D paints on canvas2d) and sizes it to the
- * player box in local px. A missing decode keeps the overlay hidden so
- * the vector fallback covers the frame; victim flashes already nulled
- * the key in syncFramePlayers so the red vector reads. Never throws.
+ * authored box in local px. A missing decode keeps the overlay hidden
+ * and restores the vector body so the vector fallback covers the frame;
+ * victim flashes already nulled the key in syncFramePlayers so the red
+ * vector reads. Never throws.
  */
-function syncPlayerSpriteTextures(
+export function syncPlayerSpriteTextures(
   pixiMod: unknown,
   store: PlayerNode[],
   frame: Frame,
@@ -2709,6 +2748,9 @@ function syncPlayerSpriteTextures(
         } catch {
           // Shorn node: the vector fallback stays.
         }
+        // Decode miss: the card never materialized, so restore the full
+        // vector body (canvas2d keeps vectors until spritePainted).
+        setVectorBodyVisible(children, false);
         continue;
       }
       const cacheKey = `${textureKey}|${p.index}|${hurt ? "hurt" : "tint"}`;
@@ -2719,14 +2761,19 @@ function syncPlayerSpriteTextures(
         } catch {
           // Shorn node: the vector fallback stays.
         }
+        // Upload miss: same restore, the GPU never got the card.
+        setVectorBodyVisible(children, false);
         continue;
       }
       try {
         sprite["texture"] = texture;
         sprite["visible"] = true;
         sprite["tint"] = 0xffffff;
-        sprite["width"] = p.w;
-        sprite["height"] = p.h;
+        // Unsquashed authored box: the container squash
+        // (p.h/CHARACTER_H in syncFramePlayers) applies the crouch, so
+        // sizing to p.h here would squash twice (~31% short crouching).
+        sprite["width"] = CHARACTER_W;
+        sprite["height"] = CHARACTER_H;
         const position = sprite["position"] as
           | { set?: (x: number, y: number) => void }
           | undefined;
@@ -2735,7 +2782,12 @@ function syncPlayerSpriteTextures(
         }
       } catch {
         // Shorn sprite: the vector fallback stays.
+        setVectorBodyVisible(children, false);
+        continue;
       }
+      // Confirmed upload: hide the vector body under the card (arms
+      // stay above it), converging repeat runs after a miss restore.
+      setVectorBodyVisible(children, true);
     }
   } catch {
     // Overlay best-effort only: vectors already cover every frame.

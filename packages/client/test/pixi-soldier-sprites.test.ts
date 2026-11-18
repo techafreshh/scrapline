@@ -6,6 +6,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createCamera } from "../src/renderer/camera";
+import {
+  syncFramePlayers,
+  syncPlayerSpriteTextures,
+  type Frame,
+} from "../src/renderer/index";
+import type { AnimPose } from "../src/view/anim";
+import { CHARACTER_H, CHARACTER_W } from "../src/view/character";
 import {
   buildPlayerNode,
   publishGameProbes,
@@ -267,6 +275,109 @@ describe("pixi soldier-card overlay", () => {
   });
 });
 
+describe("pixi decode-miss fallback (issue #281)", () => {
+  function makeAnim(over: Partial<AnimPose> = {}): AnimPose {
+    return {
+      legPhase: 0,
+      swing: 0,
+      tuck: false,
+      heightScale: 1,
+      hurtFlash: false,
+      spawnAlpha: 1,
+      deadPose: false,
+      flame: false,
+      gaitBlend: 1,
+      airBlend: 0,
+      crouchWeight: 0,
+      aimSmoothed: 0,
+      landSquash: 1,
+      spawnEase: 1,
+      deathEase: 1,
+      ...over,
+    };
+  }
+
+  function makeFrame(): Frame {
+    return {
+      tick: 7,
+      players: [
+        {
+          index: 0,
+          x: 100,
+          y: 100,
+          w: CHARACTER_W,
+          h: CHARACTER_H,
+          aim: 0,
+          alive: true,
+          onGround: true,
+          jetting: false,
+          protected: false,
+          fuelRatio: 1,
+          vx: 0,
+          vy: 0,
+          crouching: false,
+          hurtAt: null,
+          hp: 100,
+          weapon: "pistol",
+          barrel: { x: 110, y: 100 },
+        },
+        {
+          index: 1,
+          x: 200,
+          y: 100,
+          w: CHARACTER_W,
+          h: 40,
+          aim: 0,
+          alive: true,
+          onGround: true,
+          jetting: false,
+          protected: false,
+          fuelRatio: 1,
+          vx: 0,
+          vy: 0,
+          crouching: true,
+          hurtAt: null,
+          hp: 100,
+          weapon: "pistol",
+          barrel: { x: 210, y: 100 },
+        },
+      ],
+      projectiles: [],
+      pickups: [],
+      props: [],
+      arena: { width: 800, height: 600 },
+    };
+  }
+
+  it("restores the vector body when the card never decodes", () => {
+    // Node has no document, so tintedSoldierFor resolves null for every
+    // key: the exact first-frame/cache-miss path where canvas2d keeps
+    // vector paint. The intent-hide in syncPlayerNode must not survive
+    // the miss, or the frame shows floating arms over a hidden overlay.
+    expect(typeof document).toBe("undefined");
+    const store: PlayerNode[] = [
+      buildPlayerNode(spritePixi(), 0),
+      buildPlayerNode(spritePixi(), 1),
+    ];
+    const frame = makeFrame();
+    const anims = [makeAnim(), makeAnim({ heightScale: 40 / CHARACTER_H })];
+    const cam = createCamera(frame.arena.width, frame.arena.height);
+    syncFramePlayers(store, frame, cam, 800, 600, new Map<number, number>(), anims);
+    // Intent posed on both nodes (keys resolved, overlay flagged).
+    for (const node of store) {
+      expect(spriteOf(node).textureKey).not.toBeNull();
+    }
+    // No Texture surface either: covers the upload-miss shape too.
+    syncPlayerSpriteTextures({}, store, frame, anims);
+    for (const node of store) {
+      expect(spriteOf(node).visible).toBe(false);
+      for (const part of graphicsOf(node)) {
+        expect(part.visible).toBe(true);
+      }
+    }
+  });
+});
+
 describe("pixi sprite probe surface", () => {
   it("publishes one live texture per player", () => {
     installWindow();
@@ -344,6 +455,20 @@ describe("pixi backend sprite wiring (source)", () => {
     expect(rendererSrc).toContain(
       "syncPlayerSpriteTextures(mod, playerNodes, frame, anims)",
     );
+  });
+
+  it("restores vectors on a miss and sizes the card to the authored box", () => {
+    const body = bodyOf("syncPlayerSpriteTextures");
+    // Miss paths restore the vector body instead of leaving floating arms.
+    expect(body).toContain("setVectorBodyVisible(children, false)");
+    // A confirmed upload re-hides the body under the card (idempotent
+    // across repeat runs after a miss restore).
+    expect(body).toContain("setVectorBodyVisible(children, true)");
+    // Unsquashed authored box: the container squash applies the crouch.
+    expect(body).toContain("CHARACTER_W");
+    expect(body).toContain("CHARACTER_H");
+    expect(body).not.toContain('sprite["width"] = p.w');
+    expect(body).not.toContain('sprite["height"] = p.h');
   });
 
   it("carries the card key on the node overlay", () => {

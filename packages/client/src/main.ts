@@ -79,6 +79,12 @@ import {
   buildHudSnapshot,
   buildMenuSnapshot,
 } from "./ui/chrome";
+import {
+  destroyStandings,
+  ensureStandings,
+  OVERLAY_IDS,
+  showOnly,
+} from "./ui/layers";
 import { bindOnline } from "./net/online";
 import { bindCarousel } from "./menu/carousel";
 import { bindMenuTips } from "./menu/tips";
@@ -1357,7 +1363,8 @@ function frame(now: number): void {
 
 /**
  * Fill the end screen with the winner callout plus a kills/deaths
- * standings table. The overlay persists until the player picks
+ * standings table. The standings container is rebuilt when a previous
+ * Menu return destroyed it; the overlay persists until the player picks
  * Play again or Menu.
  */
 function showEndScreen(): void {
@@ -1378,6 +1385,17 @@ function showEndScreen(): void {
     const winner = rows[0];
     winnerEl.textContent =
       winner === undefined ? "Winner: -" : `Winner: ${winner.name}`;
+  }
+  // Rebuild the standings container destroyed on the last Menu return,
+  // refreshing the binder handle that still points at the detached node.
+  ensureStandings(document);
+  try {
+    const fresh = document.getElementById("end-standings");
+    if (fresh instanceof HTMLElement) {
+      hud.endStandings = fresh;
+    }
+  } catch {
+    // Builder-less shims: the previous handle still renders detached.
   }
   if (hud.endStandings !== null) {
     hud.endStandings.replaceChildren();
@@ -1421,9 +1439,11 @@ function showEndScreen(): void {
   if (hud.respawn !== null) {
     hud.respawn.style.display = "none";
   }
-  if (hud.endScreen !== null) {
-    hud.endScreen.style.display = "";
+  if (menu instanceof HTMLElement) {
+    menu.style.display = "none";
   }
+  // Exclusive overlay: only the end screen stays visible (issue #313).
+  showOverlay("end-screen");
 }
 
 /** Null-safe localStorage surface; null when storage is unavailable. */
@@ -1631,8 +1651,10 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   // so the opening nametags already carry the fresh pilot name.
   refreshCachedProfile();
   padlabels = buildPadlabels(document);
-  if (hud.endScreen !== null) {
-    hud.endScreen.style.display = "none";
+  // Exclusive overlays: every overlay id (including #end-screen) hides
+  // before the HUD returns, never just the end screen (issue #313).
+  for (const overlayId of OVERLAY_IDS) {
+    hideOverlay(overlayId);
   }
   if (hud.hud !== null) {
     hud.hud.style.display = "";
@@ -1868,12 +1890,13 @@ window.addEventListener(
   { once: true },
 );
 
-/** Reveal a menu overlay by id; missing elements are no-ops. */
+/**
+ * Reveal a menu overlay exclusively: every other overlay id hides
+ * first, so only one overlay is ever visible (issue #313). Missing
+ * elements are no-ops.
+ */
 function showOverlay(id: string): void {
-  const overlay = document.getElementById(id);
-  if (overlay instanceof HTMLElement) {
-    overlay.style.display = "";
-  }
+  showOnly(document, id);
 }
 
 /** Hide a menu overlay by id; missing elements are no-ops. */
@@ -1896,6 +1919,7 @@ if (playButton instanceof HTMLButtonElement) {
     if (menu instanceof HTMLElement) {
       menu.style.display = "none";
     }
+    showOnly(document, "setup");
     setupBinder.show();
   });
 }
@@ -1903,6 +1927,7 @@ if (playButton instanceof HTMLButtonElement) {
 const settingsOpen = document.getElementById("settings-open");
 if (settingsOpen instanceof HTMLButtonElement) {
   settingsOpen.addEventListener("click", () => {
+    showOnly(document, "settings");
     settingsBinder.show();
   });
 }
@@ -1938,8 +1963,11 @@ if (restartButton instanceof HTMLButtonElement) {
 const endMenuButton = document.getElementById("end-menu");
 if (endMenuButton instanceof HTMLButtonElement) {
   endMenuButton.addEventListener("click", () => {
-    if (hud.endScreen !== null) {
-      hud.endScreen.style.display = "none";
+    // Destroy (never hide) the stale standings so no `standings`
+    // substring survives in body HTML, then show the menu exclusively.
+    destroyStandings(document);
+    for (const overlayId of OVERLAY_IDS) {
+      hideOverlay(overlayId);
     }
     if (menu instanceof HTMLElement) {
       menu.style.display = "";

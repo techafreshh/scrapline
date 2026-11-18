@@ -372,6 +372,26 @@ function bindButton(button: unknown): void {
   }
 }
 
+/** Overlay roots that stay unstamped: full-screen scrims never tile. */
+const FULLSCREEN_PANEL_IDS: ReadonlySet<string> = new Set(MENU_PANEL_IDS);
+
+/** Inner `.sl-panel` card of an overlay root; null when absent. */
+function panelChild(el: unknown): unknown {
+  if (typeof el !== "object" || el === null) {
+    return null;
+  }
+  try {
+    const query = (el as { querySelector?: unknown }).querySelector;
+    if (typeof query !== "function") {
+      return null;
+    }
+    const child = (query as (sel: string) => unknown).call(el, ".sl-panel");
+    return child ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Stamp every menu panel plus all menu/setup buttons with their pixel
  * tiles and wire the hover swaps. Missing builders, throwing lookups,
@@ -392,7 +412,16 @@ export function bindMenuChrome(doc: unknown): void {
   if (lookup !== null) {
     for (const id of MENU_PANEL_IDS) {
       try {
-        stampChrome(lookup(id), MENU_PANEL_KEY);
+        // Full-screen overlay roots never carry the tile themselves:
+        // the 16px panel stamps the constrained inner `.sl-panel`
+        // card, and roots without one stay unstamped (issue #313).
+        const root = lookup(id);
+        const inner = panelChild(root);
+        if (inner !== null) {
+          stampChrome(inner, MENU_PANEL_KEY);
+        } else if (!FULLSCREEN_PANEL_IDS.has(id)) {
+          stampChrome(root, MENU_PANEL_KEY);
+        }
       } catch {
         // Unstampable panels: the remaining panels still land.
       }

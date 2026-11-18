@@ -372,9 +372,6 @@ function bindButton(button: unknown): void {
   }
 }
 
-/** Overlay roots that stay unstamped: full-screen scrims never tile. */
-const FULLSCREEN_PANEL_IDS: ReadonlySet<string> = new Set(MENU_PANEL_IDS);
-
 /** Inner `.sl-panel` card of an overlay root; null when absent. */
 function panelChild(el: unknown): unknown {
   if (typeof el !== "object" || el === null) {
@@ -419,8 +416,6 @@ export function bindMenuChrome(doc: unknown): void {
         const inner = panelChild(root);
         if (inner !== null) {
           stampChrome(inner, MENU_PANEL_KEY);
-        } else if (!FULLSCREEN_PANEL_IDS.has(id)) {
-          stampChrome(root, MENU_PANEL_KEY);
         }
       } catch {
         // Unstampable panels: the remaining panels still land.

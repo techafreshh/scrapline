@@ -1927,6 +1927,9 @@ if (playButton instanceof HTMLButtonElement) {
 const settingsOpen = document.getElementById("settings-open");
 if (settingsOpen instanceof HTMLButtonElement) {
   settingsOpen.addEventListener("click", () => {
+    if (menu instanceof HTMLElement) {
+      menu.style.display = "none";
+    }
     showOnly(document, "settings");
     settingsBinder.show();
   });
@@ -1936,12 +1939,18 @@ const settingsClose = document.getElementById("settings-close");
 if (settingsClose instanceof HTMLButtonElement) {
   settingsClose.addEventListener("click", () => {
     settingsBinder.hide();
+    if (menu instanceof HTMLElement) {
+      menu.style.display = "";
+    }
   });
 }
 
 const howtoOpen = document.getElementById("howto-open");
 if (howtoOpen instanceof HTMLButtonElement) {
   howtoOpen.addEventListener("click", () => {
+    if (menu instanceof HTMLElement) {
+      menu.style.display = "none";
+    }
     showOverlay("howto");
   });
 }
@@ -1950,6 +1959,9 @@ const howtoClose = document.getElementById("howto-close");
 if (howtoClose instanceof HTMLButtonElement) {
   howtoClose.addEventListener("click", () => {
     hideOverlay("howto");
+    if (menu instanceof HTMLElement) {
+      menu.style.display = "";
+    }
   });
 }
 

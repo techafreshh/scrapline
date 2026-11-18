@@ -245,9 +245,10 @@ function writeAttr(el: unknown, attr: "src" | "alt" | "class", value: string): v
   }
 }
 
-/** Pip class for a fill state (read by the bottom-right capture probe). */
+/** Pip class for a fill state (read by the bottom-right capture probe).
+  The grenade-pip token carries the accent-dot skin from hud.css. */
 export function pipClass(filled: boolean): string {
-  return filled ? "pip filled" : "pip empty";
+  return filled ? "pip grenade-pip filled" : "pip grenade-pip empty";
 }
 
 /**

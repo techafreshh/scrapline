@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/components/button.css" />
     <link rel="stylesheet" href="/layers.css" />
     <link rel="stylesheet" href="/menu.css" />
+    <link rel="stylesheet" href="/hud.css" />
     <link
       rel="preload"
       href="./assets/fonts/orbitron-700.woff2"
@@ -1007,18 +1008,22 @@
         </div>
       </div>
       <div id="hud" style="display: none">
-        <div>HP <span id="hud-health">100</span></div>
-        <div class="hud-bar"><div id="hud-fuel"></div></div>
-        <div id="hud-grenades"></div>
-        <div id="hud-weapon"></div>
-        <div id="hud-ammo"></div>
-        <div id="hud-score"></div>
-        <div id="hud-timer"></div>
+        <div id="hud-status" class="hud-module">
+          <div>HP <span id="hud-health">100</span></div>
+          <div class="hud-bar"><div id="hud-fuel"></div></div>
+          <div id="hud-grenades"></div>
+          <div id="hud-weapon"></div>
+          <div id="hud-ammo"></div>
+        </div>
+        <div id="hud-center" class="hud-module">
+          <div id="hud-score"></div>
+          <div id="hud-timer"></div>
+        </div>
       </div>
-      <div id="ammo-module" style="display: none">
+      <div id="ammo-module" class="hud-module" style="display: none">
         <img id="ammo-icon" src="./assets/weapon-hornet.svg" alt="Hornet SMG icon" />
         <div id="ammo-readout">
-          <div id="ammo-name">Hornet SMG</div>
+          <div id="ammo-name" class="ammo-weapon">Hornet SMG</div>
           <div id="ammo-row">
             <span id="ammo-counts">32/96</span>
             <span id="ammo-pips"></span>
@@ -1026,7 +1031,7 @@
         </div>
       </div>
       <div id="crosshair"></div>
-      <div id="killfeed"></div>
+      <div id="killfeed" class="hud-module"></div>
       <div id="toast" aria-live="polite"></div>
       <div id="nametags"></div>
       <div id="padlabels"></div>

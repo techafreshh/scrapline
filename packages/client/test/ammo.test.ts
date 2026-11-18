@@ -109,8 +109,8 @@ describe("grenadePipStates", () => {
   });
 
   it("labels pip classes for the capture probe", () => {
-    expect(pipClass(true)).toBe("pip filled");
-    expect(pipClass(false)).toBe("pip empty");
+    expect(pipClass(true)).toBe("pip grenade-pip filled");
+    expect(pipClass(false)).toBe("pip grenade-pip empty");
   });
 });
 
@@ -257,7 +257,7 @@ function filledPips(pips: { children: object[] }): number {
     const cls = (child as { getAttribute(k: string): string | null }).getAttribute(
       "class",
     );
-    if (cls === "pip filled") {
+    if (cls !== null && cls.split(/\s+/).includes("filled")) {
       filled += 1;
     }
   }

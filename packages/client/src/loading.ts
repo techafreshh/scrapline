@@ -172,6 +172,17 @@ export function renderLoadingProgress(): void {
     }
     // Keep the static "Loading" prefix so contract probes still match
     // /Loading/ while the trailing percent satisfies the `%` probe.
+    // Capture the bar BEFORE the text wipe: setting textContent detaches
+    // every child in real DOM, so the bar must be re-attached after or a
+    // probe sampling between paint and re-create sees text without a bar.
+    let bar: unknown = null;
+    try {
+      if (typeof el.querySelector === "function") {
+        bar = el.querySelector("#loading-bar");
+      }
+    } catch {
+      // Shorn query: the create path below still runs.
+    }
     try {
       (el as { textContent?: unknown }).textContent =
         progress >= 100 ? "Loading... 100%" : `Loading... ${progress}%`;
@@ -179,11 +190,15 @@ export function renderLoadingProgress(): void {
       // Shorn element: the bar sync below still runs.
     }
     try {
-      let bar: unknown = null;
-      if (typeof el.querySelector === "function") {
-        bar = el.querySelector("#loading-bar");
-      }
-      if (bar === null || bar === undefined) {
+      if (bar !== null && bar !== undefined) {
+        // Re-attach the pre-wipe bar (no-op on shorn mocks without
+        // appendChild) so `%` text and the bar coexist every sample.
+        try {
+          el.appendChild?.(bar);
+        } catch {
+          // Append best-effort only.
+        }
+      } else {
         if (typeof doc.createElement === "function") {
           const created = doc.createElement("div") as unknown as {
             id?: unknown;

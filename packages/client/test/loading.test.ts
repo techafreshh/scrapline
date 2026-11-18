@@ -147,6 +147,45 @@ describe("atlas families (issue #271)", () => {
     }
   });
 
+  it("renderLoadingProgress keeps the bar attached across the text wipe", () => {
+    resetLoadingForTest();
+    const g = globalThis as unknown as Record<string, unknown>;
+    const prevDoc = g["document"];
+    let text = "";
+    const bar = { style: { width: "" } };
+    let appended: unknown = null;
+    const el = {
+      get textContent() {
+        return text;
+      },
+      set textContent(v: unknown) {
+        text = String(v);
+      },
+      querySelector: () => bar,
+      appendChild: (child: unknown) => {
+        appended = child;
+      },
+    };
+    g["document"] = {
+      baseURI: "http://localhost/",
+      getElementById: (id: string) => (id === "loading" ? el : null),
+      createElement: () => null,
+    };
+    try {
+      renderLoadingProgress();
+      expect(text).toContain("%");
+      // The pre-wipe bar is re-attached so text and bar coexist.
+      expect(appended).toBe(bar);
+      expect(bar.style.width).toContain("%");
+    } finally {
+      if (prevDoc === undefined) {
+        delete g["document"];
+      } else {
+        g["document"] = prevDoc;
+      }
+    }
+  });
+
   it("fpsAvg averages the trailing window and falls back to 60 pre-draw", () => {
     resetLoadingForTest();
     // No samples yet: boot probe reads 60.

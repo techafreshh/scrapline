@@ -459,17 +459,19 @@ describe("online two-client smoke", () => {
     expect(snapshot["t"]).toBe("snapshot");
   });
 
-  // Strict 1s timing is enforced by scripts/probes/online-two-client.mjs
+  // Strict 1s timing is owned by scripts/probes/online-two-client.mjs
   // (also CI-gated) against an idle server; this vitest mirror asserts
-  // the 1009 code with load-tolerant bounds (generous under the full
-  // parallel suite on small boxes) and no retry so a hang fails
-  // loudly instead of being masked by a retried attempt. The payload is
-  // just over the server's 1MiB limit (1MiB + 64KiB full masked frame,
-  // sent chunked like the probe's full send) rather than a full 2MB:
-  // it exercises the identical 1009 branch (64-bit declared length plus
-  // the buffered-bytes guard) with less allocator/wire pressure under
-  // the parallel suite.
-  it("oversize payload closes with code 1009", { timeout: 60000 }, async () => {
+  // the same 1009 code with tight 10s/15s bounds that fail fast on a
+  // hang, made stable under parallel load by the transport-aware
+  // WsClient fail-fast (pending `next` waiters reject on socket close
+  // instead of hanging to the timeout), the reduced 1MiB + 64KiB
+  // payload, and chunked send — with no retry so a hang fails loudly.
+  // The payload is just over the server's 1MiB limit (1MiB + 64KiB full
+  // masked frame, sent chunked like the probe's full send) rather than
+  // a full 2MB: it exercises the identical 1009 branch (64-bit declared
+  // length plus the buffered-bytes guard, which closes mid-stream) with
+  // less allocator/wire pressure under the parallel suite.
+  it("oversize payload closes with code 1009", { timeout: 15000 }, async () => {
     const proc = await launch();
     const client = await dial(proc);
     // Size the pad so the JSON payload totals exactly 1MiB + 64KiB.
@@ -478,7 +480,7 @@ describe("online two-client smoke", () => {
     const frame = maskedText({ t: "hello", proto: 1, view: "dune", name: "Huge", pad: "x".repeat(padLen) });
     await sendChunked(client, frame);
     try {
-      const msg = await client.next(45000);
+      const msg = await client.next(10000);
       expect(msg.t).toBe("close");
       expect((msg as { t: "close"; code: number }).code).toBe(1009);
     } catch (err) {

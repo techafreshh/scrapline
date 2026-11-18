@@ -383,6 +383,11 @@ function broadcastSnapshot(room: Room): void {
 /** One fixed step per 60 Hz interval across every room, no catch-up. */
 setInterval(() => {
   for (const [roomName, room] of rooms) {
+    // Empty rooms stay frozen (issue #274): rooms created by
+    // GET /api/state must not tick into a phantom player via step.
+    if (room.world.players.length === 0) {
+      continue;
+    }
     try {
       room.tick += 1;
       room.world.step(inputsForRoom(roomName, room));

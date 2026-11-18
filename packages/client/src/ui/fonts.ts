@@ -224,7 +224,7 @@ export function setBitmapText(el: unknown, text: string): void {
             style.display = "block";
             style.width = `${BITMAP_PIXEL_PX}px`;
             style.height = `${BITMAP_PIXEL_PX}px`;
-            style.background = cell === "1" ? "#e2e8f0" : "transparent";
+            style.background = cell === "1" ? "var(--color-text)" : "transparent";
           }
           (glyph as unknown as { appendChild(c: unknown): void }).appendChild(px);
         }

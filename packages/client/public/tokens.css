@@ -1,0 +1,55 @@
+/* Scrapline design tokens — single source of truth (issue #311).
+  Every surface (menu, HUD, overlays, end screens) consumes these custom
+  properties; no UI stylesheet carries its own palette, spacing, radius,
+  or type literals. Served standalone at GET /tokens.css and linked from
+  packages/client/index.html (Vite public-dir idiom: copied verbatim to
+  dist/ and staged to the root bundle). */
+:root {
+  /* PRD palette. */
+  --color-bg: #0b0f1a;
+  --color-panel: rgba(13, 18, 32, 0.92);
+  --color-border: #2a3550;
+  --color-cyan: #00E5FF;
+  --color-warm: #FF6B35;
+  --color-text: #e8ecf4;
+  --color-muted: #8a94a8;
+
+  /* Secondary surfaces needed for a lossless remap of the legacy CSS. */
+  --color-elevated: #16213a;
+  --color-track: #1e293b;
+  --color-cyan-pale: #a5f3fc;
+  --color-success: #a3e635;
+  --color-gold: #eab308;
+  --color-danger: #ef4444;
+  --color-flame-hi: #fef08a;
+  --color-flame-mid: #fb923c;
+  --color-flame-lo: #f97316;
+  --color-scrim: rgba(5, 7, 15, 0.62);
+  --color-veil: rgba(5, 7, 15, 0.85);
+  --color-chip: rgba(8, 20, 36, 0.85);
+  --color-chip-border: rgba(125, 249, 255, 0.45);
+  --color-tag: rgba(5, 7, 15, 0.55);
+
+  /* Spacing scale. */
+  --spacing-4: 4px;
+  --spacing-8: 8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+
+  /* Radius scale. */
+  --radius-8: 8px;
+  --radius-12: 12px;
+
+  /* Type scale. */
+  --font-title: 40px;
+  --font-h2: 24px;
+  --font-body: 16px;
+  --font-label: 12px;
+
+  /* Shadows. */
+  --shadow-text: 0 1px 2px rgba(0, 0, 0, 0.9);
+  --shadow-lift: 0 6px 14px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 18px rgba(0, 229, 255, 0.75);
+}

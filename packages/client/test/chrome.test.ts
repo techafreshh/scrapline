@@ -40,12 +40,15 @@ const MANIFEST_PATH = path.join(
 interface FakeEl {
   tag: string;
   attrs: Map<string, string>;
+  classes: string[];
   style: Record<string, string>;
   listeners: Map<string, Array<() => void>>;
   children: FakeEl[];
   setAttribute(k: string, v: string): void;
   getAttribute(k: string): string | null;
   addEventListener(type: string, listener: () => void): void;
+  querySelector(sel: string): FakeEl | null;
+  appendChild(child: FakeEl): void;
   fire(type: string): void;
 }
 
@@ -53,6 +56,7 @@ function makeEl(tag: string): FakeEl {
   const el: FakeEl = {
     tag,
     attrs: new Map<string, string>(),
+    classes: [],
     style: {},
     listeners: new Map<string, Array<() => void>>(),
     children: [],
@@ -65,6 +69,15 @@ function makeEl(tag: string): FakeEl {
       list.push(listener);
       el.listeners.set(type, list);
     },
+    querySelector: (sel: string): FakeEl | null => {
+      if (sel === ".sl-panel") {
+        return el.children.find((c) => c.classes.includes("sl-panel")) ?? null;
+      }
+      return null;
+    },
+    appendChild: (child: FakeEl): void => {
+      el.children.push(child);
+    },
     fire: (type: string): void => {
       for (const listener of el.listeners.get(type) ?? []) {
         listener();
@@ -72,6 +85,18 @@ function makeEl(tag: string): FakeEl {
     },
   };
   return el;
+}
+
+/** Overlay roots stamped by the menu chrome (full-screen scrims). */
+const PANEL_IDS = ["menu", "setup", "settings", "howto", "end-screen"];
+
+/** Fake overlay root with a constrained inner `.sl-panel` card. */
+function makePanelRoot(): FakeEl {
+  const root = makeEl("div");
+  const card = makeEl("div");
+  card.classes.push("sl-panel");
+  root.appendChild(card);
+  return root;
 }
 
 /** Minimal fake document with id lookup plus button queries. */
@@ -82,10 +107,16 @@ interface FakeDoc {
   querySelectorAll(sel: string): FakeEl[];
 }
 
-function makeDoc(ids: string[], buttons: FakeEl[] = []): FakeDoc {
+function makeDoc(
+  ids: string[],
+  buttons: FakeEl[] = [],
+  panels = true,
+): FakeDoc {
   const byId = new Map<string, FakeEl>();
   for (const id of ids) {
-    byId.set(id, makeEl("div"));
+    // Overlay roots carry a constrained inner `.sl-panel` card like the
+    // real index.html markup, so the tile lands on the card (issue #313).
+    byId.set(id, panels && PANEL_IDS.includes(id) ? makePanelRoot() : makeEl("div"));
   }
   const doc: FakeDoc = {
     byId,
@@ -233,20 +264,41 @@ describe("applyHudChrome", () => {
 });
 
 describe("bindMenuChrome", () => {
-  it("stamps panels and buttons with their tiles", () => {
+  it("stamps inner cards with the panel tile, never the fullscreen root", () => {
     const button = makeEl("button");
     const doc = makeDoc(
       ["menu", "setup", "settings", "howto", "end-screen", "quick-play"],
       [button],
     );
     bindMenuChrome(doc as unknown as Document);
-    for (const id of ["menu", "setup", "settings", "howto", "end-screen"]) {
-      expect(doc.byId.get(id)?.getAttribute("data-frame")).toBe("ui.panel");
+    for (const id of PANEL_IDS) {
+      const root = doc.byId.get(id);
+      expect(root?.getAttribute("data-frame")).toBe(null);
+      expect(root?.style["backgroundImage"]).toBe(undefined);
+      const card = root?.querySelector(".sl-panel");
+      expect(card?.getAttribute("data-frame")).toBe("ui.panel");
+      expect(card?.style["backgroundImage"]).toBe(
+        'url("./assets/atlas/ui/tile_0000.png")',
+      );
     }
     expect(doc.byId.get("quick-play")?.getAttribute("data-frame")).toBe(
       "ui.button",
     );
     expect(button.getAttribute("data-frame")).toBe("ui.button");
+  });
+
+  it("leaves roots without an inner card unstamped", () => {
+    const doc = makeDoc(
+      ["menu", "setup", "settings", "howto", "end-screen"],
+      [],
+      false,
+    );
+    bindMenuChrome(doc as unknown as Document);
+    for (const id of PANEL_IDS) {
+      const root = doc.byId.get(id);
+      expect(root?.getAttribute("data-frame")).toBe(null);
+      expect(root?.style["backgroundImage"]).toBe(undefined);
+    }
   });
 
   it("swaps the button tile on hover and restores it on leave", () => {

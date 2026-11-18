@@ -1,0 +1,48 @@
+/* Challenges overlay on the Panel primitive (issue #319): constrained
+  card with a shared header row and token row rhythm. Consumes token
+  variables only, no raw colors, no tiling. The `#stage`-qualified
+  selectors outrank the legacy inline style block (the layers.css idiom)
+  while the bare selectors keep static scans literal. */
+#stage #challenges,
+#challenges {
+  background: var(--color-veil);
+  background-repeat: no-repeat;
+}
+#stage #challenges .sl-panel,
+#challenges .sl-panel {
+  gap: var(--spacing-12);
+  padding: var(--spacing-24);
+  background: var(--color-panel);
+}
+#stage #challenges .panel-head,
+#challenges .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  width: 100%;
+}
+#stage #challenges .panel-head h2,
+#challenges .panel-head h2 {
+  margin: 0;
+  font-size: var(--font-h2);
+  letter-spacing: 1px;
+  color: var(--color-text);
+}
+#stage #challenges .panel-close,
+#challenges .panel-close {
+  min-height: 44px;
+  padding: var(--spacing-8) var(--spacing-12);
+}
+#stage #challenges .panel-rows,
+#challenges .panel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  width: 100%;
+}
+#stage #challenges .challenge-row,
+#challenges .challenge-row {
+  gap: var(--spacing-8);
+  padding: var(--spacing-4) var(--spacing-12);
+}

@@ -10,7 +10,7 @@
 export const LAYER_CANVAS = 0;
 /** HUD band: health, ammo, feed, tags, and respawn paint above canvas. */
 export const LAYER_HUD = 10;
-/** Overlay band: setup, settings, how-to, and end screens above HUD. */
+/** Overlay band: setup, settings, how-to, challenges, locker, and end screens above HUD. */
 export const LAYER_OVERLAY = 20;
 /** Menu band: the menu root paints above every overlay. */
 export const LAYER_MENU = 30;
@@ -21,6 +21,8 @@ export const OVERLAY_IDS: readonly string[] = [
   "setup",
   "settings",
   "howto",
+  "challenges",
+  "locker",
 ];
 
 /** Assign display on an unknown handle when it carries a style bag. */

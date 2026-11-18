@@ -178,7 +178,7 @@ describe("layer bands", () => {
 
   it("owns every menu/overlay id exactly once", () => {
     expect([...OVERLAY_IDS].sort()).toEqual(
-      ["end-screen", "howto", "settings", "setup"].sort(),
+      ["end-screen", "howto", "settings", "setup", "challenges", "locker"].sort(),
     );
   });
 });

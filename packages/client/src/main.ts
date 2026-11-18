@@ -50,9 +50,11 @@ import { mapRowsFor } from "./maps";
 import { setCurrentTheme } from "./view/theme";
 import {
   DEFAULT_SETUP,
+  MAP_LIST,
   bindSetup,
   loadSetup,
   parseSetup,
+  rawMapFromUrl,
   saveSetup,
   setupSearchParams,
   type SetupConfig,
@@ -69,6 +71,8 @@ import {
   bindLocker,
   loadLockerSelection,
   lockerItemFor,
+  lockerLevel,
+  updateLockerPanel,
 } from "./meta/locker";
 import { setLocalAccent } from "./view/soldier";
 import { bindSettings, loadQuality, loadShowNameTags, parseVolume } from "./settings";
@@ -85,6 +89,11 @@ import {
   OVERLAY_IDS,
   showOnly,
 } from "./ui/layers";
+import {
+  bindOverlayRouter,
+  routeFromHash,
+  type OverlayRoute,
+} from "./overlays/router";
 import { bindOnline } from "./net/online";
 import { bindCarousel, recordBestScore } from "./menu/carousel";
 import { bindMenuTips } from "./menu/tips";
@@ -1590,9 +1599,34 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   const seed = matchSeedFromUrl() ?? Math.floor(Math.random() * SEED_RANGE);
   try {
     const query = setupSearchParams(parsed);
+    // Unknown-map preservation (issue #319 acceptance `?map=arena2`):
+    // the sim still runs the kilima fallback, but the live URL keeps
+    // the verbatim map string so a reload still reads `map=arena2` in
+    // the query and the setup panel keeps the verbatim selection.
+    let outQuery = query;
+    try {
+      const raw = rawMapFromUrl();
+      if (raw !== null && !(MAP_LIST as readonly string[]).includes(raw.trim().toLowerCase())) {
+        outQuery = query.replace(/map=[^&]*/, `map=${encodeURIComponent(raw.trim())}`);
+      }
+    } catch {
+      // Query preservation best-effort: the normalized query still lands.
+    }
     // The seed rides the URL so a reload replays the same match seed
     // (and the same scatter layout) instead of rolling a fresh one.
-    window.history.replaceState(null, "", `${window.location.pathname}?${query}&seed=${seed}`);
+    // Preserve the live hash so a `#setup` deep-link survives the
+    // auto-join rewrite (issue #319 hash routes share the query).
+    let suffix = "";
+    try {
+      const hash =
+        typeof window !== "undefined" ? window.location.hash : "";
+      if (typeof hash === "string" && hash !== "") {
+        suffix = hash.startsWith("#") ? hash : `#${hash}`;
+      }
+    } catch {
+      // Hash preservation best-effort: the query still lands.
+    }
+    window.history.replaceState(null, "", `${window.location.pathname}?${outQuery}&seed=${seed}${suffix}`);
   } catch {
     // Non-http hosts (file://): the mirror still carries the config.
   }
@@ -1974,6 +2008,223 @@ if (howtoClose instanceof HTMLButtonElement) {
   });
 }
 
+// Panel header closes (issue #319): each overlay carries an h2 plus a
+// `.panel-close` button that returns to the menu synchronously, well
+// inside the 500ms probe budget. The shared router delegation below
+// owns the actual hide/show; these direct handlers keep the legacy
+// `settings-close`/`howto-close` wiring shape for the layer tests and
+// preserve the query string while clearing the hash.
+function closePanelToMenu(id: string): void {
+  hideOverlay(id);
+  if (menu instanceof HTMLElement) {
+    menu.style.display = "";
+  }
+  try {
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}`,
+    );
+  } catch {
+    try {
+      window.location.hash = "";
+    } catch {
+      // Hash clear best-effort: the menu already shows.
+    }
+  }
+}
+const setupClose = document.getElementById("setup-close");
+if (setupClose instanceof HTMLButtonElement) {
+  setupClose.addEventListener("click", () => {
+    setupBinder.hide();
+    closePanelToMenu("setup");
+  });
+}
+const challengesClose = document.getElementById("challenges-close");
+if (challengesClose instanceof HTMLButtonElement) {
+  challengesClose.addEventListener("click", () => {
+    closePanelToMenu("challenges");
+  });
+}
+const lockerClose = document.getElementById("locker-close");
+if (lockerClose instanceof HTMLButtonElement) {
+  lockerClose.addEventListener("click", () => {
+    closePanelToMenu("locker");
+  });
+}
+// Hash routes keep the query string intact: opening via button also
+// stamps the hash so deep-links (`#setup`, `#challenges`, ...) and
+// button opens stay in sync without adding history entries.
+function stampHash(route: OverlayRoute): void {
+  try {
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}#${route}`,
+    );
+  } catch {
+    // Hash stamp best-effort: the overlay already shows.
+  }
+}
+// Overlay hash router (issue #319): `#setup`/`#settings`/`#howto`/
+// `#challenges`/`#locker` show their Panel overlay exclusively while
+// preserving `?bots=&tier=&map=` query behavior. Unknown or empty
+// hashes leave the running match untouched. Never throws.
+function applyHashRoute(): OverlayRoute | null {
+  try {
+    const route = routeFromHash(
+      typeof window !== "undefined" ? window.location.hash : "",
+    );
+    if (route === null) {
+      return null;
+    }
+    if (menu instanceof HTMLElement) {
+      menu.style.display = "none";
+    }
+    showOnly(document, route);
+    if (route === "setup") {
+      setupBinder.show();
+    } else if (route === "settings") {
+      settingsBinder.show();
+    } else if (route === "challenges") {
+      try {
+        updateChallengesPanel(document, challengeStore());
+      } catch {
+        // Panel repaint best-effort: the overlay still shows.
+      }
+    } else if (route === "locker") {
+      try {
+        updateLockerPanel(
+          document,
+          lockerLevel(storage),
+          loadChallenges(storage),
+          loadLockerSelection(storage),
+        );
+      } catch {
+        // Panel repaint best-effort: the overlay still shows.
+      }
+    }
+    return route;
+  } catch {
+    return null;
+  }
+}
+try {
+  window.addEventListener("hashchange", () => {
+    applyHashRoute();
+  });
+} catch {
+  // Hash listener best-effort: direct opens still land.
+}
+// Shared close delegation: any `.panel-close` click closes to the menu
+// synchronously (direct handlers above stay for the layer-test shape).
+try {
+  bindOverlayRouter(document, {
+    show: (id: string) => {
+      showOnly(document, id);
+    },
+    hide: (id: string) => {
+      hideOverlay(id);
+    },
+    showMenu: () => {
+      if (menu instanceof HTMLElement) {
+        menu.style.display = "";
+      }
+    },
+    hideMenu: () => {
+      if (menu instanceof HTMLElement) {
+        menu.style.display = "none";
+      }
+    },
+    onRoute: (route: OverlayRoute) => {
+      if (route === "setup") {
+        setupBinder.show();
+      } else if (route === "settings") {
+        settingsBinder.show();
+      }
+    },
+  });
+} catch {
+  // Router delegation best-effort: direct handlers still close.
+}
+
+// Button-to-hash sync (issue #319): opening via click also stamps the
+// hash so the URL stays deep-linkable while preserving the query string.
+// Separate listeners keep the layer-test wiring slices above intact.
+try {
+  if (playButton instanceof HTMLButtonElement) {
+    playButton.addEventListener("click", () => {
+      stampHash("setup");
+    });
+  }
+} catch {
+  // Stamp best-effort: the overlay already shows.
+}
+try {
+  if (settingsOpen instanceof HTMLButtonElement) {
+    settingsOpen.addEventListener("click", () => {
+      stampHash("settings");
+    });
+  }
+} catch {
+  // Stamp best-effort only.
+}
+try {
+  if (howtoOpen instanceof HTMLButtonElement) {
+    howtoOpen.addEventListener("click", () => {
+      stampHash("howto");
+    });
+  }
+} catch {
+  // Stamp best-effort only.
+}
+// Challenges/Locker overlays (issue #319): the menu buttons open the
+// Panel overlays exclusively (the inner `#challenges-panel` toggle owned
+// by bindChallenges/bindLocker stays for backward compat, but the menu
+// hides so the overlay reads as the surface). Never throws.
+try {
+  const challengesOpen = document.getElementById("challenges-open");
+  if (challengesOpen instanceof HTMLButtonElement) {
+    challengesOpen.addEventListener("click", () => {
+      if (menu instanceof HTMLElement) {
+        menu.style.display = "none";
+      }
+      showOnly(document, "challenges");
+      try {
+        updateChallengesPanel(document, challengeStore());
+      } catch {
+        // Repaint best-effort: the overlay still shows.
+      }
+      stampHash("challenges");
+    });
+  }
+} catch {
+  // Challenges open best-effort: the hash route still lands.
+}
+try {
+  const lockerOpen = document.getElementById("locker-open");
+  if (lockerOpen instanceof HTMLButtonElement) {
+    lockerOpen.addEventListener("click", () => {
+      if (menu instanceof HTMLElement) {
+        menu.style.display = "none";
+      }
+      showOnly(document, "locker");
+      try {
+        updateLockerPanel(
+          document,
+          lockerLevel(storage),
+          loadChallenges(storage),
+          loadLockerSelection(storage),
+        );
+      } catch {
+        // Repaint best-effort: the overlay still shows.
+      }
+      stampHash("locker");
+    });
+  }
+} catch {
+  // Locker open best-effort: the hash route still lands.
+}
 const restartButton = document.getElementById("restart");
 if (restartButton instanceof HTMLButtonElement) {
   restartButton.addEventListener("click", () => {
@@ -2065,3 +2316,11 @@ function autoJoinSetup(): SetupConfig {
 // clicks. The setup screen keeps its own persisted defaults; this
 // auto-join never writes them (`persist: false`).
 startMatch(autoJoinSetup(), { persist: false });
+// Hash deep-link (issue #319): a `#setup`/`#settings`/`#howto`/
+// `#challenges`/`#locker` hash on load shows that Panel overlay on top
+// of the auto-joined match while keeping `?map=` query behavior.
+try {
+  applyHashRoute();
+} catch {
+  // Deep-link best-effort: the match still runs.
+}

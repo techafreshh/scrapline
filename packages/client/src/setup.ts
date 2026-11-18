@@ -278,6 +278,153 @@ function setDisplay(el: unknown, display: string): void {
   (style as Record<string, unknown>)["display"] = display;
 }
 
+/**
+ * Raw `map` query value from the live URL (trimmed, verbatim case).
+ * Null when absent, empty, or unreadable. Never throws. DOM-free
+ * aside from the guarded window read, so node unit tests see null
+ * and keep the kilima fallback contract.
+ */
+export function rawMapFromUrl(): string | null {
+  try {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    const loc = (window as unknown as { location?: { search?: unknown } })
+      .location;
+    if (loc === null || loc === undefined || typeof loc !== "object") {
+      return null;
+    }
+    const search = (loc as { search?: unknown }).search;
+    if (typeof search !== "string" || search.length < 2) {
+      return null;
+    }
+    const raw = new URLSearchParams(search).get("map");
+    if (raw === null) {
+      return null;
+    }
+    const key = raw.trim();
+    return key === "" ? null : key;
+  } catch {
+    return null;
+  }
+}
+
+/** True when the value names one of the shipped arenas. */
+function isKnownMap(value: string): boolean {
+  return (MAP_LIST as readonly string[]).includes(value.trim().toLowerCase());
+}
+
+/**
+ * Ensure a selection button exists for an unknown map id (acceptance
+ * `?map=arena2`): creates `<button data-map="<raw>">` inside the
+ * setup map row when missing, marks it selected, and wires a click
+ * that re-marks it selected. Known maps are untouched. Missing builders
+ * are no-ops; never throws.
+ */
+export function ensureExtraMapButton(doc: Document, raw: string): void {
+  try {
+    const key = raw.trim();
+    if (key === "" || isKnownMap(key)) {
+      return;
+    }
+    let existing: unknown = null;
+    try {
+      existing = doc.querySelector(`[data-map="${key}"]`);
+    } catch {
+      existing = null;
+    }
+    if (existing !== null && typeof existing === "object") {
+      const attr = asAttr(existing);
+      if (attr !== null) {
+        attr.setAttribute("aria-pressed", "true");
+        attr.setAttribute("data-active", "true");
+      }
+      return;
+    }
+    let container: unknown = null;
+    try {
+      const known = doc.querySelector('[data-map="kilima"]');
+      if (known !== null && typeof known === "object") {
+        const parent =
+          (known as { parentNode?: unknown }).parentNode ??
+          (known as { parentElement?: unknown }).parentElement ??
+          null;
+        if (parent !== null && typeof parent === "object") {
+          container = parent;
+        }
+      }
+    } catch {
+      container = null;
+    }
+    if (container === null || typeof container !== "object") {
+      return;
+    }
+    let created: unknown = null;
+    try {
+      const maker = (doc as unknown as { createElement?: unknown })
+        .createElement;
+      if (typeof maker !== "function") {
+        return;
+      }
+      created = (maker as (tag: string) => unknown).call(doc, "button");
+    } catch {
+      return;
+    }
+    if (created === null || typeof created !== "object") {
+      return;
+    }
+    const attr = asAttr(created);
+    if (attr === null) {
+      return;
+    }
+    attr.setAttribute("data-map", key);
+    attr.setAttribute("aria-pressed", "true");
+    attr.setAttribute("data-active", "true");
+    try {
+      (created as { textContent?: unknown }).textContent = key;
+    } catch {
+      // Text best-effort: the attributes already select it.
+    }
+    try {
+      (created as { type?: unknown }).type = "button";
+    } catch {
+      // Type best-effort only.
+    }
+    const clickable = asClickable(created);
+    if (clickable !== null) {
+      clickable.addEventListener("click", () => {
+        try {
+          for (const map of MAP_LIST) {
+            const other = asAttr(doc.querySelector(`[data-map="${map}"]`));
+            if (other !== null) {
+              other.setAttribute("aria-pressed", "false");
+              try {
+                other.removeAttribute("data-active");
+              } catch {
+                // Unmark best-effort only.
+              }
+            }
+          }
+          attr.setAttribute("aria-pressed", "true");
+          attr.setAttribute("data-active", "true");
+        } catch {
+          // Reselect best-effort only.
+        }
+      });
+    }
+    try {
+      const append = (container as { appendChild?: unknown }).appendChild;
+      if (typeof append === "function") {
+        (append as (kid: unknown) => void).call(container, created);
+      }
+    } catch {
+      // Append best-effort: the button stays unmounted but selected.
+    }
+  } catch {
+    // Unknown-map affordance never breaks setup.
+  }
+}
+
 /** Refresh the readout and the pressed states of the option buttons. */
 function render(
   doc: Document,
@@ -311,6 +458,30 @@ function render(
         button.removeAttribute("data-active");
       }
     }
+  }
+  // Unknown-map display preservation (acceptance `?map=arena2`): when
+  // the live URL carries a map outside the shipped list, unmark the
+  // known buttons and ensure the verbatim button reads selected, so a
+  // reload keeps `arena2` in DOM selection while the sim still runs
+  // the kilima fallback. Node harnesses see no URL and skip this.
+  try {
+    const raw = rawMapFromUrl();
+    if (raw !== null && !isKnownMap(raw)) {
+      for (const map of MAP_LIST) {
+        const button = asAttr(doc.querySelector(`[data-map="${map}"]`));
+        if (button !== null) {
+          button.setAttribute("aria-pressed", "false");
+          try {
+            button.removeAttribute("data-active");
+          } catch {
+            // Unmark best-effort only.
+          }
+        }
+      }
+      ensureExtraMapButton(doc, raw);
+    }
+  } catch {
+    // Display preservation never breaks the readout.
   }
   renderCosmetics(doc, cosmetics);
 }

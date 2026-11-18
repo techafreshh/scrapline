@@ -2,7 +2,7 @@
 // scripts/probes/online-two-client.mjs. Boots the server, asserts health,
 // two headless WS clients joining with both pids in one snapshot within
 // 2s, bogus-session 4002, malformed close (no hang), double-join error
-// with a still-usable socket, and a 2MB payload closing 1009.
+// with a still-usable socket, and an oversize payload closing 1009.
 // Raw node:net WS client, no dependencies (mirrors handshake.test.ts).
 import { describe, expect, it, afterEach } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -36,6 +36,7 @@ async function getJson(port: number, pathname: string): Promise<{ status: number
 class ServerProc {
   readonly child: ChildProcess;
   readonly port: number;
+  private readonly stderrRing: string[] = [];
 
   constructor(port: number) {
     this.port = port;
@@ -50,6 +51,29 @@ class ServerProc {
         stdio: ["ignore", "pipe", "pipe"],
       });
     }
+    // Bounded stderr ring for failure context: the last ~20 lines only,
+    // so a red 1009-path test can name its cause without dumping logs.
+    this.child.stderr?.on("data", (chunk: Buffer) => {
+      for (const line of chunk.toString("utf8").split("\n")) {
+        if (line.length === 0) {
+          continue;
+        }
+        this.stderrRing.push(line);
+        if (this.stderrRing.length > 20) {
+          this.stderrRing.shift();
+        }
+      }
+    });
+  }
+
+  /** True while the spawned server process is still running. */
+  alive(): boolean {
+    return this.child.exitCode === null && this.child.signalCode === null;
+  }
+
+  /** Last ~20 stderr lines, or a placeholder when the server was silent. */
+  recentStderr(): string {
+    return this.stderrRing.length > 0 ? this.stderrRing.join("\n") : "(no stderr)";
   }
 
   /** Poll /health until it answers 200 with status ok (2s budget). */
@@ -122,10 +146,9 @@ function maskedRaw(text: string): Buffer {
 }
 
 /** Drip-feed one masked frame in 64KB slices so a loaded runner never
- *  needs a single 2MB burst write; same wire bytes, same declared length,
+ *  needs a single burst write; same wire bytes, same declared length,
  *  so the server's buffered-bytes 1009 still fires mid-stream. Stops
- *  early once the server closes mid-stream (WsClient swallows later
- *  socket errors). */
+ *  early once the server closes mid-stream (socket destroyed). */
 async function sendChunked(client: WsClient, frame: Buffer): Promise<void> {
   const SLICE = 64 * 1024;
   for (let offset = 0; offset < frame.length; offset += SLICE) {
@@ -139,18 +162,27 @@ async function sendChunked(client: WsClient, frame: Buffer): Promise<void> {
 
 type Inbound = { t: "text"; text: string } | { t: "close"; code: number };
 
-/** Raw WS client speaking masked frames over node:net. */
+/** Raw WS client speaking masked frames over node:net. Transport-aware:
+ *  a socket close/error settles pending `next` waiters immediately with
+ *  a distinct error (never the frame-timeout message), so transport
+ *  death surfaces fast instead of hanging to the timeout. */
 class WsClient {
   readonly socket: net.Socket;
   private buffer: Buffer;
   private readonly queue: Inbound[] = [];
-  private waiters: Array<(msg: Inbound) => void> = [];
+  private waiters: Array<{
+    resolve: (msg: Inbound) => void;
+    reject: (err: Error) => void;
+    timer: NodeJS.Timeout;
+  }> = [];
+  private transportClosed = false;
 
   private constructor(socket: net.Socket, leftover: Buffer) {
     this.socket = socket;
     this.buffer = leftover;
     this.socket.on("data", (chunk: Buffer) => this.push(chunk));
-    this.socket.on("error", () => {});
+    this.socket.on("error", () => this.onTransportClosed());
+    this.socket.once("close", () => this.onTransportClosed());
   }
 
   static async connect(port: number, target = "/"): Promise<WsClient> {
@@ -239,9 +271,23 @@ class WsClient {
   private emit(msg: Inbound): void {
     const waiter = this.waiters.shift();
     if (waiter !== undefined) {
-      waiter(msg);
+      clearTimeout(waiter.timer);
+      waiter.resolve(msg);
     } else {
       this.queue.push(msg);
+    }
+  }
+
+  /** Mark the transport dead and fail-fast every pending `next` waiter. */
+  private onTransportClosed(): void {
+    if (this.transportClosed) {
+      return;
+    }
+    this.transportClosed = true;
+    const pending = this.waiters.splice(0);
+    for (const waiter of pending) {
+      clearTimeout(waiter.timer);
+      waiter.reject(new Error("socket closed before close frame"));
     }
   }
 
@@ -250,12 +296,18 @@ class WsClient {
     if (queued !== undefined) {
       return Promise.resolve(queued);
     }
+    if (this.transportClosed) {
+      return Promise.reject(new Error("socket closed before close frame"));
+    }
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("timed out waiting for frame")), timeoutMs);
-      this.waiters.push((msg) => {
-        clearTimeout(timer);
-        resolve(msg);
-      });
+      const timer = setTimeout(() => {
+        const idx = this.waiters.findIndex((w) => w.timer === timer);
+        if (idx >= 0) {
+          this.waiters.splice(idx, 1);
+        }
+        reject(new Error("timed out waiting for frame"));
+      }, timeoutMs);
+      this.waiters.push({ resolve, reject, timer });
     });
   }
 
@@ -290,7 +342,10 @@ class WsClient {
   }
 
   destroy(): void {
-    this.waiters.splice(0);
+    const pending = this.waiters.splice(0);
+    for (const waiter of pending) {
+      clearTimeout(waiter.timer);
+    }
     try {
       this.socket.destroy();
     } catch {
@@ -407,15 +462,30 @@ describe("online two-client smoke", () => {
   // Strict 1s timing is enforced by scripts/probes/online-two-client.mjs
   // (also CI-gated) against an idle server; this vitest mirror asserts
   // the 1009 code with load-tolerant bounds (generous under the full
-  // 101-file parallel suite on small boxes) and no retry so a hang fails
-  // loudly instead of being masked by a retried attempt.
-  it("2MB payload closes with code 1009", { timeout: 60000 }, async () => {
+  // parallel suite on small boxes) and no retry so a hang fails
+  // loudly instead of being masked by a retried attempt. The payload is
+  // just over the server's 1MiB limit (1MiB + 64KiB full masked frame,
+  // sent chunked like the probe's full send) rather than a full 2MB:
+  // it exercises the identical 1009 branch (64-bit declared length plus
+  // the buffered-bytes guard) with less allocator/wire pressure under
+  // the parallel suite.
+  it("oversize payload closes with code 1009", { timeout: 60000 }, async () => {
     const proc = await launch();
     const client = await dial(proc);
-    const frame = maskedText({ t: "hello", proto: 1, view: "dune", name: "Huge", pad: "x".repeat(2 * 1024 * 1024) });
+    // Size the pad so the JSON payload totals exactly 1MiB + 64KiB.
+    const emptyPad = JSON.stringify({ t: "hello", proto: 1, view: "dune", name: "Huge", pad: "" });
+    const padLen = (1 << 20) + (64 << 10) - Buffer.byteLength(emptyPad, "utf8");
+    const frame = maskedText({ t: "hello", proto: 1, view: "dune", name: "Huge", pad: "x".repeat(padLen) });
     await sendChunked(client, frame);
-    const msg = await client.next(45000);
-    expect(msg.t).toBe("close");
-    expect((msg as { t: "close"; code: number }).code).toBe(1009);
+    try {
+      const msg = await client.next(45000);
+      expect(msg.t).toBe("close");
+      expect((msg as { t: "close"; code: number }).code).toBe(1009);
+    } catch (err) {
+      throw new Error(
+        `oversize payload did not close 1009 (server alive=${proc.alive()}): ${String((err as Error)?.message ?? err)}\nrecent stderr:\n${proc.recentStderr()}`,
+        { cause: err },
+      );
+    }
   });
 });

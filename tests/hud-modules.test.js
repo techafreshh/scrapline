@@ -193,3 +193,80 @@ test("both server sources serve the /hud.css route", () => {
   assert.match(fs.readFileSync(SERVER_JS, "utf8"), /\/hud\.css/);
   assert.match(fs.readFileSync(COMBINED, "utf8"), /\/hud\.css/);
 });
+
+test("static HP fill rests on the success token and flashes the warm token (issue #318)", () => {
+  const source = fs.readFileSync(HUD_CSS, "utf8");
+  const base = ruleBody(source, ".hp-fill");
+  assert.match(
+    declarationValue(base, "background") || "",
+    /var\(--color-success\)/,
+    ".hp-fill base must fill from the success token",
+  );
+  const hurt = ruleBody(source, ".hp-fill.hurt");
+  assert.match(
+    declarationValue(hurt, "background-color") || "",
+    /var\(--color-warm\)/,
+    ".hp-fill.hurt must flash the warm token",
+  );
+});
+
+test("static own-kill entries highlight cyan with an opacity fade (issue #318)", () => {
+  const source = fs.readFileSync(HUD_CSS, "utf8");
+  const own = ruleBody(source, ".kill-entry.own");
+  assert.match(
+    own,
+    /var\(--color-cyan\)/,
+    ".kill-entry.own must reference the cyan token",
+  );
+  assert.match(
+    `${declarationValue(own, "color") || ""}${declarationValue(own, "background") || ""}`,
+    /var\(--color-cyan\)|var\(--color-chip\)/,
+    ".kill-entry.own must paint color or background from a cyan-family token",
+  );
+  const entry = ruleBody(source, "#killfeed .kill-entry");
+  assert.match(
+    entry,
+    /transition|animation/,
+    "kill entries must carry a transition or animation",
+  );
+  assert.match(entry, /opacity/, "the entry fade must target opacity");
+});
+
+test("static HUD skin keeps every module border navy (issue #318)", () => {
+  const source = fs.readFileSync(HUD_CSS, "utf8");
+  const bodies = [];
+  let cursor = 0;
+  while (true) {
+    const at = source.indexOf(".hud-module", cursor);
+    if (at === -1) {
+      break;
+    }
+    const open = source.indexOf("{", at);
+    const close = source.indexOf("}", open);
+    assert.ok(open !== -1 && close !== -1, "expected rule block for .hud-module");
+    bodies.push(source.slice(open + 1, close));
+    cursor = close + 1;
+  }
+  assert.ok(bodies.length > 0, "expected at least one .hud-module rule");
+  for (const body of bodies) {
+    assert.doesNotMatch(body, /--color-warm/, "no module border may ride the warm token");
+    assert.doesNotMatch(body, /--color-danger/, "no module border may ride the danger token");
+    assert.doesNotMatch(body, /#[0-9a-fA-F]{6}/, "no module border may carry a raw hex");
+  }
+});
+
+test("GET / mounts the HP bar next to the fuel bar (issue #318)", async () => {
+  const root = await get("/");
+  assert.equal(root.status, 200);
+  assert.match(root.text, /hp-fill/, "served HTML must mount the HP fill");
+  assert.match(root.text, /id="hud-hp"/, "served HTML must mount #hud-hp");
+  assert.match(root.text, /id="hud-status"[^>]*class="hud-module"|class="hud-module"[^>]*id="hud-status"/);
+});
+
+test("GET /hud.css serves the HP flash and own-kill rules (issue #318)", async () => {
+  const hud = await get("/hud.css");
+  assert.equal(hud.status, 200);
+  assert.match(hud.text, /\.hp-fill\.hurt/);
+  assert.match(hud.text, /\.kill-entry\.own/);
+  assert.doesNotMatch(hud.text, /#[0-9a-fA-F]{6}/, "hud.css stays token-only");
+});

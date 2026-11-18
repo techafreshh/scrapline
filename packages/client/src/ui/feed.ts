@@ -99,6 +99,8 @@ export interface FeedModel {
   killerColor: string | null;
   /** Victim name CSS color (null when the victim index is unknown). */
   victimColor: string | null;
+  /** True when the local player (array index 0) scored the kill. */
+  own: boolean;
   /** True for unattributed deaths (renders today's `X died` text). */
   suicide: boolean;
 }
@@ -123,6 +125,7 @@ export function buildFeedEntry(
       weapon,
       killerColor: null,
       victimColor: null,
+      own: false,
       suicide: true,
     };
   }
@@ -139,6 +142,7 @@ export function buildFeedEntry(
       typeof victimIndex === "number" && Number.isFinite(victimIndex)
         ? teamCss(victimIndex)
         : null,
+    own: killerIndex === 0,
     suicide: false,
   };
 }
@@ -455,6 +459,11 @@ export function pushFeed(
     return;
   }
   writeAttr(node, "class", "kill-entry flash");
+  // Local-player kills carry the `own` token for the cyan highlight;
+  // appended through addClass so class-list-less fakes land it too.
+  if (entry.own === true) {
+    addClass(node, "own");
+  }
   const structured = !entry.suicide && entry.icon !== null;
   if (!structured) {
     writeText(

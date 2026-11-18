@@ -6,7 +6,9 @@ import { ENEMY_A_CSS, LOCAL_CSS } from "../src/view/character";
 import {
   BOT_NAMES,
   endStandingsRows,
+  flashHpDamage,
   formatTimer,
+  HP_DAMAGE_FLASH_MS,
   killsFromDiff,
   onlineScoreRows,
   ordinal,
@@ -525,5 +527,219 @@ describe("updateHud pixel chrome snapshot (issue #270)", () => {
     expect(health.textContent).toBe("75");
     expect(ammo.textContent).toContain("12");
     expect(hud.attrs.get("data-frame")).toContain("ui.");
+  });
+});
+
+describe("updateHud HP bar width (issue #318)", () => {
+  function hpHandles(): {
+    handles: HudHandles;
+    hpFill: { style: { width: string } };
+  } {
+    const hpFill = { style: { width: "" } };
+    const handles = {
+      hud: null,
+      health: null,
+      hpFill,
+      fuel: null,
+      grenades: null,
+      weapon: null,
+      ammo: null,
+      score: null,
+      timer: null,
+      killfeed: null,
+      respawn: null,
+      endScreen: null,
+      endStandings: null,
+      ammoModule: null,
+      ammoIcon: null,
+      ammoName: null,
+      ammoCounts: null,
+      ammoPips: null,
+    } as unknown as HudHandles;
+    return { handles, hpFill };
+  }
+
+  function hpSnapshot(hp: number): HudSnapshot {
+    return {
+      hp,
+      fuel: 100,
+      magAmmo: 7,
+      weaponName: "rifle",
+      grenades: 3,
+      killedBy: null,
+      scores: [0],
+      ids: [0],
+      tick: 0,
+      timeLimitTicks: 18000,
+      localAlive: true,
+      respawnTicks: 0,
+    } as HudSnapshot;
+  }
+
+  it("maps hp 0/75/100 to 0%/75%/100% width", () => {
+    const { handles, hpFill } = hpHandles();
+    updateHud(handles, hpSnapshot(0));
+    expect(hpFill.style.width).toBe("0%");
+    updateHud(handles, hpSnapshot(75));
+    expect(hpFill.style.width).toBe("75%");
+    updateHud(handles, hpSnapshot(100));
+    expect(hpFill.style.width).toBe("100%");
+  });
+
+  it("clamps out-of-range hp into 0..100%", () => {
+    const { handles, hpFill } = hpHandles();
+    updateHud(handles, hpSnapshot(-20));
+    expect(hpFill.style.width).toBe("0%");
+    updateHud(handles, hpSnapshot(240));
+    expect(hpFill.style.width).toBe("100%");
+  });
+
+  it("skips the width write when the HP handle is missing", () => {
+    const { handles } = hpHandles();
+    handles.hpFill = null;
+    expect(() => updateHud(handles, hpSnapshot(75))).not.toThrow();
+  });
+});
+
+describe("flashHpDamage (issue #318)", () => {
+  /** Fake doc resolving #hud-hp to a classList-only element. */
+  function fakeHpDoc(): {
+    doc: Document;
+    classes: Set<string>;
+    timers: { fn: () => void; cleared: boolean }[];
+  } {
+    const classes = new Set<string>();
+    const timers: { fn: () => void; cleared: boolean }[] = [];
+    const el = {
+      classList: {
+        add: (c: string): void => {
+          classes.add(c);
+        },
+        remove: (c: string): void => {
+          classes.delete(c);
+        },
+      },
+    };
+    const view = {
+      setTimeout: (fn: () => void): number => {
+        timers.push({ fn, cleared: false });
+        return timers.length - 1;
+      },
+      clearTimeout: (id: number): void => {
+        if (timers[id] !== undefined) {
+          timers[id].cleared = true;
+        }
+      },
+    };
+    const doc = {
+      getElementById: (id: string): unknown =>
+        id === "hud-hp" ? el : null,
+      defaultView: view,
+    } as unknown as Document;
+    return { doc, classes, timers };
+  }
+
+  it("holds the flash window inside the 1500ms recovery budget", () => {
+    expect(HP_DAMAGE_FLASH_MS).toBeGreaterThan(0);
+    expect(HP_DAMAGE_FLASH_MS).toBeLessThan(1500);
+  });
+
+  it("adds hurt synchronously and clears it when the timer fires", () => {
+    const { doc, classes, timers } = fakeHpDoc();
+    flashHpDamage(doc);
+    expect(classes.has("hurt")).toBe(true);
+    expect(timers).toHaveLength(1);
+    timers[0].fn();
+    expect(classes.has("hurt")).toBe(false);
+  });
+
+  it("re-arms the full window: a stale timer never clears early", () => {
+    const { doc, classes, timers } = fakeHpDoc();
+    flashHpDamage(doc);
+    flashHpDamage(doc);
+    expect(timers).toHaveLength(2);
+    timers[0].fn();
+    expect(classes.has("hurt")).toBe(true);
+    timers[1].fn();
+    expect(classes.has("hurt")).toBe(false);
+  });
+
+  it("never throws on builder-less or timer-less fake docs", () => {
+    expect(() => flashHpDamage({} as Document)).not.toThrow();
+    const bare = {
+      getElementById: (): null => null,
+    } as unknown as Document;
+    expect(() => flashHpDamage(bare)).not.toThrow();
+    const noTimers = {
+      getElementById: (): unknown => ({
+        classList: { add: (): void => {}, remove: (): void => {} },
+      }),
+    } as unknown as Document;
+    expect(() => flashHpDamage(noTimers)).not.toThrow();
+  });
+});
+
+describe("pushKillfeed own highlight (issue #318)", () => {
+  function ownFeed(): {
+    handles: HudHandles;
+    created: { attrs: Map<string, string> }[];
+  } {
+    const created: { attrs: Map<string, string> }[] = [];
+    const children: object[] = [];
+    const feed = {
+      ownerDocument: {
+        createElement: () => {
+          const entry = {
+            textContent: null as string | null,
+            attrs: new Map<string, string>(),
+            setAttribute: (key: string, value: string): void => {
+              entry.attrs.set(key, value);
+            },
+            getAttribute: (key: string): string | null =>
+              entry.attrs.get(key) ?? null,
+          };
+          created.push(entry);
+          return entry;
+        },
+      },
+      appendChild: (child: object): void => {
+        children.push(child);
+      },
+      removeChild: (child: object): void => {
+        const index = children.indexOf(child);
+        if (index >= 0) {
+          children.splice(index, 1);
+        }
+      },
+      get children(): object[] {
+        return children;
+      },
+    };
+    const handles = { killfeed: feed } as unknown as HudHandles;
+    return { handles, created };
+  }
+
+  it("tags killer index 0 with the own token", () => {
+    const { handles, created } = ownFeed();
+    pushKillfeed(handles, "You", "Viper", null, 0, 1);
+    expect(created[0]?.attrs.get("class")).toBe("kill-entry flash own");
+  });
+
+  it("leaves killer index 1 without the own token", () => {
+    const { handles, created } = ownFeed();
+    pushKillfeed(handles, "Raptor", "You", null, 1, 0);
+    expect(created[0]?.attrs.get("class")).toBe("kill-entry flash");
+  });
+
+  it("leaves unattributed deaths without the own token", () => {
+    const { handles, created } = ownFeed();
+    pushKillfeed(handles, null, "You", null, null, 0);
+    expect(created[0]?.attrs.get("class")).toBe("kill-entry flash");
+  });
+
+  it("tags structured weapon entries for killer index 0", () => {
+    const { handles, created } = ownFeed();
+    pushKillfeed(handles, "You", "Viper", "rifle", 0, 1);
+    expect(created[0]?.attrs.get("class")).toBe("kill-entry flash own");
   });
 });

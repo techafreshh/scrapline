@@ -188,6 +188,7 @@ import {
   buildHud,
   endStandingsRows,
   flashCrosshair,
+  flashHpDamage,
   killsFromDiff,
   playerName,
   pushKillfeed,
@@ -1014,6 +1015,7 @@ function stepOnce(): string[] {
     // Damage grunt plus camera kick when the local player is hit.
     if (damage.victimId === 0) {
       playGrunt();
+      flashHpDamage(document);
       if (camera !== null) {
         addTrauma(camera, 0.5);
       }

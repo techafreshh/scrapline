@@ -100,3 +100,19 @@ Fps rule: quality `high` (the default), frostbite entry, 60 s sampled at
 500 ms from `window.__game.fps` — the mean must read >= 50 while every
 sample sees a live ambient bed (`ambientCount > 0`, frostbite snowfall),
 plus the kilima spot-check (`ambientBirdCount > 0` within 5 s).
+
+## Sprite verification (#272)
+
+Side-by-side proof that sprite captures read at least as detailed as
+the references above: the sprite verifier regenerates twelve committed
+frames under the captures directory (six scenes at 1920x1080 and
+1280x720) and gates every frame at or above its mapped reference
+below. Menu frames map to the menu reference; standings frames to the
+standings reference; kilima run and HUD frames to the midmatch-kilima
+reference; dune jet frames to the dune theme capture; frostbite
+particle frames to the frostbite theme capture.
+
+Regeneration: run npm run verify:sprites, eyeball the fresh frames for
+sprite soldiers (run cycle, jetting), themed tilesets, fire and
+explosion particles, HUD chrome, and standings, then confirm the capture
+inventory gate stays green.

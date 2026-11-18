@@ -1,0 +1,48 @@
+/* Setup overlay on the Panel primitive (issue #319): constrained card
+  with a shared header row and token row rhythm. Consumes token
+  variables only, no raw colors, no tiling. The `#stage`-qualified
+  selectors outrank the legacy inline style block (the layers.css idiom)
+  while the bare selectors keep static scans literal. */
+#stage #setup,
+#setup {
+  background: var(--color-veil);
+  background-repeat: no-repeat;
+}
+#stage #setup .sl-panel,
+#setup .sl-panel {
+  gap: var(--spacing-12);
+  padding: var(--spacing-24);
+  background: var(--color-panel);
+}
+#stage #setup .panel-head,
+#setup .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  width: 100%;
+}
+#stage #setup .panel-head h2,
+#setup .panel-head h2 {
+  margin: 0;
+  font-size: var(--font-h2);
+  letter-spacing: 1px;
+  color: var(--color-text);
+}
+#stage #setup .panel-close,
+#setup .panel-close {
+  min-height: 44px;
+  padding: var(--spacing-8) var(--spacing-12);
+}
+#stage #setup .setup-row,
+#setup .setup-row {
+  gap: var(--spacing-8);
+  padding: var(--spacing-4) var(--spacing-8);
+}
+#stage #setup .panel-rows,
+#setup .panel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  width: 100%;
+}

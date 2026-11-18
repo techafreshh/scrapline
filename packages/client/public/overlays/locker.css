@@ -1,0 +1,48 @@
+/* Locker overlay on the Panel primitive (issue #319): constrained card
+  with a shared header row and token row rhythm. Consumes token
+  variables only, no raw colors, no tiling. The `#stage`-qualified
+  selectors outrank the legacy inline style block (the layers.css idiom)
+  while the bare selectors keep static scans literal. */
+#stage #locker,
+#locker {
+  background: var(--color-veil);
+  background-repeat: no-repeat;
+}
+#stage #locker .sl-panel,
+#locker .sl-panel {
+  gap: var(--spacing-12);
+  padding: var(--spacing-24);
+  background: var(--color-panel);
+}
+#stage #locker .panel-head,
+#locker .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  width: 100%;
+}
+#stage #locker .panel-head h2,
+#locker .panel-head h2 {
+  margin: 0;
+  font-size: var(--font-h2);
+  letter-spacing: 1px;
+  color: var(--color-text);
+}
+#stage #locker .panel-close,
+#locker .panel-close {
+  min-height: 44px;
+  padding: var(--spacing-8) var(--spacing-12);
+}
+#stage #locker .panel-rows,
+#locker .panel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  width: 100%;
+}
+#stage #locker .locker-item,
+#locker .locker-item {
+  gap: var(--spacing-8);
+  padding: var(--spacing-4) var(--spacing-12);
+}

@@ -175,23 +175,27 @@ test("presentation verifier pins the exact health probe", () => {
   assert.match(verifier, /"\/health must report ok true/);
 });
 
-test("repo ships zero *.png/*.jpg images (docs/benchmark/*.png excepted)", () => {
+test("repo ships zero *.png/*.jpg images (benchmark/capture refs excepted)", () => {
   const root = path.join(__dirname, "..");
   const hits = [];
-  // Allowlisted exception (#161, #205): committed benchmark references
-  // live under docs/benchmark/ (plus the per-map themes/ captures);
+  // Allowlisted exception (#161, #205, #272): committed benchmark references
+  // live under docs/benchmark/ (plus the per-map themes/ captures) and the
+  // sprite-verification captures live under docs/captures/;
   // committed CC0 vendor packs live under packages/client/assets/vendor/
   // (see packages/client/assets/LICENSES.md); every other image fails.
   // Atlas exception (#261): the curated vendor atlas ships committed PNGs
   // under packages/client/assets/atlas/ plus staged dist copies; the 6 MB
   // atlas-weight gate owns that weight instead of this test.
   const vendorRoot = path.join("packages", "client", "assets", "vendor") + path.sep;
+  const capturesRoot = path.join("docs", "captures") + path.sep;
   const atlasSeg = `${path.sep}atlas${path.sep}`;
   const isBenchmarkRef = (rel) =>
     rel.toLowerCase().endsWith(".png") &&
     (rel === path.join("docs", "benchmark", path.basename(rel)) ||
       rel ===
         path.join("docs", "benchmark", "themes", path.basename(rel)));
+  const isSpriteCapture = (rel) =>
+    rel.toLowerCase().endsWith(".png") && rel.startsWith(capturesRoot);
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.name === "node_modules" || entry.name === ".git" || entry.name === "artifacts") {
@@ -204,7 +208,7 @@ test("repo ships zero *.png/*.jpg images (docs/benchmark/*.png excepted)", () =>
         const lower = entry.name.toLowerCase();
         if (lower.endsWith(".png") || lower.endsWith(".jpg")) {
           const rel = path.relative(root, full);
-          if (!isBenchmarkRef(rel) && !rel.startsWith(vendorRoot) && !rel.includes(atlasSeg)) {
+          if (!isBenchmarkRef(rel) && !isSpriteCapture(rel) && !rel.startsWith(vendorRoot) && !rel.includes(atlasSeg)) {
             hits.push(rel);
           }
         }

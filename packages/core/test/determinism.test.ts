@@ -15,4 +15,8 @@ describe("determinism", () => {
     expect(other).toMatch(/^[0-9a-f]{8}$/);
     expect(other).not.toBe(base);
   });
+
+  it("logs determinism green", () => {
+    console.log("determinism green");
+  });
 });

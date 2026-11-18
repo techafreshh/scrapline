@@ -194,6 +194,7 @@ test("npm test runs every node test file including the closeout gate", () => {
   assert.equal(typeof script, "string");
   for (const name of [
     "skeleton",
+    "port-list",
     "stage-dist",
     "core-imports",
     "perf-guardrail",

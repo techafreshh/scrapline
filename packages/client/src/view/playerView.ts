@@ -28,12 +28,28 @@ export interface PointLike {
   set(x: number, y: number): void;
 }
 
+/** Structural Pixi Sprite surface: the soldier-card overlay (issue #281).
+ *  Only the fields the poser touches are modeled; the live Pixi Sprite
+ *  carries the rest (texture, width/height). `textureKey` is optional so
+ *  a verbatim `PIXI.Sprite` still satisfies the factory structurally. */
+export interface SpriteLike {
+  label: string;
+  position: PointLike;
+  tint: number | string;
+  visible: boolean;
+  textureKey?: string | null;
+  width?: number;
+  height?: number;
+}
+
 /** Structural Pixi Graphics surface (mirrors the renderer paint style). */
 export interface GraphicsLike {
   label: string;
   position: PointLike;
   rotation: number;
   tint: number | string;
+  /** Hidden while the soldier card covers the vector body (issue #281). */
+  visible?: boolean;
   clear?(): unknown;
   rect(x: number, y: number, w: number, h: number): unknown;
   circle(x: number, y: number, r: number): unknown;
@@ -50,14 +66,21 @@ export interface ContainerLike {
   visible: boolean;
   position: PointLike;
   scale: PointLike;
-  children: GraphicsLike[];
-  addChild(child: GraphicsLike): void;
+  children: Array<GraphicsLike | SpriteLike>;
+  addChild(child: GraphicsLike | SpriteLike): void;
 }
 
-/** Structural Pixi module surface (Container + Graphics constructors). */
+/** Structural Pixi module surface (Container + Graphics constructors,
+ *  plus the optional soldier-card Sprite for the pack swap). The Sprite
+ *  member stays optional so the existing Graphics-only fakes (and every
+ *  committed node test) keep typechecking while the live Pixi factory
+ *  passes its verbatim Sprite constructor. */
 export interface PixiFactory {
   Container: new () => ContainerLike;
   Graphics: new () => GraphicsLike;
+  Sprite?: new () => SpriteLike;
+  /** Structural texture upload (tinted-card canvas to GPU, issue #281). */
+  Texture?: { from(source: unknown, skipCache?: boolean): unknown };
 }
 
 /** Structural Pixi stage surface (containers attach exactly once). */
@@ -103,6 +126,9 @@ export interface ProbePlayer {
   spawnEase?: number;
   /** Death ease for this player (additive probe field). */
   deathEase?: number;
+  /** Live pack-sprite texture for this player (additive probe field,
+   *  issue #281: `soldier.*` locally, `<set>.*` per bot). */
+  texture?: string;
 }
 
 /** Write an expando field without fighting the Pixi v8 typings. */
@@ -187,6 +213,25 @@ export function buildPlayerNode(
     drawPartInto(child, name);
     container.addChild(child);
   }
+  // Soldier-card overlay (issue #281): the pack sprite rides above the
+  // vector body once a texture resolves, so the WebGL backend paints
+  // the same `platformer-characters` art the canvas2d backend draws.
+  // Graphics-only fakes (and the canvas2d stubs above) skip this child
+  // and keep the exact 7-part shape the committed tests pin.
+  if (pixi.Sprite !== undefined && pixi.Sprite !== null) {
+    try {
+      const sprite = new pixi.Sprite();
+      sprite.label = "soldierSprite";
+      setField(sprite, "name", "soldierSprite");
+      sprite.position.set(0, 0);
+      sprite.tint = 0xffffff;
+      sprite.visible = false;
+      sprite.textureKey = null;
+      container.addChild(sprite);
+    } catch {
+      // Sprite construction best-effort only: the vector body stays.
+    }
+  }
   return container;
 }
 
@@ -233,6 +278,11 @@ export interface SyncPose {
   spawnEase?: number;
   /** Death ease in [0, 1] (rides the ease scale, dead pose untouched). */
   deathEase?: number;
+  /** Pack-sprite texture for this pose (`soldier.*` / `<set>.*` manifest
+   *  key, issue #281). Null hides the card and restores the vector body;
+   *  the renderer passes null while a victim flash is live so the red
+   *  vector reads, mirroring the canvas2d `if (!flashed)` guard. */
+  textureKey?: string | null;
 }
 
 /**
@@ -282,9 +332,39 @@ export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
       swing,
     });
   const tint = pose.hurtFlash === true ? 0xffffff : pose.colorHex;
+  // Soldier-card intent (issue #281): the overlay child carries the live
+  // manifest key so the WebGL backend paints the same pack art the
+  // canvas2d backend draws via tintedSoldierFor. The renderer
+  // materializes the tinted canvas into a GPU texture; headless fakes
+  // assert on this intent alone (key + visibility), never on pixels.
+  const textureKey =
+    typeof pose.textureKey === "string" && pose.textureKey.length > 0
+      ? pose.textureKey
+      : null;
   for (const child of container.children) {
-    if (child.label === "legL" || child.label === "legR") {
-      const side = child.label === "legL" ? -1 : 1;
+    if (child.label !== "soldierSprite") {
+      continue;
+    }
+    const sprite = child as SpriteLike;
+    sprite.textureKey = textureKey;
+    sprite.visible = textureKey !== null;
+    if (textureKey !== null) {
+      sprite.tint = 0xffffff;
+    }
+  }
+  // The card already carries legs/torso/head: hide the vector body
+  // while it is live (arms stay: they rotate the held gun above the
+  // card, mirroring the canvas2d spritePainted path in drawCharacter2D).
+  const spriteLive =
+    textureKey !== null &&
+    container.children.some((child) => child.label === "soldierSprite");
+  for (const child of container.children) {
+    if (child.label === "soldierSprite" || "textureKey" in child) {
+      continue;
+    }
+    const gfx = child as GraphicsLike;
+    if (gfx.label === "legL" || gfx.label === "legR") {
+      const side = gfx.label === "legL" ? -1 : 1;
       const { dx, dy } = soldierLegOffsetBlended(
         frame,
         swing,
@@ -292,23 +372,39 @@ export function syncPlayerNode(node: PlayerNode, pose: SyncPose): void {
         gaitBlend,
         airBlend,
       );
-      child.position.set(dx, dy);
-      child.tint = tint;
-    } else if (child.label === "armL" || child.label === "armR") {
-      child.rotation = aim;
-      child.tint = tint;
+      gfx.position.set(dx, dy);
+      gfx.tint = tint;
+    } else if (gfx.label === "armL" || gfx.label === "armR") {
+      gfx.rotation = aim;
+      gfx.tint = tint;
       if (
-        child.label === "armR" &&
+        gfx.label === "armR" &&
         pose.weapon !== undefined &&
-        typeof child.clear === "function"
+        typeof gfx.clear === "function"
       ) {
-        child.clear();
-        drawPartInto(child, "armR", pose.weapon);
+        gfx.clear();
+        drawPartInto(gfx, "armR", pose.weapon);
       }
-    } else if (child.label === "visor") {
-      child.tint = 0xffffff;
+    } else if (gfx.label === "visor") {
+      gfx.tint = 0xffffff;
     } else {
-      child.tint = tint;
+      gfx.tint = tint;
+    }
+    gfx.visible = spriteLive ? gfx.label === "armL" || gfx.label === "armR" : true;
+  }
+  if (spriteLive) {
+    // Arms above the card (live Pixi moves an re-added child to the
+    // top, matching the canvas2d gun-over-sprite order); Graphics-only
+    // fakes never reach here without a soldierSprite child.
+    for (const label of ["armL", "armR"] as const) {
+      const arm = container.children.find((child) => child.label === label);
+      if (arm !== undefined) {
+        try {
+          container.addChild(arm);
+        } catch {
+          // Shorn stage: paint order best-effort only.
+        }
+      }
     }
   }
 }
@@ -362,6 +458,8 @@ export function publishGameProbes(
     landSquash?: number;
     spawnEase?: number;
     deathEase?: number;
+    /** Live pack-sprite texture (`soldier.*` / `<set>.*`, issue #281). */
+    texture?: string;
   }[],
 ): void {
   if (typeof window === "undefined") {
@@ -422,6 +520,9 @@ export function publishGameProbes(
         : {}),
       ...(typeof extras?.[k]?.deathEase === "number"
         ? { deathEase: extras[k]?.deathEase as number }
+        : {}),
+      ...(typeof extras?.[k]?.texture === "string"
+        ? { texture: extras[k]?.texture as string }
         : {}),
     };
   });

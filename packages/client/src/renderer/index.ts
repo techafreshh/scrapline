@@ -1347,6 +1347,29 @@ function liveBotTexture(
 }
 
 /**
+ * Resolve the live pack-sprite texture for one frame player (issue #281).
+ * The local soldier renders the `platformer-characters` Soldier set via
+ * liveSoldierTexture (debug override wins) while bots render their own
+ * silhouette set via liveBotTexture. Both renderer backends resolve
+ * through this helper so WebGL nodes and canvas2d cards name the same
+ * art for the same pose. Never throws.
+ */
+function textureKeyForPlayer(
+  p: FramePlayer,
+  anim: AnimPose | undefined,
+): string {
+  try {
+    return p.index === 0 ? liveSoldierTexture(p, anim) : liveBotTexture(p, anim);
+  } catch {
+    try {
+      return p.index === 0 ? "soldier.idle" : botSpriteKey({}, p.index);
+    } catch {
+      return "soldier.idle";
+    }
+  }
+}
+
+/**
  * Arm anchor world position for a frame player (the preserved pivot).
  * The composed pivot rides the body center (ARM_PIVOT 13,29 lands on the
  * standing center and squash-maps onto the crouch center), so the anchor
@@ -2143,7 +2166,37 @@ function paintFramePixi(
   quality: QualityLevel = "high",
   hurtPulse: number = 0,
   ambient: AmbientBed | null = null,
+  spriteAnims: readonly AnimPose[] = [],
 ): void {
+  // Pack-sprite parity (issue #281): player bodies live in the per-index
+  // Pixi container nodes, but the immediate pass still resolves the same
+  // live textures drawCharacter2D paints (liveSoldierTexture for the
+  // local soldier, liveBotTexture per bot) and warms the image +
+  // tinted-card caches for them, so the WebGL backend names pack art
+  // instead of lingering on vector paint. The posed cards land on the
+  // nodes in syncPlayerSpriteTextures; this warm keeps the first
+  // post-decode frame from flashing vectors.
+  try {
+    for (let i = 0; i < frame.players.length; i += 1) {
+      const p = frame.players[i];
+      if (p === undefined) {
+        continue;
+      }
+      const key = textureKeyForPlayer(p, spriteAnims[i]);
+      try {
+        soldierImageFor(key);
+      } catch {
+        // Fetch kick best-effort only.
+      }
+      try {
+        tintedSoldierFor(key, p.index, spriteAnims[i]?.hurtFlash === true);
+      } catch {
+        // Tint warm best-effort only.
+      }
+    }
+  } catch {
+    // Sprite warm never breaks the immediate pass.
+  }
   const px = (x: number): number => projectCamera(cam, canvasWidth, canvasHeight, x, 0).x;
   const py = (y: number): number => projectCamera(cam, canvasWidth, canvasHeight, 0, y).y;
   const ambientProject = (x: number, y: number): { x: number; y: number } =>
@@ -2482,7 +2535,18 @@ function ensurePlayerNodes(
   }
 }
 
-/** Pose every live node for the frame through the follow camera. */
+/** Pose every live node for the frame through the follow camera.
+ *
+ * Pack-sprite parity (issue #281): every node resolves the same live
+ * texture the canvas2d backend paints in drawCharacter2D (local soldier
+ * via liveSoldierTexture, bots via liveBotTexture) and warms the image
+ * + tinted-card caches for it, so the Pixi backend names pack art instead
+ * of lingering on vector paint. The key rides the pose into
+ * syncPlayerNode (null while a victim flash is live, mirroring the
+ * canvas2d `if (!flashed)` guard so the red vector reads); the pixi draw
+ * path then materializes the tinted card into a GPU texture in
+ * syncPlayerSpriteTextures. Never throws.
+ */
 function syncFramePlayers(
   store: PlayerNode[],
   frame: Frame,
@@ -2500,6 +2564,19 @@ function syncFramePlayers(
     }
     const at = projectCamera(cam, canvasW, canvasH, p.x, p.y);
     const anim = anims[i];
+    // Live pack-sprite key for this pose (issue #281): the same
+    // resolution drawCharacter2D paints on the canvas2d backend.
+    const textureKey = textureKeyForPlayer(p, anim);
+    try {
+      soldierImageFor(textureKey);
+    } catch {
+      // Fetch kick best-effort only: the vector fallback covers misses.
+    }
+    try {
+      tintedSoldierFor(textureKey, p.index, anim?.hurtFlash === true);
+    } catch {
+      // Tint warm best-effort only: the vector fallback covers misses.
+    }
     const soldierFrame: SoldierFrameId =
       anim !== undefined
         ? selectSoldierFrame({
@@ -2539,7 +2616,129 @@ function syncFramePlayers(
       landSquash: anim?.landSquash ?? 1,
       spawnEase: anim?.spawnEase ?? 1,
       deathEase: anim?.deathEase ?? 1,
+      textureKey: victimFlash.has(p.index) ? null : textureKey,
     });
+  }
+}
+
+/** Live Pixi textures per tinted soldier card (issue #281). Keyed by
+ *  `${textureKey}|${playerIndex}|hurt|tint` so a pose change swaps the
+ *  card while a repeated frame reuses the uploaded texture. */
+const pixiSoldierTextureCache = new Map<string, unknown>();
+
+/** Upload one tinted card canvas into a Pixi texture (null when the
+ *  backend has no Texture surface or the upload faults). Never throws. */
+function pixiTextureForCard(pixiMod: unknown, cacheKey: string, card: unknown): unknown | null {
+  try {
+    if (pixiSoldierTextureCache.has(cacheKey)) {
+      return pixiSoldierTextureCache.get(cacheKey) ?? null;
+    }
+    const textureSurface = (pixiMod as unknown as {
+      Texture?: { from?: (source: unknown) => unknown };
+    }).Texture;
+    if (
+      textureSurface === undefined ||
+      textureSurface === null ||
+      typeof textureSurface.from !== "function"
+    ) {
+      return null;
+    }
+    const texture = textureSurface.from(card);
+    if (texture === null || texture === undefined) {
+      return null;
+    }
+    pixiSoldierTextureCache.set(cacheKey, texture);
+    return texture;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Materialize the posed soldier cards into GPU textures (issue #281).
+ * syncFramePlayers records the live manifest key on each node's overlay
+ * child; this pass uploads the matching tintedSoldierFor canvas (the
+ * exact card drawCharacter2D paints on canvas2d) and sizes it to the
+ * player box in local px. A missing decode keeps the overlay hidden so
+ * the vector fallback covers the frame; victim flashes already nulled
+ * the key in syncFramePlayers so the red vector reads. Never throws.
+ */
+function syncPlayerSpriteTextures(
+  pixiMod: unknown,
+  store: PlayerNode[],
+  frame: Frame,
+  anims: readonly AnimPose[],
+): void {
+  try {
+    for (let i = 0; i < frame.players.length; i += 1) {
+      const p = frame.players[i];
+      const node = store[i];
+      if (p === undefined || node === undefined || !("position" in node)) {
+        continue;
+      }
+      const children = (node as unknown as {
+        children?: Array<Record<string, unknown>>;
+      }).children;
+      if (!Array.isArray(children)) {
+        continue;
+      }
+      const sprite = children.find(
+        (child) =>
+          child !== null &&
+          typeof child === "object" &&
+          (child as Record<string, unknown>)["label"] === "soldierSprite",
+      ) as Record<string, unknown> | undefined;
+      if (sprite === undefined) {
+        continue;
+      }
+      const textureKey = sprite["textureKey"];
+      if (typeof textureKey !== "string" || textureKey.length === 0) {
+        continue;
+      }
+      const anim = anims[i];
+      const hurt = anim?.hurtFlash === true;
+      let card: unknown = null;
+      try {
+        card = tintedSoldierFor(textureKey, p.index, hurt);
+      } catch {
+        card = null;
+      }
+      if (card === null || card === undefined) {
+        try {
+          sprite["visible"] = false;
+        } catch {
+          // Shorn node: the vector fallback stays.
+        }
+        continue;
+      }
+      const cacheKey = `${textureKey}|${p.index}|${hurt ? "hurt" : "tint"}`;
+      const texture = pixiTextureForCard(pixiMod, cacheKey, card);
+      if (texture === null || texture === undefined) {
+        try {
+          sprite["visible"] = false;
+        } catch {
+          // Shorn node: the vector fallback stays.
+        }
+        continue;
+      }
+      try {
+        sprite["texture"] = texture;
+        sprite["visible"] = true;
+        sprite["tint"] = 0xffffff;
+        sprite["width"] = p.w;
+        sprite["height"] = p.h;
+        const position = sprite["position"] as
+          | { set?: (x: number, y: number) => void }
+          | undefined;
+        if (position !== undefined && typeof position.set === "function") {
+          position.set(0, 0);
+        }
+      } catch {
+        // Shorn sprite: the vector fallback stays.
+      }
+    }
+  } catch {
+    // Overlay best-effort only: vectors already cover every frame.
   }
 }
 
@@ -2609,6 +2808,10 @@ function publishFrameProbes(
       landSquash: pose?.landSquash ?? 1,
       spawnEase: pose?.spawnEase ?? 1,
       deathEase: pose?.deathEase ?? 1,
+      // Live pack-sprite key per player (issue #281): the same
+      // resolution syncFramePlayers poses the Pixi nodes with, so the
+      // probe surface names pack art on both backends.
+      texture: textureKeyForPlayer(p, pose),
     };
   });
   publishGameProbes(
@@ -4339,6 +4542,10 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           frame.players.length,
         );
         syncFramePlayers(playerNodes, frame, cam, logicalW, logicalH, victimFlash, anims);
+        // Upload the posed tinted cards into GPU textures (issue #281):
+        // the same pack art drawCharacter2D paints on canvas2d, sized to
+        // the player box with the vector body hidden underneath.
+        syncPlayerSpriteTextures(mod, playerNodes, frame, anims);
         publishFrameProbes(playerNodes, frame, cam, logicalW, logicalH, muzzles, anims);
         paintFramePixi(
           graphics,
@@ -4363,6 +4570,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
           quality,
           hurtPulse,
           ambientBed,
+          anims,
         );
         // High-quality Pixi filter pass (best-effort): Glow on the fx
         // layer, Shockwave from live rings, RGBSplit while hurt. Low

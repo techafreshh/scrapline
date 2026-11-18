@@ -1076,6 +1076,20 @@ const server = http.createServer((req, res) => {
     send(req, res, 404, "text/plain; charset=utf-8", "not found");
     return;
   }
+  if (readable && url.pathname === "/tokens.css") {
+    // Design tokens (issue #311): same staged-first fallback chain.
+    const built = tryReadFirst(
+      path.join(ROOT_DIST, "tokens.css"),
+      path.join(DIST, "tokens.css"),
+      path.join(ROOT, "packages", "client", "public", "tokens.css"),
+    );
+    if (built !== null) {
+      send(req, res, 200, "text/css; charset=utf-8", built);
+      return;
+    }
+    send(req, res, 404, "text/plain; charset=utf-8", "not found");
+    return;
+  }
   if (readable && url.pathname.startsWith("/assets/")) {
     const rel = path.normalize(url.pathname.slice("/assets/".length));
     // Same staged-first chain as the page/bundle routes above.

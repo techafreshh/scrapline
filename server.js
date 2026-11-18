@@ -3,6 +3,7 @@
 // GET /main.js -> staged bundle (same fallback chain),
 // GET /sw.js -> staged worker (same fallback chain),
 // GET /manifest.webmanifest -> staged manifest (same fallback chain),
+// GET /tokens.css -> design tokens (same fallback chain),
 // GET /assets/* -> staged assets (same fallback chain),
 // GET /icons/* -> staged PWA icons (same fallback chain, plus public/ source),
 // GET /health and GET /api/health -> {"ok":true,"status":"ok","rooms":0} (rooms stub for F1/F5), GET /healthz -> {"ok":true}. Everything else is a 404.
@@ -201,6 +202,20 @@ const server = http.createServer((req, res) => {
     );
     if (built !== null) {
       send(req, res, 200, "application/manifest+json", built);
+      return;
+    }
+    send(req, res, 404, "text/plain; charset=utf-8", "not found");
+    return;
+  }
+  if (readable && url.pathname === "/tokens.css") {
+    // Design tokens (issue #311): same staged-first fallback chain.
+    const built = tryReadFirst(
+      path.join(ROOT_DIST, "tokens.css"),
+      path.join(DIST, "tokens.css"),
+      path.join(ROOT, "packages", "client", "public", "tokens.css"),
+    );
+    if (built !== null) {
+      send(req, res, 200, "text/css; charset=utf-8", built);
       return;
     }
     send(req, res, 404, "text/plain; charset=utf-8", "not found");

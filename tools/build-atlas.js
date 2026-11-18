@@ -207,12 +207,16 @@ function decodeSheetPng(buf, label) {
     cur.copy(indices, y * w);
     prev = cur;
   }
+  const entries = palette.length / 3;
   const rgba = Buffer.alloc(w * h * 4);
   for (let i = 0; i < w * h; i += 1) {
     const idx = indices[i];
-    rgba[i * 4] = palette[idx * 3] ?? 0;
-    rgba[i * 4 + 1] = palette[idx * 3 + 1] ?? 0;
-    rgba[i * 4 + 2] = palette[idx * 3 + 2] ?? 0;
+    if (idx >= entries) {
+      fail(`decodeSheetPng: ${label} has a palette index ${idx} beyond its PLTE length.`);
+    }
+    rgba[i * 4] = palette[idx * 3];
+    rgba[i * 4 + 1] = palette[idx * 3 + 1];
+    rgba[i * 4 + 2] = palette[idx * 3 + 2];
     rgba[i * 4 + 3] = alpha !== null && idx < alpha.length ? alpha[idx] : 255;
   }
   return { w, h, rgba };

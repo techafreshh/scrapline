@@ -1,0 +1,27 @@
+/* Panel primitive (issue #312): the single constrained card behind every
+  overlay surface (menu, setup, settings, how-to, end screen). Outer overlay
+  divs stay full-screen scrims; this inner card never tiles: translucent
+  token background, 2px token border, inner glow plus lift shadow, radius,
+  and a capped width/height with internal scroll. Consumes token variables
+  only — no raw colors. */
+.sl-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--spacing-12);
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 48px));
+  max-width: 100%;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  padding: var(--spacing-24);
+  background: var(--color-panel);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 24px rgba(0, 0, 0, 0.35),
+    var(--shadow-lift);
+  color: var(--color-text);
+}

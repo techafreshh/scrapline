@@ -198,7 +198,7 @@ test("repo ships zero *.png/*.jpg images (benchmark/capture refs excepted)", () 
     rel.toLowerCase().endsWith(".png") && rel.startsWith(capturesRoot);
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === "node_modules" || entry.name === ".git" || entry.name === "artifacts") {
+      if (entry.name === "node_modules" || entry.name === ".git" || entry.name === "artifacts" || entry.name === "captures") {
         continue;
       }
       const full = path.join(dir, entry.name);

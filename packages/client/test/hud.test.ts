@@ -2,7 +2,7 @@
 // score/alive-diff kill attribution. Pure helpers only (no DOM/jsdom),
 // mirroring packages/core/test builder style.
 import { describe, expect, it } from "vitest";
-import { ENEMY_A_CSS, LOCAL_CSS } from "../src/view/character";
+import { ENEMY_A_CSS, ENEMY_B_CSS, LOCAL_CSS } from "../src/view/character";
 import {
   BOT_NAMES,
   endStandingsRows,
@@ -395,6 +395,18 @@ describe("pushKillfeed weapon entries", () => {
     expect(icon.getAttribute("src")).toBe("./assets/weapon-hornet.svg");
     expect(victim.textContent).toBe("You");
     expect(victim.style["color"]).toBe(LOCAL_CSS);
+  });
+
+  it("paints a bot victim span with its team color", () => {
+    const { handles, feed } = fakeFeed();
+    pushKillfeed(handles, "Raptor", "Viper", "rifle", 1, 2);
+    expect(feed.children).toHaveLength(1);
+    const entry = feed.children[0];
+    expect(entry.children).toHaveLength(4);
+    const [, , , victim] = entry.children;
+    expect(victim.textContent).toBe("Viper");
+    expect(victim.getAttribute("class")).toBe("victim");
+    expect(victim.style["color"]).toBe(ENEMY_B_CSS);
   });
 
   it("renders suicides as `X died` with no icon", () => {

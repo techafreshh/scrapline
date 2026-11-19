@@ -1093,6 +1093,7 @@ function stepOnce(): string[] {
         ? null
         : world.players.findIndex((p) => p.id === kill.killerId);
     const knownKiller = killerIdx !== null && killerIdx >= 0;
+    const victimIdx = world.players.findIndex((p) => p.id === kill.victimId);
     const liveWeapon =
       knownKiller && killerIdx !== null
         ? (world.players[killerIdx]?.weapon ?? null)
@@ -1105,7 +1106,7 @@ function stepOnce(): string[] {
       playerName(kill.victimId, cachedProfile.name),
       kill.weapon ?? liveWeapon,
       knownKiller ? killerIdx : null,
-      kill.victim,
+      victimIdx >= 0 ? victimIdx : null,
     );
     // Daily challenges (issue #211): only local-player kills progress
     // the rifle/grenade rows (bot-vs-bot kills never count); freshly

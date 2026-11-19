@@ -18,6 +18,20 @@ const PUBLIC = path.join(ROOT, "packages", "client", "public");
 const SRC_HTML = path.join(ROOT, "packages", "client", "index.html");
 const COMBINED = path.join(ROOT, "packages", "server", "src", "server.ts");
 
+/** Recursive collector for every *.css file under dir. */
+function collectCssFiles(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...collectCssFiles(full));
+    } else if (entry.isFile() && entry.name.endsWith(".css")) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
 function freePort() {
   return new Promise((resolve, reject) => {
     const probe = net.createServer();
@@ -93,13 +107,18 @@ test("GET / links the tokens stylesheet for the bundled-CSS path", async () => {
 });
 
 test("no public CSS outside tokens.css carries a raw six-digit hex", () => {
-  const files = fs.readdirSync(PUBLIC).filter((n) => n.endsWith(".css"));
-  assert.ok(files.includes("tokens.css"), "tokens.css must live in public/");
-  for (const name of files) {
-    if (name === "tokens.css") {
-      continue;
-    }
-    const source = fs.readFileSync(path.join(PUBLIC, name), "utf8");
+  const files = collectCssFiles(PUBLIC);
+  assert.ok(
+    files.includes(path.join(PUBLIC, "tokens.css")),
+    "tokens.css must live in public/",
+  );
+  const others = files.filter(
+    (file) => file !== path.join(PUBLIC, "tokens.css"),
+  );
+  assert.ok(others.length >= 1, "expected at least one public CSS file besides tokens.css");
+  for (const file of others) {
+    const source = fs.readFileSync(file, "utf8");
+    const name = path.relative(PUBLIC, file);
     assert.doesNotMatch(
       source,
       /#[0-9a-fA-F]{6}/,

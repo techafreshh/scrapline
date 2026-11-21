@@ -11,9 +11,9 @@ Made by a Nigerian dev (lagosLife platform flag; gele/danfo/jollof cosmetics).
 
 ## Game rules (all constants extracted, from wakeLock bundle)
 - **Tick rate: 60 Hz.** Aim quantized to 4096 steps. moveX quantized to 1/64.
-- Player: 26×58 px (crouch 40), run 290 px/s, crouch 120, hop 300 px/s
+- Player: 26×58 px (crouch 40), run 240 px/s, crouch 100, hop 300 px/s
 - Jetpack: accel 3350, max up 470, fuel 100, burn 34/s, regen 60/s ground / 14/s air (0.35 s delay), min 8 to start
-- Physics: gravity 1550, maxFall 1150, groundAccel 2600, groundFriction 2300, airAccel 1500, airDrag 160
+- Physics: gravity 1550, maxFall 1150, groundAccel 1000, groundFriction 900, airAccel 650, airDrag 120
 - Health 100, regen 10/s after 5 s, respawn 3 s, spawn protection 1.5 s, max 3 grenades
 - Match: 5 min time limit, score limit 25 kills, ffa or tdm, end delay 6 s
 - Pickups: weapons respawn 15 s, health +50 @ 20 s, grenades +2 @ 20 s, pickup radius 22

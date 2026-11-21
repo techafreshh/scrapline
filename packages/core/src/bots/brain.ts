@@ -45,7 +45,8 @@ export const THREAT_RADIUS_PX = 200;
 /** World ticks an evade maneuver persists once triggered. */
 export const EVADE_TICKS = 45;
 /** Hold margin inside combat-band edges where strafing reverses.
- *  Strafing at full run speed coasts ~16px while reversing, so the servo
+ *  Strafing at full run speed coasts ~29px while reversing
+ *  (RUN_SPEED^2 / 2*GROUND_ACCEL = 240^2/2000), so the servo
  *  bounces 40px inside the strict edges and never touches the boundary. */
 export const BAND_HOLD_MARGIN_PX = 40;
 /** Extra sight-delay ticks when the contact sits behind the bot. */
@@ -85,12 +86,12 @@ export interface CombatBand {
 
 /** Frozen per-weapon combat bands (shotgun close, sniper far). */
 export const COMBAT_BANDS: Record<WeaponId, CombatBand> = Object.freeze({
-  pistol: Object.freeze({ min: 250, ideal: 400, max: 600 }),
-  smg: Object.freeze({ min: 250, ideal: 380, max: 550 }),
-  rifle: Object.freeze({ min: 350, ideal: 500, max: 700 }),
-  shotgun: Object.freeze({ min: 80, ideal: 150, max: 250 }),
-  sniper: Object.freeze({ min: 600, ideal: 780, max: 950 }),
-  rocket: Object.freeze({ min: 350, ideal: 500, max: 750 }),
+  pistol: Object.freeze({ min: 210, ideal: 330, max: 500 }),
+  smg: Object.freeze({ min: 210, ideal: 315, max: 455 }),
+  rifle: Object.freeze({ min: 290, ideal: 415, max: 580 }),
+  shotgun: Object.freeze({ min: 65, ideal: 125, max: 210 }),
+  sniper: Object.freeze({ min: 500, ideal: 645, max: 790 }),
+  rocket: Object.freeze({ min: 290, ideal: 415, max: 625 }),
 } as Record<WeaponId, CombatBand>);
 
 /** Goal selected by the utility chain (strict priority order). */

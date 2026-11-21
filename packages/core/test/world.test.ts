@@ -3,7 +3,7 @@ import { World } from "../src/world";
 import { WEAPONS } from "../src/weapons";
 
 describe("World run", () => {
-  it("displaces 270-310px over 60 ticks holding moveX=1 on flat ground", () => {
+  it("displaces 190-230px over 60 ticks holding moveX=1 on flat ground", () => {
     const world = new World({});
     world.step();
     expect(world.players.length).toBe(1);
@@ -12,8 +12,8 @@ describe("World run", () => {
       world.step({ moveX: 1 });
     }
     const dx = (world.players[0]?.x ?? 0) - startX;
-    expect(dx).toBeGreaterThanOrEqual(270);
-    expect(dx).toBeLessThanOrEqual(310);
+    expect(dx).toBeGreaterThanOrEqual(190);
+    expect(dx).toBeLessThanOrEqual(230);
   });
 
   it("accepts array inputs and stays on the floor while running", () => {

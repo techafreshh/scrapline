@@ -384,7 +384,7 @@ describe("server stale session inputs", () => {
     drive(driver, infoD.session, 1);
     const driving = await windowDrift(observer, infoD.pid, 600);
     expect(driving.present).toBe(true);
-    // Full stick at 290px/s steps ~4.8px/tick; 0.5px/tick keeps 10x margin
+    // Full stick at 240px/s steps ~4.0px/tick; 0.5px/tick keeps 10x margin
     // for loaded runners while still proving the slot was driving.
     expect(driving.rate).toBeGreaterThan(0.5);
 

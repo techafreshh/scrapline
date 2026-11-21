@@ -49,7 +49,7 @@ export const MAX_VIEW_W = 2100;
 export const MAX_VIEW_H = 1280;
 /** Trauma decay per second (linear). */
 export const TRAUMA_DECAY = 0.8;
-/** Screen-px shake amplitude at trauma 1 (scales with trauma squared). */
+/** Screen-px shake amplitude at trauma 1 at the reference zoom (scale == CAMERA_ZOOM), scaling with trauma squared; world offset is MAX_SHAKE_PX / CAMERA_ZOOM. */
 export const MAX_SHAKE_PX = 14;
 /** Zoom lerp rate per second toward the target multiplier. */
 export const ZOOM_LERP_RATE = 8;
@@ -140,7 +140,8 @@ export function updateCamera(
   cam.trauma = Math.max(0, cam.trauma - TRAUMA_DECAY * dt);
   // Quadrature sinusoids: magnitude stays exactly the amplitude, so the
   // offset never samples near zero on the frame a probe happens to poll.
-  const amp = MAX_SHAKE_PX * cam.trauma * cam.trauma;
+  const amp =
+    MAX_SHAKE_PX * (cam.scale / CAMERA_ZOOM) * cam.trauma * cam.trauma;
   const phase = cam.time * SHAKE_FREQ;
   cam.shakeX = amp * Math.sin(phase);
   cam.shakeY = amp * Math.cos(phase);

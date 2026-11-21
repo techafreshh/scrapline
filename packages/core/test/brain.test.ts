@@ -85,8 +85,8 @@ describe("tier table", () => {
       expect(band.min).toBeLessThan(band.ideal);
       expect(band.ideal).toBeLessThan(band.max);
     }
-    expect(COMBAT_BANDS.shotgun).toEqual({ min: 80, ideal: 150, max: 250 });
-    expect(COMBAT_BANDS.sniper).toEqual({ min: 600, ideal: 780, max: 950 });
+    expect(COMBAT_BANDS.shotgun).toEqual({ min: 65, ideal: 125, max: 210 });
+    expect(COMBAT_BANDS.sniper).toEqual({ min: 500, ideal: 645, max: 790 });
     expect(REPLAN_HZ).toBe(12);
   });
 });
@@ -191,7 +191,7 @@ describe("brain goal chain", () => {
 });
 
 describe("brain shotgun band", () => {
-  it("holds 80-250px for 60 consecutive ticks at least once in 10s", () => {
+  it("holds 65-210px for 60 consecutive ticks at least once in 10s", () => {
     const world = new World({});
     const bot = world.addPlayer({ x: 80 });
     bot.weapon = "shotgun";
@@ -211,7 +211,7 @@ describe("brain shotgun band", () => {
     let best = 0;
     let run = 0;
     for (const d of distances) {
-      if (d >= 80 && d <= 250) {
+      if (d >= 65 && d <= 210) {
         run += 1;
         best = Math.max(best, run);
       } else {

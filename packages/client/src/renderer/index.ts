@@ -415,8 +415,8 @@ export function worldToScreen(
 }
 
 /**
- * Barrel length in world px. At the fixed CAMERA_ZOOM = 2 this renders
- * as 28 screen px: the sprite-swap arm/weapon anchor keeps the barrel,
+ * Barrel length in world px. At the fixed CAMERA_ZOOM = 0.5 this renders
+ * as 7 screen px: the sprite-swap arm/weapon anchor keeps the barrel,
  * tracer, and muzzle aligned with a 10-60px world muzzle reach (probe
  * band) under either a screen-pixel or a world-unit reading.
  */

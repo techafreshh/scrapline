@@ -27,7 +27,7 @@ export interface Light {
   flicker: boolean;
 }
 
-/** World-space glow radius: 80 screen px at CAMERA_ZOOM = 2. */
+/** World-space glow radius: 20 screen px at CAMERA_ZOOM = 0.5. */
 export const LIGHT_RADIUS_WORLD = 40;
 /** Max painted lights on low quality (high paints the full set). */
 export const LOW_LIGHT_CAP = 2;

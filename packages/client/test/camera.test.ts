@@ -13,6 +13,7 @@ import {
   cameraTarget,
   createCamera,
   cycleZoom,
+  fitScaleForArena,
   matchSpawnXs,
   MAX_SHAKE_PX,
   projectCamera,
@@ -26,6 +27,9 @@ import {
 
 const ARENA_W = 40 * TILE_SIZE;
 const ARENA_H = 20 * TILE_SIZE;
+/** Large arena where the 640x360 view fits without the fit floor (zoom arithmetic decides). */
+const WIDE_W = 80 * TILE_SIZE;
+const WIDE_H = 40 * TILE_SIZE;
 
 describe("cameraTarget", () => {
   it("pushes the target right of the player when aiming right", () => {
@@ -44,9 +48,9 @@ describe("cameraTarget", () => {
 
 describe("updateCamera", () => {
   it("converges from across the arena within 30 steps", () => {
-    // The default 1280x720 view covers the 40x20 arena whole, so the
-    // clamp would pin the camera to center; converge on a larger arena
-    // where the view can travel toward an unclamped target.
+    // The fitted 1137x640 view exactly fills the 40x20 height, so the
+    // vertical stays pinned; converge on a larger arena where the view
+    // can travel toward an unclamped target.
     const wideW = 80 * TILE_SIZE;
     const wideH = 40 * TILE_SIZE;
     const cam = createCamera(wideW, wideH);
@@ -102,17 +106,19 @@ describe("zoom cycle", () => {
   });
 
   it("converges to 0.8 within 600ms and returns to 1 after a full cycle", () => {
-    const cam = createCamera(ARENA_W, ARENA_H);
+    // Wide arena: the fit floor (0.28) stays below the 0.8 zoom scale,
+    // so the zoom arithmetic (not the small-arena fit) decides scale.
+    const cam = createCamera(WIDE_W, WIDE_H);
     cycleZoom(cam);
     for (let i = 0; i < 36; i += 1) {
-      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+      updateCamera(cam, cam.x, cam.y, WIDE_W, WIDE_H, 1 / 60);
     }
     expect(cam.zoom).toBeCloseTo(0.8, 1);
     expect(cam.scale).toBeCloseTo(CAMERA_ZOOM * 0.8, 1);
     cycleZoom(cam);
     cycleZoom(cam);
     for (let i = 0; i < 120; i += 1) {
-      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+      updateCamera(cam, cam.x, cam.y, WIDE_W, WIDE_H, 1 / 60);
     }
     expect(cam.zoom).toBeCloseTo(1, 2);
   });
@@ -129,26 +135,33 @@ describe("zoom cycle", () => {
     expect(view.h).toBeLessThanOrEqual(1280);
   });
 
-  it("shows at least 900 world px wide by default (1280x720 at scale 0.5)", () => {
+  it("shows at least 900 world px wide by default (fitted 1137x640, no overscan)", () => {
     const cam = createCamera(ARENA_W, ARENA_H);
     for (let i = 0; i < 120; i += 1) {
       updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
     }
     const view = viewSize(cam, 640, 360);
     expect(view.w).toBeGreaterThanOrEqual(900);
-    expect(view.w).toBeCloseTo(640 / CAMERA_ZOOM, 9);
-    expect(view.h).toBeCloseTo(360 / CAMERA_ZOOM, 9);
-    expect(view.w).toBeCloseTo(1280, 9);
-    expect(view.h).toBeCloseTo(720, 9);
+    // Fit floor for the default arena: max(640/1280, 360/640) = 0.5625.
+    expect(cam.scale).toBeCloseTo(0.5625, 9);
+    expect(view.w).toBeCloseTo(640 / 0.5625, 9);
+    expect(view.h).toBeCloseTo(360 / 0.5625, 9);
+    expect(view.w).toBeCloseTo(1137.7777777777778, 6);
+    expect(view.h).toBeCloseTo(640, 9);
+    // No overscan: the fitted view fits inside the default arena.
+    expect(view.w).toBeLessThanOrEqual(ARENA_W);
+    expect(view.h).toBeLessThanOrEqual(ARENA_H);
   });
 
   it("clamps the scale at the max-view floor when zoom dives below it", () => {
-    const cam = createCamera(ARENA_W, ARENA_H);
+    // Wide arena: the fit floor (0.28) stays below minScale (0.30),
+    // so the minScale branch (not the fit or 0.64x) decides the scale.
+    const cam = createCamera(WIDE_W, WIDE_H);
     // Drive the target below any ZOOM_LEVELS entry so the minScale
     // branch (not the 0.64x arithmetic) decides the final scale.
     cam.targetZoom = 0.05;
     for (let i = 0; i < 120; i += 1) {
-      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+      updateCamera(cam, cam.x, cam.y, WIDE_W, WIDE_H, 1 / 60);
     }
     const minScale = Math.max(640 / 2100, 360 / 1280);
     expect(CAMERA_ZOOM * cam.zoom).toBeLessThan(minScale);
@@ -180,18 +193,20 @@ describe("trauma shake", () => {
   });
 
   it("keeps the world-space offset constant across zoom levels", () => {
+    // Wide arena so each zoom level resolves to a distinct scale
+    // (the default arena fit floor would pin all three to 0.5625).
     const worlds: number[] = [];
     for (const level of ZOOM_LEVELS) {
-      const cam = createCamera(ARENA_W, ARENA_H);
+      const cam = createCamera(WIDE_W, WIDE_H);
       cam.targetZoom = level;
       for (let i = 0; i < 120; i += 1) {
-        updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+        updateCamera(cam, cam.x, cam.y, WIDE_W, WIDE_H, 1 / 60);
       }
       // Sample one quadrature frame at a fixed phase with no decay
       // so every zoom reads the same trauma-1 amplitude.
       cam.trauma = 1;
       cam.time = 1;
-      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 0);
+      updateCamera(cam, cam.x, cam.y, WIDE_W, WIDE_H, 0);
       // Screen px divided by scale is the world offset (see the
       // renderCam shaken copy in main.ts).
       worlds.push(Math.hypot(cam.shakeX, cam.shakeY) / cam.scale);
@@ -204,13 +219,15 @@ describe("trauma shake", () => {
   });
 
   it("preserves the reference screen amplitude at default zoom", () => {
-    const cam = createCamera(ARENA_W, ARENA_H);
+    // Wide arena so the default zoom resolves to CAMERA_ZOOM exactly
+    // (the default arena fit floor would read 0.5625 instead of 0.5).
+    const cam = createCamera(WIDE_W, WIDE_H);
     for (let i = 0; i < 120; i += 1) {
-      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+      updateCamera(cam, cam.x, cam.y, WIDE_W, WIDE_H, 1 / 60);
     }
     cam.trauma = 1;
     cam.time = 1;
-    updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 0);
+    updateCamera(cam, cam.x, cam.y, WIDE_W, WIDE_H, 0);
     expect(Math.hypot(cam.shakeX, cam.shakeY)).toBeCloseTo(MAX_SHAKE_PX, 0);
     expect(Math.abs(Math.hypot(cam.shakeX, cam.shakeY) - MAX_SHAKE_PX)).toBeLessThan(
       0.5,
@@ -312,5 +329,55 @@ describe("visibleTileRange", () => {
     expect(range.y1).toEqual(19);
     const cells = (range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1);
     expect(cells).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("small-arena fit (issue #341)", () => {
+  it("fits the 640x360 view inside the 1280x640 default arena", () => {
+    expect(fitScaleForArena(ARENA_W, ARENA_H)).toBeCloseTo(0.5625, 9);
+    expect(fitScaleForArena(WIDE_W, WIDE_H)).toBeLessThan(0.31);
+    expect(fitScaleForArena(0, 0)).toBe(0);
+    expect(fitScaleForArena(Number.NaN, Number.NaN)).toBe(0);
+  });
+
+  it("starts centered at the fit scale with no vertical overscan", () => {
+    const cam = createCamera(ARENA_W, ARENA_H);
+    expect(cam.x).toBeCloseTo(ARENA_W / 2, 9);
+    expect(cam.y).toBeCloseTo(ARENA_H / 2, 9);
+    expect(cam.scale).toBeCloseTo(0.5625, 9);
+    const view = viewSize(cam, 640, 360);
+    expect(view.h).toBeCloseTo(ARENA_H, 9);
+    expect(view.h).toBeLessThanOrEqual(ARENA_H);
+    expect(view.w).toBeLessThanOrEqual(ARENA_W);
+  });
+
+  it("keeps the projected arena covering the full viewport (no sky bands)", () => {
+    const cam = createCamera(ARENA_W, ARENA_H);
+    for (let i = 0; i < 120; i += 1) {
+      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+    }
+    // Fitted scale pins the height: arena top/bottom land on the
+    // viewport edges instead of leaving 20px sky bands.
+    expect(cam.scale).toBeCloseTo(0.5625, 9);
+    const topLeft = projectCamera(cam, 640, 360, 0, 0);
+    const bottomRight = projectCamera(cam, 640, 360, ARENA_W, ARENA_H);
+    expect(topLeft.y).toBeCloseTo(0, 9);
+    expect(bottomRight.y).toBeCloseTo(360, 9);
+    expect(topLeft.x).toBeLessThanOrEqual(0);
+    expect(bottomRight.x).toBeGreaterThanOrEqual(640);
+  });
+
+  it("holds the fit floor when zoomed out on the default arena", () => {
+    const cam = createCamera(ARENA_W, ARENA_H);
+    cycleZoom(cam);
+    cycleZoom(cam);
+    expect(cam.targetZoom).toBeCloseTo(0.64, 9);
+    for (let i = 0; i < 120; i += 1) {
+      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+    }
+    expect(cam.scale).toBeCloseTo(fitScaleForArena(ARENA_W, ARENA_H), 9);
+    const view = viewSize(cam, 640, 360);
+    expect(view.w).toBeLessThanOrEqual(ARENA_W);
+    expect(view.h).toBeLessThanOrEqual(ARENA_H);
   });
 });

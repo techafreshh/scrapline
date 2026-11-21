@@ -14,12 +14,14 @@ import {
   createCamera,
   cycleZoom,
   matchSpawnXs,
+  MAX_SHAKE_PX,
   projectCamera,
   rocketLaunchedSince,
   TRAUMA_DECAY,
   updateCamera,
   viewSize,
   visibleTileRange,
+  ZOOM_LEVELS,
 } from "../src/renderer/camera";
 
 const ARENA_W = 40 * TILE_SIZE;
@@ -175,6 +177,47 @@ describe("trauma shake", () => {
     expect(cam.trauma).toBeLessThanOrEqual(1);
     addTrauma(cam, -5);
     expect(cam.trauma).toBeGreaterThanOrEqual(0);
+  });
+
+  it("keeps the world-space offset constant across zoom levels", () => {
+    const worlds: number[] = [];
+    for (const level of ZOOM_LEVELS) {
+      const cam = createCamera(ARENA_W, ARENA_H);
+      cam.targetZoom = level;
+      for (let i = 0; i < 120; i += 1) {
+        updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+      }
+      // Sample one quadrature frame at a fixed phase with no decay
+      // so every zoom reads the same trauma-1 amplitude.
+      cam.trauma = 1;
+      cam.time = 1;
+      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 0);
+      // Screen px divided by scale is the world offset (see the
+      // renderCam shaken copy in main.ts).
+      worlds.push(Math.hypot(cam.shakeX, cam.shakeY) / cam.scale);
+    }
+    for (const world of worlds) {
+      expect(world).toBeCloseTo(MAX_SHAKE_PX / CAMERA_ZOOM, 0);
+      expect(Math.abs(world - (MAX_SHAKE_PX / CAMERA_ZOOM))).toBeLessThan(0.5);
+    }
+    expect(Math.max(...worlds) - Math.min(...worlds)).toBeLessThan(0.5);
+  });
+
+  it("preserves the reference screen amplitude at default zoom", () => {
+    const cam = createCamera(ARENA_W, ARENA_H);
+    for (let i = 0; i < 120; i += 1) {
+      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+    }
+    cam.trauma = 1;
+    cam.time = 1;
+    updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 0);
+    expect(Math.hypot(cam.shakeX, cam.shakeY)).toBeCloseTo(MAX_SHAKE_PX, 0);
+    expect(Math.abs(Math.hypot(cam.shakeX, cam.shakeY) - MAX_SHAKE_PX)).toBeLessThan(
+      0.5,
+    );
+    expect(
+      Math.hypot(cam.shakeX, cam.shakeY) / cam.scale,
+    ).toBeCloseTo(MAX_SHAKE_PX / CAMERA_ZOOM, 0);
   });
 });
 

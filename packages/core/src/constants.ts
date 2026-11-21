@@ -13,13 +13,13 @@ export const MOVE_X_QUANT = 1 / 64;
 // Physics.
 export const GRAVITY = 1550;
 export const MAX_FALL = 1150;
-export const GROUND_ACCEL = 2600;
-export const GROUND_FRICTION = 2300;
-export const AIR_ACCEL = 1500;
-export const AIR_DRAG = 160;
+export const GROUND_ACCEL = 1000;
+export const GROUND_FRICTION = 900;
+export const AIR_ACCEL = 650;
+export const AIR_DRAG = 120;
 // Movement.
-export const RUN_SPEED = 290;
-export const CROUCH_SPEED = 120;
+export const RUN_SPEED = 240;
+export const CROUCH_SPEED = 100;
 export const HOP_SPEED = 300;
 export const PLAYER_WIDTH = 26;
 export const PLAYER_HEIGHT = 58;

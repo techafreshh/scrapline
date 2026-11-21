@@ -42,13 +42,18 @@ describe("cameraTarget", () => {
 
 describe("updateCamera", () => {
   it("converges from across the arena within 30 steps", () => {
-    const cam = createCamera(ARENA_W, ARENA_H);
-    const target = cameraTarget(100, 500, 0);
+    // The default 1280x720 view covers the 40x20 arena whole, so the
+    // clamp would pin the camera to center; converge on a larger arena
+    // where the view can travel toward an unclamped target.
+    const wideW = 80 * TILE_SIZE;
+    const wideH = 40 * TILE_SIZE;
+    const cam = createCamera(wideW, wideH);
+    const target = cameraTarget(1500, 700, 0);
     const startDx = Math.abs(target.x - cam.x);
     const startDy = Math.abs(target.y - cam.y);
     const startDist = Math.hypot(startDx, startDy);
     for (let i = 0; i < 30; i += 1) {
-      updateCamera(cam, target.x, target.y, ARENA_W, ARENA_H);
+      updateCamera(cam, target.x, target.y, wideW, wideH);
     }
     const endDist = Math.hypot(target.x - cam.x, target.y - cam.y);
     expect(endDist).toBeLessThan(startDist * 0.05);
@@ -120,6 +125,19 @@ describe("zoom cycle", () => {
     const view = viewSize(cam, 640, 360);
     expect(view.w).toBeLessThanOrEqual(2100);
     expect(view.h).toBeLessThanOrEqual(1280);
+  });
+
+  it("shows at least 900 world px wide by default (1280x720 at scale 0.5)", () => {
+    const cam = createCamera(ARENA_W, ARENA_H);
+    for (let i = 0; i < 120; i += 1) {
+      updateCamera(cam, cam.x, cam.y, ARENA_W, ARENA_H, 1 / 60);
+    }
+    const view = viewSize(cam, 640, 360);
+    expect(view.w).toBeGreaterThanOrEqual(900);
+    expect(view.w).toBeCloseTo(640 / CAMERA_ZOOM, 9);
+    expect(view.h).toBeCloseTo(360 / CAMERA_ZOOM, 9);
+    expect(view.w).toBeCloseTo(1280, 9);
+    expect(view.h).toBeCloseTo(720, 9);
   });
 
   it("clamps the scale at the max-view floor when zoom dives below it", () => {

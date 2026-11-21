@@ -143,7 +143,7 @@ describe("map decorations", () => {
     for (const name of ["kilima", "dune", "frostbite"]) {
       const decors = decorationsForMap(name);
       const total = decors.length;
-      const corner = { ...createCamera(ARENA_W, ARENA_H), x: 160, y: 90 };
+      const corner = { ...createCamera(ARENA_W, ARENA_H), x: 160, y: 90, scale: 2 };
       const culled = visibleDecorations(decors, corner, 640, 360, ARENA_W, ARENA_H);
       expect(culled.length).toBeLessThan(total);
       const wide = { ...createCamera(ARENA_W, ARENA_H), scale: 0.5 };

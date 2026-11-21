@@ -202,7 +202,7 @@ describe("light culling", () => {
   it("shrinks under a corner camera and keeps the full set when wide", () => {
     for (const name of ["kilima", "dune", "frostbite"]) {
       const all = lightsForMap(name);
-      const corner = { ...createCamera(ARENA_W, ARENA_H), x: 160, y: 90 };
+      const corner = { ...createCamera(ARENA_W, ARENA_H), x: 160, y: 90, scale: 2 };
       const culled = culledLights(all, corner, 640, 360, ARENA_W, ARENA_H);
       expect(culled.length).toBeLessThan(all.length);
       const wide = { ...createCamera(ARENA_W, ARENA_H), scale: 0.5 };

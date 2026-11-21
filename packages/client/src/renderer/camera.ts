@@ -3,8 +3,8 @@
 // the renderer owns one of these and main.ts advances it every frame.
 import { TILE_SIZE } from "../../../core/src/map";
 
-/** Fixed zoom: player 26px renders 52 screen px, tiles 32px render 64. */
-export const CAMERA_ZOOM = 2;
+/** Fixed zoom: player 26px renders 13 screen px, tiles 32px render 16. */
+export const CAMERA_ZOOM = 0.5;
 /** Aim look-ahead offset in world px along the local player's aim. */
 export const CAMERA_LOOKAHEAD = 96;
 /** Per-frame exponential smoothing toward the clamped target. */
@@ -22,7 +22,7 @@ export const MATCH_SPAWN_GAP = 20;
  * The default count covers the local player plus three bots; larger
  * matches keep entry 0 anchored on the local player (leftmost) and
  * still spawn inside one camera half-view (bots + 1 <= 8 keeps the
- * cluster within CLAMP_CANVAS_W / (2 * CAMERA_ZOOM) = 160px minus the
+ * cluster within CLAMP_CANVAS_W / (2 * CAMERA_ZOOM) = 640px minus the
  * CAMERA_LOOKAHEAD margin). Positions clamp inside [0, arenaWidth].
  */
 export function matchSpawnXs(

@@ -76,12 +76,26 @@ export interface Camera {
   time: number;
 }
 
-/** Fresh camera centered on the arena at the default zoom. */
+/**
+ * Min scale so the 640x360 backing-store view fits inside the arena
+ * (no out-of-arena sky bands). For the default 1280x640 arena this is
+ * max(640/1280, 360/640) = 0.5625, so the fitted view is 1137x640.
+ * Non-finite or non-positive dims read 0 (never a fit floor).
+ */
+export function fitScaleForArena(arenaW: number, arenaH: number): number {
+  const w =
+    Number.isFinite(arenaW) && arenaW > 0 ? CLAMP_CANVAS_W / arenaW : 0;
+  const h =
+    Number.isFinite(arenaH) && arenaH > 0 ? CLAMP_CANVAS_H / arenaH : 0;
+  return Math.max(w, h);
+}
+
+/** Fresh camera centered on the arena at the default zoom (fit to arena). */
 export function createCamera(arenaW: number, arenaH: number): Camera {
   return {
     x: arenaW / 2,
     y: arenaH / 2,
-    scale: CAMERA_ZOOM,
+    scale: Math.max(CAMERA_ZOOM, fitScaleForArena(arenaW, arenaH)),
     zoom: 1,
     targetZoom: 1,
     trauma: 0,
@@ -91,7 +105,11 @@ export function createCamera(arenaW: number, arenaH: number): Camera {
   };
 }
 
-/** Clamp a viewport center so the view stays inside the arena bounds. */
+/**
+ * Clamp a viewport center so the view stays inside the arena bounds.
+ * The updateCamera fit floor keeps the backing-store view inside the
+ * arena, so the center branch below only fires for non-fitting sizes.
+ */
 function clampCenter(
   tx: number,
   ty: number,
@@ -115,7 +133,8 @@ function clampCenter(
 /**
  * Ease the camera 10% toward the clamped target. Converges in well
  * under 30 frames from anywhere in the arena. Also lerps the zoom
- * scale toward the target multiplier (clamped to the max view size),
+ * scale toward the target multiplier (clamped to the max view size
+ * and floored to the arena fit so a small arena never overscans),
  * decays trauma linearly, and recomputes the quadrature shake offset.
  */
 export function updateCamera(
@@ -132,7 +151,7 @@ export function updateCamera(
   const dt = Math.max(0, dtSeconds);
   cam.zoom += (cam.targetZoom - cam.zoom) * Math.min(1, dt * ZOOM_LERP_RATE);
   const minScale = Math.max(CLAMP_CANVAS_W / MAX_VIEW_W, CLAMP_CANVAS_H / MAX_VIEW_H);
-  cam.scale = Math.max(minScale, CAMERA_ZOOM * cam.zoom);
+  cam.scale = Math.max(minScale, CAMERA_ZOOM * cam.zoom, fitScaleForArena(arenaW, arenaH));
   const re = clampCenter(cam.x, cam.y, arenaW, arenaH, cam.scale);
   cam.x = re.x;
   cam.y = re.y;

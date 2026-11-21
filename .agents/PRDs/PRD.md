@@ -160,7 +160,7 @@ skaiscrap/
 | System | Spec |
 |---|---|
 | **Tick** | 60 Hz fixed; aim quantized to 4096 steps; moveX to 1/64 |
-| **Movement** | run 290 px/s, crouch 120; hop 300 px/s; ground accel 2600 / friction 2300; air accel 1500 / drag 160; gravity 1550; max fall 1150 |
+| **Movement** | run 240 px/s, crouch 100; hop 300 px/s; ground accel 1000 / friction 900; air accel 650 / drag 120; gravity 1550; max fall 1150 |
 | **Jetpack** | accel 3350, max rise 470 px/s; fuel 100, burn 34/s, regen 60/s grounded / 14/s air after 0.35 s delay; needs ≥ 8 to (re)ignite |
 | **Player body** | 26×58 px (crouch 40); head hitbox 15 px; health 100; regen 10/s after 5 s; respawn 3 s with 1.5 s protection; 3 grenade slots |
 | **Weapons** | pistol 20 dmg/14t, smg 11/5t, rifle 17/7t, shotgun 9×8 pellets, sniper 95/60t scoped 2600 range, rocket 110 + 150 px splash; headshot ×1.3–1.6; each with spread/recoil/mag/reload/reserve |

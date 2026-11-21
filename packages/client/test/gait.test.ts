@@ -89,12 +89,12 @@ describe("gaitBlendFor", () => {
   });
 
   it("lands strictly inside (0, 1) at intermediate speeds", () => {
-    const mid = gaitBlendFor(145);
+    const mid = gaitBlendFor(RUN_SPEED / 2);
     expect(mid).toBeGreaterThan(0);
     expect(mid).toBeLessThan(1);
     expect(mid).toBeCloseTo(0.5, 10);
-    expect(gaitBlendFor(72.5)).toBeLessThan(mid);
-    expect(gaitBlendFor(217.5)).toBeGreaterThan(mid);
+    expect(gaitBlendFor(RUN_SPEED / 4)).toBeLessThan(mid);
+    expect(gaitBlendFor((3 * RUN_SPEED) / 4)).toBeGreaterThan(mid);
   });
 
   it("treats non-finite speeds as a stand", () => {
@@ -112,7 +112,7 @@ describe("gait-scaled swing", () => {
       return pose?.swing ?? Number.NaN;
     };
     const still = atPhase(0);
-    const mid = atPhase(145);
+    const mid = atPhase(RUN_SPEED / 2);
     const full = atPhase(RUN_SPEED);
     expect(still).toBe(0);
     expect(full).toBeCloseTo(6, 10);
@@ -125,7 +125,7 @@ describe("gait-scaled swing", () => {
     const states = createAnimState(1);
     const [pose] = updateAnimState(
       states,
-      [{ ...baseInput(), vx: 145 }],
+      [{ ...baseInput(), vx: RUN_SPEED / 2 }],
       clockAt(1000),
       1 / 60,
     );

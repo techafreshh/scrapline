@@ -186,6 +186,10 @@ test("repo ships zero *.png/*.jpg images (benchmark/capture refs excepted)", () 
   // Atlas exception (#261): the curated vendor atlas ships committed PNGs
   // under packages/client/assets/atlas/ plus staged dist copies; the 6 MB
   // atlas-weight gate owns that weight instead of this test.
+  // Slice-input exception (#346): the generated reference JPEGs under
+  // docs/ui-prompts/results/ are the slicer tool's input corpus (inputs,
+  // not shipped assets); they stay committed until sliced to PNG-8.
+  const resultsRoot = path.join("docs", "ui-prompts", "results") + path.sep;
   const vendorRoot = path.join("packages", "client", "assets", "vendor") + path.sep;
   const capturesRoot = path.join("docs", "captures") + path.sep;
   const atlasSeg = `${path.sep}atlas${path.sep}`;
@@ -196,6 +200,8 @@ test("repo ships zero *.png/*.jpg images (benchmark/capture refs excepted)", () 
         path.join("docs", "benchmark", "themes", path.basename(rel)));
   const isSpriteCapture = (rel) =>
     rel.toLowerCase().endsWith(".png") && rel.startsWith(capturesRoot);
+  const isSliceInput = (rel) =>
+    rel.toLowerCase().endsWith(".jpg") && rel.startsWith(resultsRoot);
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.name === "node_modules" || entry.name === ".git" || entry.name === "artifacts" || entry.name === "captures") {
@@ -208,7 +214,7 @@ test("repo ships zero *.png/*.jpg images (benchmark/capture refs excepted)", () 
         const lower = entry.name.toLowerCase();
         if (lower.endsWith(".png") || lower.endsWith(".jpg")) {
           const rel = path.relative(root, full);
-          if (!isBenchmarkRef(rel) && !isSpriteCapture(rel) && !rel.startsWith(vendorRoot) && !rel.includes(atlasSeg)) {
+          if (!isBenchmarkRef(rel) && !isSpriteCapture(rel) && !isSliceInput(rel) && !rel.startsWith(vendorRoot) && !rel.includes(atlasSeg)) {
             hits.push(rel);
           }
         }

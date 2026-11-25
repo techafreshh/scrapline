@@ -116,19 +116,19 @@ describe("grenadePipStates", () => {
 
 describe("iconFor", () => {
   it("maps the SMG to the Hornet card art", () => {
-    expect(iconFor("smg")).toBe("./assets/weapon-hornet.svg");
+    expect(iconFor("smg")).toBe("./assets/atlas/icons/weapon-smg.png");
   });
 
   it("maps every other weapon to its own card", () => {
-    expect(iconFor("pistol")).toBe("./assets/weapon-pistol.svg");
-    expect(iconFor("rifle")).toBe("./assets/weapon-rifle.svg");
-    expect(iconFor("shotgun")).toBe("./assets/weapon-shotgun.svg");
-    expect(iconFor("sniper")).toBe("./assets/weapon-sniper.svg");
-    expect(iconFor("rocket")).toBe("./assets/weapon-rocket.svg");
+    expect(iconFor("pistol")).toBe("./assets/atlas/icons/weapon-pistol.png");
+    expect(iconFor("rifle")).toBe("./assets/atlas/icons/weapon-rifle.png");
+    expect(iconFor("shotgun")).toBe("./assets/atlas/icons/weapon-shotgun.png");
+    expect(iconFor("sniper")).toBe("./assets/atlas/icons/weapon-sniper.png");
+    expect(iconFor("rocket")).toBe("./assets/atlas/icons/weapon-rocket.png");
   });
 
   it("falls back to the pistol card for unknown readings", () => {
-    expect(iconFor("blaster")).toBe("./assets/weapon-pistol.svg");
+    expect(iconFor("blaster")).toBe("./assets/atlas/icons/weapon-pistol.png");
   });
 });
 
@@ -270,7 +270,7 @@ describe("updateAmmo binder", () => {
     updateAmmo(handles, { magAmmo: 32, weapon: "smg", grenades: 3 });
     expect(name.textContent).toBe("Hornet SMG");
     expect(counts.textContent).toBe("32/96");
-    expect(icon.src).toBe("./assets/weapon-hornet.svg");
+    expect(icon.src).toBe("./assets/atlas/icons/weapon-smg.png");
     expect(pips.children.length).toBe(3);
     expect(filledPips(pips)).toBe(3);
   });

@@ -100,17 +100,17 @@ describe("weapon plaques", () => {
     for (const holding of ["Hornet", "hornet", "HORNET", "Hornet SMG", " hornet "]) {
       const plaque = weaponPlaqueFor(holding);
       expect(plaque.key).toBe("weapon-hornet");
-      expect(plaque.file).toBe("weapon-hornet.svg");
+      expect(plaque.file).toBe("icons/weapon-smg.png");
       expect(plaque.label).toBe("Hornet");
     }
   });
 
   it("resolves the six core weapons and falls back to pistol", () => {
-    expect(weaponPlaqueFor("smg").file).toBe("weapon-smg.svg");
+    expect(weaponPlaqueFor("smg").file).toBe("icons/weapon-smg.png");
     expect(weaponPlaqueFor("rifle").label).toBe("Rifle");
     expect(weaponPlaqueFor("bogus").key).toBe("weapon-pistol");
     expect(weaponPlaqueFor(null).key).toBe("weapon-pistol");
-    expect(weaponPlaqueFor(undefined).file).toBe("weapon-pistol.svg");
+    expect(weaponPlaqueFor(undefined).file).toBe("icons/weapon-pistol.png");
   });
 
   it("paints lit pad edges per pickup kind", () => {

@@ -97,7 +97,7 @@ describe("serviceWorkerUrl", () => {
 });
 
 describe("manifest.webmanifest source", () => {
-  it("parses as JSON with the required PWA fields and an SVG icon", () => {
+  it("parses as JSON with the required PWA fields and PNG icons", () => {
     const manifest = JSON.parse(
       readFileSync(join(PUBLIC_DIR, "manifest.webmanifest"), "utf8"),
     ) as Record<string, unknown>;
@@ -107,20 +107,29 @@ describe("manifest.webmanifest source", () => {
     expect(Array.isArray(manifest["icons"])).toBe(true);
     const icons = manifest["icons"] as Array<Record<string, unknown>>;
     expect(icons.length).toBeGreaterThanOrEqual(1);
+    expect(icons.length).toBeGreaterThanOrEqual(2);
     for (const icon of icons) {
       expect(typeof icon["src"]).toBe("string");
-      expect(String(icon["src"]).endsWith(".svg")).toBe(true);
+      expect(String(icon["src"]).endsWith(".png")).toBe(true);
     }
+    const bySize = new Map(icons.map((icon) => [String(icon["sizes"]), icon]));
+    expect(bySize.has("512x512")).toBe(true);
+    expect(bySize.has("192x192")).toBe(true);
+    expect(String((bySize.get("192x192") as Record<string, unknown>)["purpose"])).toContain("maskable");
   });
 
-  it("ships an SVG-only icon with no png/jpg references", () => {
-    const icon = readFileSync(
-      join(PUBLIC_DIR, "icons", "icon.svg"),
-      "utf8",
-    );
-    expect(icon).toMatch(/<svg[\s>]/);
-    expect(icon.toLowerCase()).not.toContain(".png");
-    expect(icon.toLowerCase()).not.toContain(".jpg");
+  it("ships PNG app icons with no SVG references", () => {
+    for (const name of ["icon-512.png", "icon-192-maskable.png"]) {
+      const buf = readFileSync(join(PUBLIC_DIR, "icons", name));
+      expect(Array.from(buf.subarray(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      expect(buf[25]).toBe(3);
+    }
+    const pngDims = (name: string): [number, number] => {
+      const buf = readFileSync(join(PUBLIC_DIR, "icons", name));
+      return [buf.readUInt32BE(16), buf.readUInt32BE(20)];
+    };
+    expect(pngDims("icon-512.png")).toEqual([512, 512]);
+    expect(pngDims("icon-192-maskable.png")).toEqual([192, 192]);
   });
 });
 
@@ -143,7 +152,7 @@ describe("sw.js source", () => {
     expect(source).toMatch(/scrapline-v\d+/);
     expect(source).toContain("main.js");
     expect(source).toContain("manifest.webmanifest");
-    expect(source).toContain("icons/icon.svg");
+    expect(source).toContain("icons/icon-512.png");
   });
 
   it("serves same-origin GETs cache-first with a navigate fallback", () => {

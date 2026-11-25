@@ -392,7 +392,7 @@ describe("pushKillfeed weapon entries", () => {
     expect(killer.style["color"]).toBe(ENEMY_A_CSS);
     expect(icon.tag).toBe("img");
     expect(icon.getAttribute("class")).toBe("kill-weapon");
-    expect(icon.getAttribute("src")).toBe("./assets/weapon-hornet.svg");
+    expect(icon.getAttribute("src")).toBe("./assets/atlas/icons/weapon-smg-small.png");
     expect(victim.textContent).toBe("You");
     expect(victim.style["color"]).toBe(LOCAL_CSS);
   });

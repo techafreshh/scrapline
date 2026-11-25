@@ -132,21 +132,21 @@ describe("feed timing constants", () => {
 
 describe("feedIconFor", () => {
   it("maps the SMG and Hornet spellings to the Hornet card", () => {
-    expect(feedIconFor("smg")).toBe("./assets/weapon-hornet.svg");
-    expect(feedIconFor("Hornet")).toBe("./assets/weapon-hornet.svg");
-    expect(feedIconFor("Hornet SMG")).toBe("./assets/weapon-hornet.svg");
+    expect(feedIconFor("smg")).toBe("./assets/atlas/icons/weapon-smg-small.png");
+    expect(feedIconFor("Hornet")).toBe("./assets/atlas/icons/weapon-smg-small.png");
+    expect(feedIconFor("Hornet SMG")).toBe("./assets/atlas/icons/weapon-smg-small.png");
   });
 
   it("maps every other gun to its own card", () => {
-    expect(feedIconFor("pistol")).toBe("./assets/weapon-pistol.svg");
-    expect(feedIconFor("rifle")).toBe("./assets/weapon-rifle.svg");
-    expect(feedIconFor("shotgun")).toBe("./assets/weapon-shotgun.svg");
-    expect(feedIconFor("sniper")).toBe("./assets/weapon-sniper.svg");
-    expect(feedIconFor("rocket")).toBe("./assets/weapon-rocket.svg");
+    expect(feedIconFor("pistol")).toBe("./assets/atlas/icons/weapon-pistol-small.png");
+    expect(feedIconFor("rifle")).toBe("./assets/atlas/icons/weapon-rifle-small.png");
+    expect(feedIconFor("shotgun")).toBe("./assets/atlas/icons/weapon-shotgun-small.png");
+    expect(feedIconFor("sniper")).toBe("./assets/atlas/icons/weapon-sniper-small.png");
+    expect(feedIconFor("rocket")).toBe("./assets/atlas/icons/weapon-rocket-small.png");
   });
 
   it("maps grenade kills to the pickup art", () => {
-    expect(feedIconFor("grenade")).toBe("./assets/pickup-grenade.svg");
+    expect(feedIconFor("grenade")).toBe("./assets/atlas/icons/pickup-grenade.png");
   });
 
   it("reads null for missing or unknown weapons (text-only entries)", () => {
@@ -161,7 +161,7 @@ describe("buildFeedEntry", () => {
   it("resolves the icon plus both player colors for killer blows", () => {
     const entry = buildFeedEntry("Raptor", "You", "smg", 1, 0);
     expect(entry.suicide).toBe(false);
-    expect(entry.icon).toBe("./assets/weapon-hornet.svg");
+    expect(entry.icon).toBe("./assets/atlas/icons/weapon-smg-small.png");
     expect(entry.killerColor).toBe(ENEMY_A_CSS);
     expect(entry.victimColor).toBe(LOCAL_CSS);
   });
@@ -175,7 +175,7 @@ describe("buildFeedEntry", () => {
 
   it("leaves colors null when the indices are unknown", () => {
     const entry = buildFeedEntry("Raptor", "You", "rifle", null, null);
-    expect(entry.icon).toBe("./assets/weapon-rifle.svg");
+    expect(entry.icon).toBe("./assets/atlas/icons/weapon-rifle-small.png");
     expect(entry.killerColor).toBe(null);
     expect(entry.victimColor).toBe(null);
   });
@@ -198,7 +198,7 @@ describe("pushFeed structured entries", () => {
     expect(killer.style["color"]).toBe(ENEMY_A_CSS);
     expect(icon.tag).toBe("img");
     expect(icon.getAttribute("class")).toBe("kill-weapon");
-    expect(icon.getAttribute("src")).toBe("./assets/weapon-hornet.svg");
+    expect(icon.getAttribute("src")).toBe("./assets/atlas/icons/weapon-smg-small.png");
     expect(sep.getAttribute("class")).toBe("kill-sep");
     expect(sep.textContent).toContain("\u25B8");
     expect(victim.getAttribute("class")).toBe("victim");
@@ -298,7 +298,7 @@ describe("pushFeed tolerance", () => {
 });
 
 describe("feedIconFor weapon delegation (issue #270)", () => {
-  it("equals weaponSpriteFile for all six gun ids including rifle", () => {
+  it("reads the 16px small well for all six gun ids including rifle", () => {
     for (const id of [
       "pistol",
       "smg",
@@ -307,13 +307,13 @@ describe("feedIconFor weapon delegation (issue #270)", () => {
       "sniper",
       "rocket",
     ] as const) {
-      expect(feedIconFor(id)).toBe(weaponSpriteFile(id));
+      expect(feedIconFor(id)).toBe(`./assets/atlas/icons/weapon-${id}-small.png`);
     }
-    expect(feedIconFor("rifle")).toBe("./assets/weapon-rifle.svg");
+    expect(feedIconFor("rifle")).toBe("./assets/atlas/icons/weapon-rifle-small.png");
   });
 
   it("keeps the grenade art plus null/unknown behavior identical", () => {
-    expect(feedIconFor("grenade")).toBe("./assets/pickup-grenade.svg");
+    expect(feedIconFor("grenade")).toBe("./assets/atlas/icons/pickup-grenade.png");
     expect(feedIconFor(null)).toBe(null);
     expect(feedIconFor("")).toBe(null);
     expect(feedIconFor("banana")).toBe(null);
@@ -337,7 +337,7 @@ describe("pushFeed data-icon (issue #270)", () => {
     const node = feed.children[0] as FakeEl;
     const icon = node.children[1] as FakeEl;
     expect(icon.tag).toBe("img");
-    expect(icon.getAttribute("src")).toBe("./assets/weapon-rifle.svg");
+    expect(icon.getAttribute("src")).toBe("./assets/atlas/icons/weapon-rifle-small.png");
     expect(icon.getAttribute("data-icon")).toBe("weapon.rifle");
   });
 
@@ -347,7 +347,7 @@ describe("pushFeed data-icon (issue #270)", () => {
     pushFeed(handles, buildFeedEntry("Raptor", "You", "grenade", 1, 0));
     const node = feed.children[0] as FakeEl;
     const icon = node.children[1] as FakeEl;
-    expect(icon.getAttribute("src")).toBe("./assets/pickup-grenade.svg");
+    expect(icon.getAttribute("src")).toBe("./assets/atlas/icons/pickup-grenade.png");
     expect(icon.getAttribute("data-icon")).toBe(null);
   });
 });

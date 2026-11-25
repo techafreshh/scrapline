@@ -252,10 +252,14 @@ function readFrameAttr(el: {
 }
 
 /**
- * Stamp one element with a chrome key: `data-frame` plus the sliced
- * art background (`image-rendering: pixelated` so the plates stay
- * crisp at any camera/browser zoom). Change-guarded so the 20 Hz HUD
- * mirror stays cheap; null-safe and never throws.
+ * Stamp one element with a chrome probe key plus its sliced art as a
+ * single plate (`background-repeat: no-repeat` with a full-bleed size
+ * so a 256px riveted panel never tiles across a wide container; issue
+ * #359). `image-rendering: pixelated` keeps the plates crisp at any
+ * camera/browser zoom. Change-guarded so the 20 Hz HUD mirror stays
+ * cheap; null-safe and never throws. Surfaces whose frame comes from
+ * CSS 9-slice (`border-image`) should use stampFrame instead so the
+ * inline plate cannot double the frame.
  */
 export function stampChrome(el: unknown, key: string): void {
   if (typeof el !== "object" || el === null) {
@@ -290,6 +294,17 @@ export function stampChrome(el: unknown, key: string): void {
       if (bag["backgroundImage"] !== background) {
         bag["backgroundImage"] = background;
       }
+      // Single-plate guard (issue #359): wide containers must never
+      // repeat the art; the plate fills its module exactly once.
+      if (bag["backgroundRepeat"] !== "no-repeat") {
+        bag["backgroundRepeat"] = "no-repeat";
+      }
+      if (bag["backgroundSize"] !== "100% 100%") {
+        bag["backgroundSize"] = "100% 100%";
+      }
+      if (bag["backgroundPosition"] !== "center") {
+        bag["backgroundPosition"] = "center";
+      }
       if (bag["imageRendering"] !== "pixelated") {
         bag["imageRendering"] = "pixelated";
       }
@@ -299,16 +314,110 @@ export function stampChrome(el: unknown, key: string): void {
   }
 }
 
-/** Element handles owned by the HUD chrome; nulls make updates no-op. */
-export interface HudChromeHandles {
-  hud: unknown;
-  ammoModule: unknown;
+/**
+ * Stamp only the `data-frame` probe key, leaving the visuals to the
+ * CSS 9-slice frame (`border-image`). Menu panels and buttons ride
+ * their frames from panel.css/button.css/chrome.css; an inline plate
+ * on top would double the frame and tile (issue #359). Change-guarded,
+ * null-safe, never throws.
+ */
+export function stampFrame(el: unknown, key: string): void {
+  if (typeof el !== "object" || el === null) {
+    return;
+  }
+  if (chromeFileFor(key) === null) {
+    return;
+  }
+  const target = el as {
+    setAttribute?: unknown;
+    getAttribute?: unknown;
+    style?: unknown;
+  };
+  if (readFrameAttr(target) !== key) {
+    try {
+      if (typeof target.setAttribute === "function") {
+        (target.setAttribute as (name: string, value: string) => void).call(
+          target,
+          "data-frame",
+          key,
+        );
+      }
+    } catch {
+      // Read-only shims: nothing else to land.
+    }
+  }
+  // Frame-owned surfaces must not carry an inline plate: clear any
+  // stale tiled background so the CSS 9-slice reads exactly once.
+  try {
+    const style = target.style;
+    if (typeof style === "object" && style !== null) {
+      const bag = style as Record<string, unknown>;
+      if (
+        typeof bag["backgroundImage"] === "string" &&
+        bag["backgroundImage"] !== "none"
+      ) {
+        bag["backgroundImage"] = "none";
+      }
+    }
+  } catch {
+    // Style-less fakes: the data-frame above still carries the key.
+  }
 }
 
 /**
- * Stamp the HUD frame plus the ammo module with their sliced plates.
- * Change-guarded per element so the every-frame mirror stays cheap;
- * null-safe and never throws.
+ * Clear a chrome stamp: drop the `data-frame` key and reset the
+ * inline plate to `none` so wide containers (`#hud`, `#menu`) read
+ * `background-image: none` (issue #359). Null-safe, never throws.
+ */
+export function clearChrome(el: unknown): void {
+  if (typeof el !== "object" || el === null) {
+    return;
+  }
+  const target = el as {
+    removeAttribute?: unknown;
+    style?: unknown;
+  };
+  try {
+    if (typeof target.removeAttribute === "function") {
+      (target.removeAttribute as (name: string) => void).call(
+        target,
+        "data-frame",
+      );
+    }
+  } catch {
+    // Attribute-less fakes: the style reset below still lands.
+  }
+  try {
+    const style = target.style;
+    if (typeof style === "object" && style !== null) {
+      const bag = style as Record<string, unknown>;
+      if (bag["backgroundImage"] !== "none") {
+        bag["backgroundImage"] = "none";
+      }
+    }
+  } catch {
+    // Style-less fakes: nothing else to clear.
+  }
+}
+
+/** Element handles owned by the HUD chrome; nulls make updates no-op.
+ * Only the four `.hud-module` clusters carry plates (issue #359): the
+ * full-width `#hud` container is cleared, never stamped. New cluster
+ * handles stay optional so older two-handle shapes keep compiling. */
+export interface HudChromeHandles {
+  hud: unknown;
+  ammoModule: unknown;
+  status?: unknown;
+  center?: unknown;
+  killfeed?: unknown;
+}
+
+/**
+ * Stamp one plate per HUD cluster (issue #359): status, score/timer,
+ * kill feed, and ammo module. The full-width `#hud` container is
+ * cleared to `background-image: none` so the 256px riveted panel can
+ * no longer tile across the top. Change-guarded per element so the
+ * every-frame mirror stays cheap; null-safe and never throws.
  */
 export function applyHudChrome(
   handles: HudChromeHandles | null | undefined,
@@ -316,15 +425,38 @@ export function applyHudChrome(
   if (handles === null || handles === undefined) {
     return;
   }
+  // The container never carries art (issue #359): clear any stale
+  // tiled plate so `#hud` reads `background-image: none`.
   try {
-    stampChrome(handles.hud, HUD_FRAME_KEY);
+    clearChrome(handles.hud);
   } catch {
-    // Hostile shims: the module stamp below still lands.
+    // Hostile shims: the module stamps below still land.
+  }
+  try {
+    if (handles.status !== undefined && handles.status !== null) {
+      stampChrome(handles.status, HUD_FRAME_KEY);
+    }
+  } catch {
+    // Hostile shims: the remaining modules still land.
+  }
+  try {
+    if (handles.center !== undefined && handles.center !== null) {
+      stampChrome(handles.center, HUD_FRAME_KEY);
+    }
+  } catch {
+    // Hostile shims: the remaining modules still land.
+  }
+  try {
+    if (handles.killfeed !== undefined && handles.killfeed !== null) {
+      stampChrome(handles.killfeed, HUD_FRAME_KEY);
+    }
+  } catch {
+    // Hostile shims: the ammo module below still lands.
   }
   try {
     stampChrome(handles.ammoModule, AMMO_MODULE_KEY);
   } catch {
-    // Hostile shims: the frame stamp above already landed.
+    // Hostile shims: the cluster stamps above already landed.
   }
 }
 
@@ -485,11 +617,13 @@ export function isMenuArtButton(el: unknown): boolean {
 }
 
 /**
- * Wire one menu button: resting tile now, hover tile on
- * `mouseenter`/`focus`, resting tile back on `mouseleave`/`blur`.
- * Synchronous swaps land far inside the 200ms probe budget. The
- * module hover set drives buildMenuSnapshot; listeners attach once
- * per element. Never throws.
+ * Wire one menu button: the CSS 9-slice frame owns the visuals, so
+ * only the `data-frame` probe key swaps here (resting now, hover tile
+ * on `mouseenter`/`focus`, resting back on `mouseleave`/`blur`). No
+ * inline plate is stamped, so the shared tile can no longer double the
+ * CSS frame or tile across the button (issue #359). Synchronous swaps
+ * land far inside the 200ms probe budget. The module hover set drives
+ * buildMenuSnapshot; listeners attach once per element. Never throws.
  */
 function bindButton(button: unknown): void {
   if (button === null || button === undefined) {
@@ -499,7 +633,7 @@ function bindButton(button: unknown): void {
     return;
   }
   try {
-    stampChrome(button, MENU_BUTTON_KEY);
+    stampFrame(button, MENU_BUTTON_KEY);
   } catch {
     // Unstampable shims: listeners still attach below.
   }
@@ -516,7 +650,7 @@ function bindButton(button: unknown): void {
       if (!hoveredButtons.has(button)) {
         hoveredButtons.add(button);
       }
-      stampChrome(button, MENU_BUTTON_HOVER_KEY);
+      stampFrame(button, MENU_BUTTON_HOVER_KEY);
     } catch {
       // Hover paint best-effort: the snapshot set above already landed.
     }
@@ -524,7 +658,7 @@ function bindButton(button: unknown): void {
   const leave = (): void => {
     try {
       hoveredButtons.delete(button);
-      stampChrome(button, MENU_BUTTON_KEY);
+      stampFrame(button, MENU_BUTTON_KEY);
     } catch {
       // Resting paint best-effort: the snapshot set above already landed.
     }
@@ -569,9 +703,12 @@ function panelChild(el: unknown): unknown {
 }
 
 /**
- * Stamp every menu panel plus all menu/setup buttons with their pixel
- * tiles and wire the hover swaps. Missing builders, throwing lookups,
- * and listener-less shims are no-ops; never throws.
+ * Stamp every menu panel's probe key plus all menu/setup buttons and
+ * wire the hover swaps. Panels and buttons ride their CSS 9-slice
+ * frames, so only the `data-frame` key is stamped here (never an
+ * inline plate that could double the frame or tile; issue #359).
+ * Missing builders, throwing lookups, and listener-less shims are
+ * no-ops; never throws.
  */
 export function bindMenuChrome(doc: unknown): void {
   if (typeof doc !== "object" || doc === null) {
@@ -589,12 +726,14 @@ export function bindMenuChrome(doc: unknown): void {
     for (const id of MENU_PANEL_IDS) {
       try {
         // Full-screen overlay roots never carry the art themselves:
-        // the sliced panel stamps the constrained inner `.sl-panel`
-        // card, and roots without one stay unstamped (issue #313).
+        // the sliced panel frame lives in CSS on the constrained
+        // inner `.sl-panel` card (border-image), so only the probe key
+        // is stamped and roots without one stay unstamped (issue #313).
+        // No inline plate: it would double the CSS frame (issue #359).
         const root = lookup(id);
         const inner = panelChild(root);
         if (inner !== null) {
-          stampChrome(inner, MENU_PANEL_KEY);
+          stampFrame(inner, MENU_PANEL_KEY);
         }
       } catch {
         // Unstampable panels: the remaining panels still land.

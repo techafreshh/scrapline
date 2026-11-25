@@ -29,6 +29,7 @@ import {
   CHROME_FILES,
   chromeBackgroundFor,
   chromeFileFor,
+  clearChrome,
   DIVIDER_KEY,
   FIELD_KEY,
   FIELD_SELECT_KEY,
@@ -53,6 +54,7 @@ import {
   SLIDER_THUMB_KEY,
   SLIDER_TRACK_KEY,
   stampChrome,
+  stampFrame,
   TOAST_KEY,
   TOGGLE_OFF_KEY,
   TOGGLE_ON_KEY,
@@ -79,6 +81,7 @@ interface FakeEl {
   children: FakeEl[];
   setAttribute(k: string, v: string): void;
   getAttribute(k: string): string | null;
+  removeAttribute(k: string): void;
   addEventListener(type: string, listener: () => void): void;
   querySelector(sel: string): FakeEl | null;
   appendChild(child: FakeEl): void;
@@ -97,6 +100,9 @@ function makeEl(tag: string): FakeEl {
       el.attrs.set(k, v);
     },
     getAttribute: (k: string): string | null => el.attrs.get(k) ?? null,
+    removeAttribute: (k: string): void => {
+      el.attrs.delete(k);
+    },
     addEventListener: (type: string, listener: () => void): void => {
       const list = el.listeners.get(type) ?? [];
       list.push(listener);
@@ -317,7 +323,7 @@ describe("chrome files", () => {
 });
 
 describe("stampChrome", () => {
-  it("stamps data-frame plus the pixelated sliced background", () => {
+  it("stamps data-frame plus a single-plate pixelated background", () => {
     const el = makeEl("div");
     stampChrome(el, HUD_FRAME_KEY);
     expect(el.getAttribute("data-frame")).toBe("ui.panel");
@@ -325,6 +331,14 @@ describe("stampChrome", () => {
       'url("./assets/atlas/ui/panel.png")',
     );
     expect(el.style["imageRendering"]).toBe("pixelated");
+  });
+
+  it("never tiles the plate across a wide container (issue #359)", () => {
+    const el = makeEl("div");
+    stampChrome(el, HUD_FRAME_KEY);
+    expect(el.style["backgroundRepeat"]).toBe("no-repeat");
+    expect(el.style["backgroundSize"]).toBe("100% 100%");
+    expect(el.style["backgroundPosition"]).toBe("center");
   });
 
   it("ignores unknown keys and hostile handles", () => {
@@ -336,19 +350,56 @@ describe("stampChrome", () => {
   });
 });
 
+describe("stampFrame/clearChrome", () => {
+  it("stamps the probe key with no inline plate (single CSS frame)", () => {
+    const el = makeEl("button");
+    stampFrame(el, MENU_BUTTON_KEY);
+    expect(el.getAttribute("data-frame")).toBe("ui.button");
+    expect(el.style["backgroundImage"] ?? "none").toBe("none");
+  });
+
+  it("clears stale plates so containers read background-image none", () => {
+    const el = makeEl("div");
+    stampChrome(el, HUD_FRAME_KEY);
+    expect(el.style["backgroundImage"]).not.toBe("none");
+    clearChrome(el);
+    expect(el.getAttribute("data-frame")).toBe(null);
+    expect(el.style["backgroundImage"]).toBe("none");
+  });
+
+  it("ignores unknown keys and hostile handles", () => {
+    const el = makeEl("div");
+    stampFrame(el, "ui.nope");
+    expect(el.getAttribute("data-frame")).toBe(null);
+    expect(() => stampFrame(null, MENU_BUTTON_KEY)).not.toThrow();
+    expect(() => clearChrome(null)).not.toThrow();
+    expect(() => clearChrome(undefined)).not.toThrow();
+  });
+});
+
 describe("applyHudChrome", () => {
-  it("stamps the HUD frame plus the ammo module plates", () => {
+  it("stamps one plate per cluster and clears the wide container", () => {
     const hud = makeEl("div");
+    const status = makeEl("div");
+    const center = makeEl("div");
+    const killfeed = makeEl("div");
     const ammoModule = makeEl("div");
-    applyHudChrome({ hud, ammoModule });
-    expect(hud.getAttribute("data-frame")).toBe("ui.panel");
-    expect(hud.style["backgroundImage"]).toBe(
-      'url("./assets/atlas/ui/panel.png")',
-    );
+    applyHudChrome({ hud, status, center, killfeed, ammoModule });
+    // The full-width container never carries art (issue #359).
+    expect(hud.getAttribute("data-frame")).toBe(null);
+    expect(hud.style["backgroundImage"]).toBe("none");
+    for (const module of [status, center, killfeed]) {
+      expect(module.getAttribute("data-frame")).toBe("ui.panel");
+      expect(module.style["backgroundImage"]).toBe(
+        'url("./assets/atlas/ui/panel.png")',
+      );
+      expect(module.style["backgroundRepeat"]).toBe("no-repeat");
+    }
     expect(ammoModule.getAttribute("data-frame")).toBe("ui.slot");
     expect(ammoModule.style["backgroundImage"]).toBe(
       'url("./assets/atlas/ui/panel.inset.png")',
     );
+    expect(ammoModule.style["backgroundRepeat"]).toBe("no-repeat");
   });
 
   it("no-ops on null handles", () => {
@@ -372,16 +423,18 @@ describe("bindMenuChrome", () => {
       const root = doc.byId.get(id);
       expect(root?.getAttribute("data-frame")).toBe(null);
       expect(root?.style["backgroundImage"]).toBe(undefined);
+      // Panels ride the CSS 9-slice frame: only the probe key is
+      // stamped, never an inline plate that could double it (#359).
       const card = root?.querySelector(".sl-panel");
       expect(card?.getAttribute("data-frame")).toBe("ui.panel");
-      expect(card?.style["backgroundImage"]).toBe(
-        'url("./assets/atlas/ui/panel.png")',
-      );
+      expect(card?.style["backgroundImage"] ?? "none").toBe("none");
     }
     expect(doc.byId.get("quick-play")?.getAttribute("data-frame")).toBe(
       "ui.button",
     );
     expect(button.getAttribute("data-frame")).toBe("ui.button");
+    // Buttons ride the CSS 9-slice frame: no inline plate (issue #359).
+    expect(button.style["backgroundImage"] ?? "none").toBe("none");
   });
 
   it("leaves roots without an inner card unstamped", () => {

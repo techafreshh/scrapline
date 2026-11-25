@@ -417,6 +417,8 @@ export function pickupToastFor(kind: unknown): string | null {
 /** Element handles owned by the overlay; nulls make updates no-op. */
 export interface HudHandles {
   hud: HTMLElement | null;
+  /** Top-left status cluster plate (HU-01); null skips its chrome. */
+  status?: HTMLElement | null;
   health: HTMLElement | null;
   hpFill: HTMLElement | null;
   fuel: HTMLElement | null;
@@ -453,6 +455,7 @@ function byId(doc: Document, id: string): HTMLElement | null {
 export function buildHud(doc: Document): HudHandles {
   return {
     hud: byId(doc, "hud"),
+    status: byId(doc, "hud-status"),
     health: byId(doc, "hud-health"),
     hpFill: byId(doc, "hud-hp"),
     fuel: byId(doc, "hud-fuel"),

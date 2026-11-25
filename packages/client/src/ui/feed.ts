@@ -6,7 +6,7 @@
 // without builders and never throws.
 
 import { teamCss } from "../view/character";
-import { weaponSpriteFile, weaponSpriteKey } from "../render/weapons";
+import { weaponSpriteKey } from "../render/weapons";
 
 /** Feed hold in ms: entries stay fully visible this long, then fade. */
 export const KILLFEED_HOLD_MS = 6000;

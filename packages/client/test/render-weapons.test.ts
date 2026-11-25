@@ -33,11 +33,6 @@ function readManifest(): Record<string, unknown> {
   return JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8")) as Record<string, unknown>;
 }
 
-function svgWidthAttr(body: string): number {
-  const match = /width\s*=\s*"([\d.]+)"/.exec(body);
-  return match !== null ? Number(match[1]) : NaN;
-}
-
 describe("weapon sprite keys", () => {
   it("covers every stat-table weapon id with a distinct key containing its id", () => {
     expect([...WEAPON_IDS].sort()).toEqual(

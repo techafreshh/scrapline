@@ -593,7 +593,7 @@ function sliceIcons(atlasDir = DEFAULT_ATLAS_DIR, publicIconsDir = DEFAULT_PUBLI
   try {
     current = slicer.sizeBytes(atlasDir);
   } catch {
-    current = 0;
+    // Unreadable atlas dir: treat current usage as zero.
   }
   for (const f of files) {
     try {

@@ -17,7 +17,6 @@ import {
   type FeedModel,
 } from "../src/ui/feed";
 import {
-  weaponSpriteFile,
   weaponSpriteKey,
 } from "../src/render/weapons";
 

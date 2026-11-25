@@ -288,7 +288,7 @@ function clearLabels(container: unknown): void {
  * and never throw.
  */
 function syncPadIcon(node: unknown, kind: unknown, weapon: unknown): void {
-  let want = "";
+  let want: string;
   try {
     want = padIconSrcFor(kind, weapon);
   } catch {

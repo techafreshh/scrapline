@@ -7,6 +7,8 @@
 // The sim stays untouched: main.ts owns the storage handle and feeds
 // drained kill details plus the authoritative matchEnd edge in.
 
+import { challengeIconSrcFor } from "../ui/icons";
+
 /** One fixed daily task: kill/win quota plus its one-shot XP reward. */
 export interface ChallengeTemplate {
   /** Stable row id (also the `data-challenge` attribute value). */
@@ -779,7 +781,29 @@ function buildRow(doc: Document, template: ChallengeTemplate): unknown {
       // Class best-effort only.
     }
     setAttr(icon, "data-icon", template.id);
-    setText(icon, challengeIconFor(template.id));
+    // Sliced IC-04 well as an <img>; the unicode text lands only when
+    // the builder cannot make images (shorn fakes), so live rows show
+    // one set icon, never a mixed text+image row.
+    let iconImgOk = false;
+    try {
+      const img = makeEl(doc, "img");
+      if (img !== null) {
+        try {
+          (img as { className?: unknown }).className = "challenge-icon-img";
+        } catch {
+          // Class best-effort only.
+        }
+        setAttr(img, "src", challengeIconSrcFor(template.id));
+        setAttr(img, "alt", "challenge icon");
+        appendKid(icon, img);
+        iconImgOk = true;
+      }
+    } catch {
+      // Builder-less fakes: fall through to the unicode text below.
+    }
+    if (!iconImgOk) {
+      setText(icon, challengeIconFor(template.id));
+    }
     appendKid(row, icon);
   }
   const main = makeEl(doc, "span");
@@ -850,7 +874,26 @@ function buildRow(doc: Document, template: ChallengeTemplate): unknown {
       // Class best-effort only.
     }
     setAttr(check, "aria-hidden", "true");
-    setText(check, "\u2713");
+    let checkImgOk = false;
+    try {
+      const img = makeEl(doc, "img");
+      if (img !== null) {
+        try {
+          (img as { className?: unknown }).className = "challenge-check-img";
+        } catch {
+          // Class best-effort only.
+        }
+        setAttr(img, "src", "./assets/atlas/icons/glyph-check.png");
+        setAttr(img, "alt", "done");
+        appendKid(check, img);
+        checkImgOk = true;
+      }
+    } catch {
+      // Builder-less fakes: fall through to the unicode text below.
+    }
+    if (!checkImgOk) {
+      setText(check, "\u2713");
+    }
     appendKid(row, check);
   }
   return row;

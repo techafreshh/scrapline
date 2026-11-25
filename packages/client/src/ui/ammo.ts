@@ -7,6 +7,7 @@
 
 import { GRENADE_MAX } from "../../../core/src/constants";
 import { WEAPONS, type WeaponId } from "../../../core/src/weapons";
+import { weaponIconSrcFor } from "./icons";
 
 /** Display-only reserve multiplier: reloads never deplete the reserve. */
 export const AMMO_RESERVE_MULTIPLIER = 3;
@@ -86,17 +87,14 @@ export function grenadePipStates(grenades: unknown): boolean[] {
 }
 
 /**
- * Weapon icon path for a held weapon: the SMG reuses the Hornet card
- * art, every other weapon reads its own card; unknown readings fall
- * back to the pistol card. Relative to the client root (like the
- * displayFontFaceCss asset URL) so file:// and subpath hosts resolve.
+ * Weapon icon path for a held weapon: the sliced IC-01 full-size well
+ * per id (the SMG reads its own SMG well now that the set ships one
+ * per weapon); unknown readings fall back to the pistol well.
+ * Relative to the client root (like the displayFontFaceCss asset URL)
+ * so file:// and subpath hosts resolve.
  */
 export function iconFor(weapon: unknown): string {
-  const id = normalizeWeaponId(weapon);
-  if (id === "smg") {
-    return "./assets/weapon-hornet.svg";
-  }
-  return `./assets/weapon-${id}.svg`;
+  return weaponIconSrcFor(weapon);
 }
 
 /** Live ammo values the binder mirrors into the module each frame. */

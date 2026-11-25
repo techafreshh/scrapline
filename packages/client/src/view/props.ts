@@ -25,7 +25,7 @@ export const BOUNCE_SQUASH_MIN = 0.6;
 /** Elapsed ms of peak squash (mid-cycle, the 300ms probe point). */
 export const BOUNCE_SQUASH_PEAK_MS = BOUNCE_SQUASH_DURATION_MS / 2;
 
-/** Weapon-pad base size in world px (matches pickup-pad.svg 40x16). */
+/** Weapon-pad base size in world px (matches the sliced pad base 40x16). */
 export const PICKUP_PAD_W = 40;
 /** Weapon-pad base height in world px. */
 export const PICKUP_PAD_H = 16;
@@ -34,7 +34,7 @@ export const PLAQUE_W = 18;
 /** Icon plaque height in world px. */
 export const PLAQUE_H = 12;
 
-/** Intact prop paint (mirrors the prop-*.svg sources). */
+/** Intact prop paint (mirrors the sliced prop art). */
 export interface PropPaint {
   baseHex: number;
   baseCss: string;
@@ -58,7 +58,7 @@ const BARREL_CRACKED: PropPaint = {
   sparkCss: "#fbbf24",
 };
 
-/** Intact barrel paint (matches prop-barrel.svg). */
+/** Intact barrel paint (matches the sliced barrel art). */
 const BARREL_INTACT: PropPaint = {
   baseHex: 0xb45309,
   baseCss: "#b45309",
@@ -82,7 +82,7 @@ const CRATE_CRACKED: PropPaint = {
   sparkCss: "#fbbf24",
 };
 
-/** Intact crate paint (matches prop-crate.svg). */
+/** Intact crate paint (matches the sliced crate art). */
 const CRATE_INTACT: PropPaint = {
   baseHex: 0x92400e,
   baseCss: "#92400e",
@@ -174,7 +174,7 @@ export interface WeaponPlaque {
 const PLAQUES: Record<string, WeaponPlaque> = {
   pistol: {
     key: "weapon-pistol",
-    file: "weapon-pistol.svg",
+    file: "icons/weapon-pistol.png",
     label: "Pistol",
     colorHex: 0xf8fafc,
     colorCss: "#F8FAFC",
@@ -182,7 +182,7 @@ const PLAQUES: Record<string, WeaponPlaque> = {
   },
   smg: {
     key: "weapon-smg",
-    file: "weapon-smg.svg",
+    file: "icons/weapon-smg.png",
     label: "SMG",
     colorHex: 0xe2e8f0,
     colorCss: "#E2E8F0",
@@ -190,7 +190,7 @@ const PLAQUES: Record<string, WeaponPlaque> = {
   },
   rifle: {
     key: "weapon-rifle",
-    file: "weapon-rifle.svg",
+    file: "icons/weapon-rifle.png",
     label: "Rifle",
     colorHex: 0xfbbf24,
     colorCss: "#FBBF24",
@@ -198,7 +198,7 @@ const PLAQUES: Record<string, WeaponPlaque> = {
   },
   shotgun: {
     key: "weapon-shotgun",
-    file: "weapon-shotgun.svg",
+    file: "icons/weapon-shotgun.png",
     label: "Shotgun",
     colorHex: 0xfb923c,
     colorCss: "#FB923C",
@@ -206,7 +206,7 @@ const PLAQUES: Record<string, WeaponPlaque> = {
   },
   sniper: {
     key: "weapon-sniper",
-    file: "weapon-sniper.svg",
+    file: "icons/weapon-sniper.png",
     label: "Sniper",
     colorHex: 0x93c5fd,
     colorCss: "#93C5FD",
@@ -214,7 +214,7 @@ const PLAQUES: Record<string, WeaponPlaque> = {
   },
   rocket: {
     key: "weapon-rocket",
-    file: "weapon-rocket.svg",
+    file: "icons/weapon-rocket.png",
     label: "Rocket",
     colorHex: 0x94a3b8,
     colorCss: "#94A3B8",
@@ -222,7 +222,7 @@ const PLAQUES: Record<string, WeaponPlaque> = {
   },
   hornet: {
     key: "weapon-hornet",
-    file: "weapon-hornet.svg",
+    file: "icons/weapon-smg.png",
     label: "Hornet",
     colorHex: 0x22d3ee,
     colorCss: "#22D3EE",

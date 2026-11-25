@@ -1043,10 +1043,31 @@ export function syncCarouselDots(doc: Document, map: unknown): SetupMap {
         if (attr === null) {
           continue;
         }
-        attr.setAttribute(
-          "aria-selected",
-          dotMap(dot) === normalized ? "true" : "false",
-        );
+        const selected = dotMap(dot) === normalized;
+        attr.setAttribute("aria-selected", selected ? "true" : "false");
+        // Keep the dot plate in sync with the selection so the icon set
+        // never shows a stale on/off well after a cycle.
+        try {
+          const query = (dot as { querySelector?: unknown }).querySelector;
+          const img =
+            typeof query === "function"
+              ? (query as (sel: string) => unknown).call(dot, "img")
+              : null;
+          const want = selected ? "./assets/ui/menu-dot-on.png" : "./assets/ui/menu-dot-off.png";
+          if (img !== null && typeof img === "object") {
+            const setter = (img as { setAttribute?: unknown }).setAttribute;
+            if (typeof setter === "function") {
+              (setter as (n: string, v: string) => void).call(img, "src", want);
+            }
+            try {
+              (img as Record<string, unknown>)["src"] = want;
+            } catch {
+              // Attribute above already landed.
+            }
+          }
+        } catch {
+          // Dot plate optional: aria-selected still carries the state.
+        }
       } catch {
         // One unreadable dot never blocks the rest.
       }
@@ -1141,6 +1162,18 @@ export function ensureCarouselNav(doc: Document): void {
     if (typeof appender !== "function") {
       return;
     }
+    const glyphSrcFor = (glyph: string): string | null => {
+      if (glyph === "\u2039") {
+        return "./assets/atlas/icons/glyph-chev-left.png";
+      }
+      if (glyph === "\u203a") {
+        return "./assets/atlas/icons/glyph-chev-right.png";
+      }
+      if (glyph === "\u25cf") {
+        return "./assets/ui/menu-dot-off.png";
+      }
+      return null;
+    };
     const ensureButton = (
       id: string,
       cls: string,
@@ -1176,14 +1209,39 @@ export function ensureCarouselNav(doc: Document): void {
           // Attrs best-effort only.
         }
         try {
-          const span = make.call(doc, "span");
-          if (span !== null && typeof span === "object") {
-            if ("textContent" in span) {
-              (span as { textContent?: unknown }).textContent = glyph;
+          const src = glyphSrcFor(glyph);
+          if (src !== null) {
+            const img = make.call(doc, "img");
+            if (img !== null && typeof img === "object") {
+              try {
+                const setter = (img as { setAttribute?: unknown }).setAttribute;
+                if (typeof setter === "function") {
+                  (setter as (n: string, v: string) => void).call(img, "src", src);
+                  (setter as (n: string, v: string) => void).call(img, "alt", label);
+                }
+              } catch {
+                // Attrs best-effort only.
+              }
+              try {
+                (img as Record<string, unknown>)["src"] = src;
+              } catch {
+                // Read-only shims: attributes above already landed.
+              }
+              const kid = (made as { appendChild?: unknown }).appendChild;
+              if (typeof kid === "function") {
+                (kid as (child: unknown) => void).call(made, img);
+              }
             }
-            const kid = (made as { appendChild?: unknown }).appendChild;
-            if (typeof kid === "function") {
-              (kid as (child: unknown) => void).call(made, span);
+          } else {
+            const span = make.call(doc, "span");
+            if (span !== null && typeof span === "object") {
+              if ("textContent" in span) {
+                (span as { textContent?: unknown }).textContent = glyph;
+              }
+              const kid = (made as { appendChild?: unknown }).appendChild;
+              if (typeof kid === "function") {
+                (kid as (child: unknown) => void).call(made, span);
+              }
             }
           }
         } catch {

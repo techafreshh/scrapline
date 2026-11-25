@@ -144,6 +144,15 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (readable && url.pathname === "/favicon.ico") {
+    const png = tryReadFirst(
+      path.join(ROOT_DIST, "icons", "icon-512.png"),
+      path.join(DIST, "icons", "icon-512.png"),
+      path.join(ROOT, "packages", "client", "public", "icons", "icon-512.png"),
+    );
+    if (png !== null) {
+      send(req, res, 200, "image/png", png);
+      return;
+    }
     send(req, res, 200, "image/svg+xml", FAVICON_SVG);
     return;
   }

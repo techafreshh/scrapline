@@ -39,11 +39,12 @@ const KNOWN_IDS: readonly string[] = [
 ];
 
 /**
- * Weapon icon for a feed entry: grenade kills reuse the pickup art,
- * gun kills reuse the in-hand weapon cards (issue #264: the SMG reads
- * the Hornet card via the shared weaponSpriteFile mapping). Null,
- * empty, and unknown readings yield null so unattributed deaths stay
- * text-only (`X died`) instead of showing a wrong icon.
+ * Weapon icon for a feed entry: grenade kills reuse the IC-02 pickup
+ * well, gun kills reuse the IC-01 16px simplified wells (the feed well
+ * renders 22x16, under the 20px switch line, so the small set keeps
+ * the shotgun/SMG readable). Null, empty, and unknown readings yield
+ * null so unattributed deaths stay text-only (`X died`) instead of
+ * showing a wrong icon. Pure.
  */
 export function feedIconFor(weapon: unknown): string | null {
   if (typeof weapon !== "string") {
@@ -54,13 +55,22 @@ export function feedIconFor(weapon: unknown): string | null {
     return null;
   }
   if (key.includes("grenade")) {
-    return "./assets/pickup-grenade.svg";
+    return "./assets/atlas/icons/pickup-grenade.png";
   }
   if (key.includes("hornet")) {
-    return weaponSpriteFile("smg");
+    return "./assets/atlas/icons/weapon-smg-small.png";
   }
   if (KNOWN_IDS.includes(key)) {
-    return weaponSpriteFile(key);
+    const id = key as "pistol" | "smg" | "rifle" | "shotgun" | "sniper" | "rocket";
+    const small: Record<string, string> = {
+      pistol: "./assets/atlas/icons/weapon-pistol-small.png",
+      smg: "./assets/atlas/icons/weapon-smg-small.png",
+      rifle: "./assets/atlas/icons/weapon-rifle-small.png",
+      shotgun: "./assets/atlas/icons/weapon-shotgun-small.png",
+      sniper: "./assets/atlas/icons/weapon-sniper-small.png",
+      rocket: "./assets/atlas/icons/weapon-rocket-small.png",
+    };
+    return small[id] as string;
   }
   return null;
 }

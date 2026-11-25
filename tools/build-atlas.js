@@ -688,6 +688,23 @@ function main() {
   }
   fs.writeFileSync(ATLAS_MANIFEST, JSON.stringify(manifest, null, 2) + "\n");
 
+  // Chrome kit phase (issue #347): slice the curated SH-01a kit plus
+  // the CH singles into ui.* art, overwrite the five stretched 16x16
+  // tiles with the sliced files, and merge the full control library
+  // (panels, buttons, bars, inputs, rows, ornaments) into the manifest
+  // and ui.json. Runs after the vendor phase so the replacements win;
+  // the stale tiles are dropped here, before the weight gate and the
+  // dist staging below, so neither the tree nor the bundle falls back.
+  // Deterministic (palette order plus fixed deflate), so committed
+  // bytes equal rebuilt bytes; failures name slice-chrome, never this.
+  try {
+    const { sliceChrome } = require("./slice-chrome.js");
+    const chromeWritten = sliceChrome(ATLAS_SRC);
+    console.log(`build-atlas: chrome kit -> ${chromeWritten.length} ui frames`);
+  } catch (err) {
+    fail(err && err.message ? err.message : String(err));
+  }
+
   // Renderer-reference validation: every quoted
   // soldier./adventurer./zombie./female./player./tile./fx. token in
   // runtime sources must resolve to a manifest key, so later sprite

@@ -5,7 +5,8 @@
   packages/client/index.html (Vite public-dir idiom: copied verbatim to
   dist/ and staged to the root bundle). */
 :root {
-  /* PRD palette. */
+  /* PRD palette. Edge highlight for pixel bevels (issue #347). */
+  --color-edge: #4a5a7f;
   --color-bg: #0b0f1a;
   --color-panel: rgba(13, 18, 32, 0.92);
   --color-border: #2a3550;

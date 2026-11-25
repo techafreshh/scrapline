@@ -11,6 +11,9 @@ import { WEAPONS, type WeaponId } from "../../../core/src/weapons";
 /** Display-only reserve multiplier: reloads never deplete the reserve. */
 export const AMMO_RESERVE_MULTIPLIER = 3;
 
+/** Magazine pips per weapon module (HU-05: five sockets along the bottom edge). */
+export const MAG_PIP_COUNT = 5;
+
 /** Weapon ids in the stat table (mirrors WeaponId without importing it). */
 const KNOWN_IDS: readonly string[] = [
   "pistol",
@@ -110,6 +113,8 @@ export interface AmmoHandles {
   name: HTMLElement | null;
   counts: HTMLElement | null;
   pips: HTMLElement | null;
+  /** Five magazine pips (HU-05); absent on older handle shapes. */
+  mags?: HTMLElement | null;
 }
 
 /** All-null handles for builder-less docs (updateAmmo still no-ops). */
@@ -119,6 +124,7 @@ const NULL_AMMO: AmmoHandles = {
   name: null,
   counts: null,
   pips: null,
+  mags: null,
 };
 
 function byId(
@@ -164,6 +170,7 @@ export function buildAmmo(doc: Document): AmmoHandles {
     name: byId(scoped, "ammo-name"),
     counts: byId(scoped, "ammo-counts"),
     pips: byId(scoped, "ammo-pips"),
+    mags: byId(scoped, "ammo-mags"),
   };
 }
 
@@ -252,11 +259,57 @@ export function pipClass(filled: boolean): string {
 }
 
 /**
- * Reconcile the pip container to exactly GRENADE_MAX children with the
- * given fill classes. Builder-less containers keep (and restyle) their
- * existing children; missing builders or hostile shims are no-ops.
+ * Magazine pip fill states (HU-05): exactly MAG_PIP_COUNT entries, each
+ * pip covering one fifth of the stat-table mag. A partial mag keeps at
+ * least one pip lit while rounds remain, so 1/32 still reads non-empty.
  */
-function syncPips(container: unknown, states: readonly boolean[]): void {
+export function magPipStates(magAmmo: unknown, weapon: unknown): boolean[] {
+  const mag = WEAPONS[normalizeWeaponId(weapon)].mag;
+  const count = Number(magAmmo);
+  const clamped = Number.isFinite(count)
+    ? Math.min(mag, Math.max(0, Math.floor(count)))
+    : 0;
+  if (clamped <= 0) {
+    return Array.from({ length: MAG_PIP_COUNT }, () => false);
+  }
+  const filled = Math.min(
+    MAG_PIP_COUNT,
+    Math.max(1, Math.floor((MAG_PIP_COUNT * clamped) / mag)),
+  );
+  return Array.from({ length: MAG_PIP_COUNT }, (_, index) => index < filled);
+}
+
+/**
+ * True while the mag reads low (HU-05 low-ammo pip styling): at or
+ * below one quarter of the stat-table mag, minimum 1, so the rocket
+ * (mag 2) still flags its last round. Non-finite readings read full.
+ */
+export function isLowAmmo(magAmmo: unknown, weapon: unknown): boolean {
+  const mag = WEAPONS[normalizeWeaponId(weapon)].mag;
+  const count = Number(magAmmo);
+  if (!Number.isFinite(count)) {
+    return false;
+  }
+  return Math.floor(count) <= Math.max(1, Math.ceil(mag / 4));
+}
+
+/**
+ * Magazine pip class for a fill + low-ammo state. The mag-pip token
+ * carries the square-socket skin from hud.css; the low token swaps the
+ * cyan fill/border to the warm token while the mag reads low.
+ */
+export function magPipClass(filled: boolean, low: boolean): string {
+  const base = filled ? "pip mag-pip filled" : "pip mag-pip empty";
+  return low ? `${base} low` : base;
+}
+
+/**
+ * Reconcile a pip container to exactly classes.length children carrying
+ * the given classes. Builder-less containers keep (and restyle) their
+ * existing children; missing builders or hostile shims are no-ops.
+ * Exported so the HUD status cluster reuses the same row reconciler.
+ */
+export function syncPipClasses(container: unknown, classes: readonly string[]): void {
   const box = container as {
     children?: { length?: unknown; [index: number]: unknown } | null;
     ownerDocument?: { createElement?: unknown } | null;
@@ -294,13 +347,13 @@ function syncPips(container: unknown, states: readonly boolean[]): void {
       : null;
   if (create !== null && append !== null) {
     try {
-      while (kids.length < states.length) {
+      while (kids.length < classes.length) {
         const pip = create("span");
-        writeAttr(pip, "class", pipClass(states[kids.length] ?? false));
+        writeAttr(pip, "class", classes[kids.length] ?? "");
         append(pip);
         kids.push(pip);
       }
-      while (kids.length > states.length) {
+      while (kids.length > classes.length) {
         const extra = kids[kids.length - 1];
         if (remove !== null && extra !== undefined) {
           remove(extra);
@@ -311,8 +364,8 @@ function syncPips(container: unknown, states: readonly boolean[]): void {
       // Half-built docs: fall through and stamp whatever children exist.
     }
   }
-  for (let i = 0; i < kids.length && i < states.length; i += 1) {
-    const want = pipClass(states[i] ?? false);
+  for (let i = 0; i < kids.length && i < classes.length; i += 1) {
+    const want = classes[i] ?? "";
     if (readAttr(kids[i], "class") !== want) {
       writeAttr(kids[i], "class", want);
     }
@@ -320,10 +373,27 @@ function syncPips(container: unknown, states: readonly boolean[]): void {
 }
 
 /**
+ * Reconcile a pip container to one boolean state per child, mapping
+ * each entry through classFor (the grenade-pip default keeps the
+ * legacy call shape compiling). Missing builders stay no-ops.
+ */
+function syncPips(
+  container: unknown,
+  states: readonly boolean[],
+  classFor: (filled: boolean) => string = pipClass,
+): void {
+  syncPipClasses(
+    container,
+    states.map((filled) => classFor(filled)),
+  );
+}
+
+/**
  * Mirror one snapshot into the module: plain vector textContent for the
  * name/counts (never the 3x5 bitmap rects, since `/` and letters fall
- * back to plain text), the weapon icon src/alt, and exactly
- * GRENADE_MAX pip children. Every write is change-guarded so the
+ * back to plain text), the weapon icon src/alt, exactly GRENADE_MAX
+ * grenade pip children, and exactly MAG_PIP_COUNT magazine pip children
+ * with low-ammo styling (HU-05). Every write is change-guarded so the
  * every-frame mirror stays cheap; missing elements are skipped.
  */
 export function updateAmmo(
@@ -362,5 +432,12 @@ export function updateAmmo(
   const pipsEl = handles.pips ?? null;
   if (pipsEl !== null) {
     syncPips(pipsEl, states);
+  }
+  const magsEl = handles.mags ?? null;
+  if (magsEl !== null) {
+    const low = isLowAmmo(snapshot.magAmmo, id);
+    syncPips(magsEl, magPipStates(snapshot.magAmmo, id), (filled) =>
+      magPipClass(filled, low),
+    );
   }
 }

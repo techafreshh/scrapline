@@ -600,3 +600,108 @@ button[data-map][aria-pressed="true"] {
   border-image-repeat: stretch;
   image-rendering: pixelated;
 }
+/* HU-10 respawn card (issue #349): the centred countdown card rides the
+  shared hazard plate (striped border bands, smoked-glass fill) while
+  #respawn's own veil dims the death camera behind it. No baked text:
+  the countdown stays live HTML. */
+#stage #respawn-card,
+#respawn-card {
+  max-width: 320px;
+  padding: 24px 32px;
+  text-align: center;
+  color: var(--color-text);
+  text-shadow: var(--shadow-text);
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/panel.hazard.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+/* HU-11 scope overlay (issue #349): a hard-edged circular lens over a
+  solid ink surround (no soft vignette, no gradients) with a steel rim,
+  cyan ranging ticks, and a 1px cyan cross. Shown only while the sniper
+  steadies crouched; the reticle hides behind it. */
+#stage #scope,
+#scope {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+#stage #scope-ring,
+#scope-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(62vmin, 620px);
+  height: min(62vmin, 620px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 4px solid var(--color-border);
+  outline: 1px solid var(--color-cyan);
+  outline-offset: -6px;
+  box-shadow: 0 0 0 200vmax var(--color-bg);
+}
+#stage #scope-ring::before,
+#scope-ring::before {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 50%;
+  height: 1px;
+  margin-top: -1px;
+  background: var(--color-cyan);
+  pointer-events: none;
+}
+#stage #scope-ring::after,
+#scope-ring::after {
+  content: "";
+  position: absolute;
+  top: 4%;
+  bottom: 4%;
+  left: 50%;
+  width: 1px;
+  margin-left: -1px;
+  background: var(--color-cyan);
+  pointer-events: none;
+}
+#stage .scope-tick,
+.scope-tick {
+  position: absolute;
+  background: var(--color-cyan);
+  pointer-events: none;
+}
+#stage .scope-tick-n,
+.scope-tick-n {
+  left: 50%;
+  top: 12px;
+  width: 12px;
+  height: 2px;
+  margin-left: -6px;
+}
+#stage .scope-tick-s,
+.scope-tick-s {
+  left: 50%;
+  bottom: 12px;
+  width: 12px;
+  height: 2px;
+  margin-left: -6px;
+}
+#stage .scope-tick-e,
+.scope-tick-e {
+  right: 12px;
+  top: 50%;
+  width: 2px;
+  height: 12px;
+  margin-top: -6px;
+}
+#stage .scope-tick-w,
+.scope-tick-w {
+  left: 12px;
+  top: 50%;
+  width: 2px;
+  height: 12px;
+  margin-top: -6px;
+}

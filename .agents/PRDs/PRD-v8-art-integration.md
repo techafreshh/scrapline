@@ -105,8 +105,8 @@ from the set; no mixed stroke weights visible in one row.
 ### A7 · Visual verification
 
 Extend `scripts/verify-ui.js` with an art gate: assert the new atlas keys are present and
-non-blank, capture the eight views, and diff each against its mockup
-(`docs/ui-prompts/results/<ID>-v1.jpg`) for layout-region similarity — coarse (structural/
+non-blank, capture the eight views, and diff each against its mockup in
+`docs/ui-prompts/results/` (the `<ID>-v1.jpg` reference) for layout-region similarity — coarse (structural/
 luminance), not pixel-exact.
 
 Acceptance: the gate fails on a deliberately reverted chrome file and passes on the real set.

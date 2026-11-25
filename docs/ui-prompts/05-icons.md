@@ -221,6 +221,6 @@ check:
 - Is any icon unreadable at 16 px? That icon needs the simplified silhouette variant.
 - Does any icon introduce a colour outside the palette? That is the most common drift.
 
-The contact sheet is worth committing to `docs/benchmark/icons/` so future prompts have a
+The contact sheet is worth keeping with the prompt pack so future prompts have a
 reference image to attach — Gemini restyles far more consistently against a reference than
 against a description.

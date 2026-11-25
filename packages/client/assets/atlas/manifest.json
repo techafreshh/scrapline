@@ -653,36 +653,6 @@
     "w": 64,
     "h": 64
   },
-  "ui.panel": {
-    "file": "ui/panel.png",
-    "atlas": "ui.json",
-    "w": 196,
-    "h": 192
-  },
-  "ui.button": {
-    "file": "ui/button.png",
-    "atlas": "ui.json",
-    "w": 116,
-    "h": 36
-  },
-  "ui.button.hover": {
-    "file": "ui/button.hover.png",
-    "atlas": "ui.json",
-    "w": 116,
-    "h": 36
-  },
-  "ui.slot": {
-    "file": "ui/panel.inset.png",
-    "atlas": "ui.json",
-    "w": 108,
-    "h": 108
-  },
-  "ui.bar": {
-    "file": "ui/bar.fill.png",
-    "atlas": "ui.json",
-    "w": 240,
-    "h": 60
-  },
   "ui.icon.0": {
     "file": "ui/tile_0005.png",
     "atlas": "ui.json",
@@ -761,6 +731,12 @@
     "w": 164,
     "h": 44
   },
+  "ui.panel": {
+    "file": "ui/panel.png",
+    "atlas": "ui.json",
+    "w": 196,
+    "h": 192
+  },
   "ui.panel.elevated": {
     "file": "ui/panel.elevated.png",
     "atlas": "ui.json",
@@ -784,6 +760,18 @@
     "atlas": "ui.json",
     "w": 224,
     "h": 132
+  },
+  "ui.button": {
+    "file": "ui/button.png",
+    "atlas": "ui.json",
+    "w": 116,
+    "h": 36
+  },
+  "ui.button.hover": {
+    "file": "ui/button.hover.png",
+    "atlas": "ui.json",
+    "w": 116,
+    "h": 36
   },
   "ui.button.pressed": {
     "file": "ui/button.pressed.png",
@@ -1012,5 +1000,17 @@
     "atlas": "ui.json",
     "w": 76,
     "h": 80
+  },
+  "ui.slot": {
+    "file": "ui/panel.inset.png",
+    "atlas": "ui.json",
+    "w": 108,
+    "h": 108
+  },
+  "ui.bar": {
+    "file": "ui/bar.fill.png",
+    "atlas": "ui.json",
+    "w": 240,
+    "h": 60
   }
 }

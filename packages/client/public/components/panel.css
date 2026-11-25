@@ -9,6 +9,7 @@
   wells, hazard for end-screen headers). Consumes token variables plus
   atlas art only. */
 .sl-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;

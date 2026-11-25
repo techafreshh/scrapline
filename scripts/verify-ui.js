@@ -556,6 +556,50 @@ async function run() {
       });
       assert(tilingBad.length === 0, `${viewport.label}: full-viewport tiling on ${tilingBad.join(",")}`);
 
+      // Chrome single-plate leg (issue #359): no element carries a
+      // chrome background wider than 600px. The old bug stamped the
+      // 256px panel onto the full-width #hud container (1424px, tiling
+      // 5.5x); each HUD cluster must be one plate on its own module.
+      const wideChrome = await page.evaluate(() => {
+        const bad = [];
+        for (const el of document.querySelectorAll("*")) {
+          const style = getComputedStyle(el);
+          if (
+            style.backgroundImage !== null &&
+            style.backgroundImage !== "none" &&
+            /atlas\/ui|assets\/ui/.test(style.backgroundImage)
+          ) {
+            const rect = el.getBoundingClientRect();
+            if (rect.width > 600) {
+              bad.push(`${el.id || el.className || el.tagName}:${Math.round(rect.width)}`);
+            }
+          }
+        }
+        return bad;
+      });
+      assert(wideChrome.length === 0, `${viewport.label}: wide chrome backgrounds on ${wideChrome.join(",")}`);
+      note(`${viewport.label} wide-chrome:ok`);
+
+      // HUD container leg (issue #359): the full-width strip and the
+      // menu root never carry a chrome background themselves. Module
+      // and card plates (`.hud-module`, `.sl-panel`, carousel cards,
+      // banners, bars) keep their own single-plate art.
+      const containerChrome = await page.evaluate(() => {
+        const bad = [];
+        for (const id of ["hud", "menu"]) {
+          const el = document.getElementById(id);
+          if (el !== null) {
+            const style = getComputedStyle(el);
+            if (style.backgroundImage !== "none" && /atlas\/ui|assets\/ui/.test(style.backgroundImage || "")) {
+              bad.push(id);
+            }
+          }
+        }
+        return bad;
+      });
+      assert(containerChrome.length === 0, `${viewport.label}: chrome on container ${containerChrome.join(",")}`);
+      note(`${viewport.label} containers:ok`);
+
       // Live hover leg: at least one :hover rule survives the cascade.
       const hoverCount = await page.evaluate(() => {
         let count = 0;

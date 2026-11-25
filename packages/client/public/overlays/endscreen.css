@@ -1,9 +1,12 @@
-/* End screen on the Panel primitive (issue #320): token-styled
-  standings table with zebra stripes, an accent winner highlight, and a
-  clear CTA/ghost button hierarchy. Consumes token variables only, no
-  raw colors, no tiling. The `#stage`-qualified selectors outrank the
-  legacy inline style block (the layers.css idiom) while the bare
-  selectors keep static scans literal. */
+/* End screen on the Panel primitive (issue #320, SC-07 restyle in
+  #350): token-styled standings table with zebra stripes, an accent
+  winner highlight, and a clear CTA/ghost button hierarchy. The head
+  carries the shared title-plus-close skeleton, the winner banner sits
+  above five standings rows with the local pilot marked, and the footer
+  holds the two actions. Consumes token variables only, no raw colors,
+  no tiling. The `#stage`-qualified selectors outrank the legacy
+  inline style block (the layers.css idiom) while the bare selectors
+  keep static scans literal. */
 #stage #end-screen,
 #end-screen {
   background: var(--color-veil);
@@ -99,4 +102,80 @@
 #stage #end-screen #end-menu:active,
 #end-screen #end-menu:active {
   transform: translateY(1px);
+}
+/* SC-07 skeleton: shared head row plus a two-action footer. */
+#stage #end-screen .panel-head,
+#end-screen .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  width: 100%;
+}
+#stage #end-screen .panel-close,
+#end-screen .panel-close {
+  min-height: 44px;
+  padding: var(--spacing-8) var(--spacing-12);
+}
+#stage #end-screen .panel-rows,
+#end-screen .panel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  width: 100%;
+}
+#stage #end-screen .panel-actions,
+#end-screen .panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-12);
+  width: 100%;
+}
+/* SC-09 winner banner: trophy well plus the callout line. */
+#stage #end-screen #end-winner,
+#end-screen #end-winner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  padding: var(--spacing-12) var(--spacing-16);
+  box-sizing: border-box;
+}
+#stage #end-screen .winner-trophy,
+#end-screen .winner-trophy {
+  flex: 0 0 auto;
+  font-size: var(--font-h2);
+  color: var(--color-gold);
+}
+#stage #end-screen .winner-text,
+#end-screen .winner-text {
+  font-size: var(--font-body);
+  font-weight: bold;
+  letter-spacing: 0.6px;
+}
+/* SC-08 standings rows: rank plate, name, and numeric columns share
+  one rhythm; the local pilot reads the cyan marker (issue #350). */
+#stage #end-screen #end-standings,
+#end-screen #end-standings {
+  width: 100%;
+}
+#stage #end-screen .standings-row.local,
+#end-screen .standings-row.local {
+  border-color: var(--color-cyan);
+  box-shadow: inset 4px 0 0 var(--color-cyan);
+}
+#stage #end-screen .standings-row.local td,
+#end-screen .standings-row.local td {
+  border-color: var(--color-cyan);
+}
+#stage #end-screen .standings-row .rank,
+#end-screen .standings-row .rank {
+  font-weight: bold;
+  color: var(--color-cyan-pale);
+}
+#stage #end-screen .standings-row .score,
+#end-screen .standings-row .score {
+  font-weight: bold;
 }

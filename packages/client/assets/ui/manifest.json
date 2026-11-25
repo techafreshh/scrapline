@@ -43,5 +43,10 @@
     "file": "ui/menu-field.png",
     "w": 280,
     "h": 64
+  },
+  "noscript": {
+    "file": "ui/noscript.png",
+    "w": 480,
+    "h": 240
   }
 }

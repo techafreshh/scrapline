@@ -720,6 +720,17 @@ function main() {
     fail(err && err.message ? err.message : String(err));
   }
 
+  // No-JS fallback phase (issue #350, SC-11): the procedural
+  // single-image `<noscript>` plate joins the staged ui/ kit.
+  // Deterministic, so committed bytes equal rebuilt bytes.
+  try {
+    const { makeNoscript } = require("./make-noscript.js");
+    const noscriptWritten = makeNoscript(MENU_SRC);
+    console.log(`build-atlas: noscript kit -> ${noscriptWritten.length} ui files`);
+  } catch (err) {
+    fail(err && err.message ? err.message : String(err));
+  }
+
   // Renderer-reference validation: every quoted
   // soldier./adventurer./zombie./female./player./tile./fx. token in
   // runtime sources must resolve to a manifest key, so later sprite

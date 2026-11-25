@@ -75,7 +75,21 @@ import {
   updateLockerPanel,
 } from "./meta/locker";
 import { setLocalAccent } from "./view/soldier";
-import { bindSettings, loadQuality, loadShowNameTags, parseVolume } from "./settings";
+import {
+  bindSettings,
+  DEFAULT_MUSIC_VOLUME,
+  DEFAULT_QUALITY,
+  DEFAULT_SHOW_NAME_TAGS,
+  DEFAULT_VOLUME,
+  loadQuality,
+  loadShowNameTags,
+  parseVolume,
+  saveFullscreen,
+  saveMusicVolume,
+  saveQuality,
+  saveShowNameTags,
+  saveVolume,
+} from "./settings";
 import { bindMenuScene } from "./menu/scene";
 import {
   applyHudChrome,
@@ -95,8 +109,9 @@ import {
   type OverlayRoute,
 } from "./overlays/router";
 import { bindOnline } from "./net/online";
-import { bindCarousel, recordBestScore } from "./menu/carousel";
+import { bindCarousel, paintMapThumbnail, recordBestScore } from "./menu/carousel";
 import { bindMenuArt } from "./menu/art";
+import { bindNetStatus } from "./net/status";
 import { bindMenuTips } from "./menu/tips";
 import {
   ensureAudioOnGesture,
@@ -1116,7 +1131,7 @@ function stepOnce(): string[] {
       victimIdx >= 0 ? victimIdx : null,
     );
     // Daily challenges (issue #211): only local-player kills progress
-    // the rifle/grenade rows (bot-vs-bot kills never count); freshly
+    // the kill rows (bot-vs-bot kills never count); freshly
     // completed rows bank their one-shot XP immediately.
     try {
       const store = challengeStore();
@@ -1199,8 +1214,8 @@ function stepOnce(): string[] {
       saveProfile(storage, next);
       cachedProfile = next;
       updateProfileBadge(document, next);
-      // Daily challenges (issue #211): the dune-win row completes only
-      // on a win in the running dune setup; due rewards auto-award
+      // Daily challenges (issue #211): a win row completes only on a
+      // win in its running setup; due rewards auto-award
       // once via their claimed flags (kill rows banked mid-match above
       // re-collect to 0 here by construction).
       try {
@@ -1407,6 +1422,59 @@ function frame(now: number): void {
 }
 
 /**
+ * Paint the end-screen winner banner (SC-09): the trophy well plus the
+ * `Winner: X` callout survive standings destruction (which wipes the
+ * container text), so both spans are rebuilt here when missing and the
+ * label repainted every end. Missing builders are no-ops.
+ */
+function paintWinner(winnerEl: HTMLElement, label: string): void {
+  try {
+    const doc = winnerEl.ownerDocument;
+    let trophy: HTMLElement | null = null;
+    let text: HTMLElement | null = null;
+    try {
+      trophy = winnerEl.querySelector(":scope > .winner-trophy");
+      text = winnerEl.querySelector(":scope > .winner-text");
+    } catch {
+      trophy = null;
+      text = null;
+    }
+    if (trophy === null && typeof doc?.createElement === "function") {
+      try {
+        trophy = doc.createElement("span");
+        trophy.setAttribute("class", "winner-trophy");
+        trophy.setAttribute("aria-hidden", "true");
+        trophy.textContent = "\u2605";
+        winnerEl.appendChild(trophy);
+      } catch {
+        trophy = null;
+      }
+    }
+    if (text === null && typeof doc?.createElement === "function") {
+      try {
+        text = doc.createElement("span");
+        text.setAttribute("class", "winner-text");
+        winnerEl.appendChild(text);
+      } catch {
+        text = null;
+      }
+    }
+    if (text !== null) {
+      text.textContent = label;
+    } else {
+      // Span-less shims: the container text still carries the callout.
+      winnerEl.textContent = label;
+    }
+  } catch {
+    try {
+      winnerEl.textContent = label;
+    } catch {
+      // Winner paint never gates the standings below.
+    }
+  }
+}
+
+/**
  * Fill the end screen with the winner callout plus a kills/deaths
  * standings table. The standings container is rebuilt when a previous
  * Menu return destroyed it; the overlay persists until the player picks
@@ -1428,8 +1496,10 @@ function showEndScreen(): void {
   const winnerEl = document.getElementById("end-winner");
   if (winnerEl instanceof HTMLElement) {
     const winner = rows[0];
-    winnerEl.textContent =
-      winner === undefined ? "Winner: -" : `Winner: ${winner.name}`;
+    paintWinner(
+      winnerEl,
+      winner === undefined ? "Winner: -" : `Winner: ${winner.name}`,
+    );
   }
   // Rebuild the standings container destroyed on the last Menu return,
   // refreshing the binder handle that still points at the detached node.
@@ -1449,7 +1519,7 @@ function showEndScreen(): void {
     table.setAttribute("class", "standings");
     const head = doc.createElement("thead");
     const headRow = doc.createElement("tr");
-    for (const label of ["Player", "Kills", "Deaths"]) {
+    for (const label of ["#", "Player", "Score", "Kills", "Deaths"]) {
       const cell = doc.createElement("th");
       cell.textContent = label;
       headRow.appendChild(cell);
@@ -1457,20 +1527,33 @@ function showEndScreen(): void {
     head.appendChild(headRow);
     table.appendChild(head);
     const body = doc.createElement("tbody");
-    for (const row of rows) {
+    rows.forEach((row, index) => {
       const tr = doc.createElement("tr");
-      tr.setAttribute("class", row.winner ? "standings-row winner" : "standings-row");
+      // SC-08 row states: the local pilot reads the cyan marker while
+      // the leader keeps the winner highlight (both when they coincide).
+      const base = row.winner ? "standings-row winner" : "standings-row";
+      tr.setAttribute("class", row.id === 0 ? `${base} local` : base);
+      tr.setAttribute("data-player", String(row.id));
+      tr.setAttribute("data-local", row.id === 0 ? "true" : "false");
+      const rankCell = doc.createElement("td");
+      rankCell.setAttribute("class", "rank");
+      rankCell.textContent = String(index + 1);
+      tr.appendChild(rankCell);
       const nameCell = doc.createElement("td");
       nameCell.textContent = row.name;
+      const scoreCell = doc.createElement("td");
+      scoreCell.setAttribute("class", "score");
+      scoreCell.textContent = String(row.kills);
       const killsCell = doc.createElement("td");
       killsCell.textContent = String(row.kills);
       const deathsCell = doc.createElement("td");
       deathsCell.textContent = String(row.deaths);
       tr.appendChild(nameCell);
+      tr.appendChild(scoreCell);
       tr.appendChild(killsCell);
       tr.appendChild(deathsCell);
       body.appendChild(tr);
-    }
+    });
     table.appendChild(body);
     hud.endStandings.appendChild(table);
   }
@@ -1845,6 +1928,20 @@ try {
     onStart: () => {
       running = false;
       cancelAnimationFrame(rafId);
+      // The handshake landed: the connecting card stands down.
+      try {
+        netStatus?.hide();
+      } catch {
+        // Card optional: the session already owns the renderer.
+      }
+    },
+    onStop: () => {
+      // Session torn down: never leave the card stranded.
+      try {
+        netStatus?.hide();
+      } catch {
+        // Card optional: the menu restore below still lands.
+      }
     },
   });
 } catch {
@@ -1877,13 +1974,72 @@ try {
 } catch {
   // Tips optional: the static skeleton already names a mechanic.
 }
-// Daily challenges panel (issue #211): fixed 3-template local-day set
-// progressed from sim kill/match-end edges with one-shot XP banking.
-// Never gates boot.
+// Daily challenges panel (issue #211, five rows since issue #350):
+// fixed local-day set progressed from sim kill/match-end edges with
+// one-shot XP banking. Never gates boot.
 try {
   void bindChallenges(document, storage);
 } catch {
   // Challenges optional: the static skeleton still lists the rows.
+}
+/**
+ * Paint the setup arena thumbnails (SC-02): one headless map render
+ * per `[data-setup-thumb]` canvas behind the map pick buttons.
+ * Missing canvases or headless 2d contexts are no-ops; never throws.
+ */
+function paintSetupThumbs(): void {
+  try {
+    const thumbs = document.querySelectorAll("[data-setup-thumb]");
+    for (let i = 0; i < thumbs.length; i += 1) {
+      const thumb = thumbs[i];
+      try {
+        if (!(thumb instanceof HTMLCanvasElement)) {
+          continue;
+        }
+        const map = thumb.getAttribute("data-setup-thumb") ?? "kilima";
+        const ctx = thumb.getContext("2d");
+        if (ctx === null) {
+          continue;
+        }
+        paintMapThumbnail(ctx, map, thumb.width, thumb.height);
+      } catch {
+        // One bad canvas never blocks the rest.
+      }
+    }
+  } catch {
+    // Thumbs decorative: the map buttons still select.
+  }
+}
+// Connecting / error card (issue #350, SC-10): the small centred card
+// behind the online handshake. Cancel hides it; Retry hides it and
+// re-fires the online join. Never gates boot.
+let netStatus: {
+  connecting(): unknown;
+  error(detail?: unknown): unknown;
+  hide(): void;
+} | null = null;
+try {
+  netStatus = bindNetStatus(document, () => {
+    try {
+      document.getElementById("play-online")?.click();
+    } catch {
+      // Retry best-effort: the card already hid.
+    }
+  });
+} catch {
+  netStatus = null;
+}
+// The online join raises the connecting card while the handshake runs;
+// the session onStart/onStop above stands it back down.
+const playOnlineButton = document.getElementById("play-online");
+if (playOnlineButton instanceof HTMLButtonElement) {
+  playOnlineButton.addEventListener("click", () => {
+    try {
+      netStatus?.connecting();
+    } catch {
+      // Card optional: the session still starts underneath.
+    }
+  });
 }
 // Cosmetics locker (issue #212): level/challenge-gated grid with the
 // setup-reused preview; equips persist to `scrapline.cosmetic` and own
@@ -2009,6 +2165,8 @@ if (playButton instanceof HTMLButtonElement) {
     }
     showOnly(document, "setup");
     setupBinder.show();
+    // SC-02 arena thumbnails paint behind the map picks.
+    paintSetupThumbs();
   });
 }
 
@@ -2024,11 +2182,45 @@ if (settingsOpen instanceof HTMLButtonElement) {
 }
 
 const settingsClose = document.getElementById("settings-close");
+/** Shared settings dismiss: hide the overlay, reveal the menu. */
+function dismissSettings(): void {
+  try {
+    settingsBinder.hide();
+  } catch {
+    // Hide best-effort: the menu still shows.
+  }
+  if (menu instanceof HTMLElement) {
+    menu.style.display = "";
+  }
+}
 if (settingsClose instanceof HTMLButtonElement) {
   settingsClose.addEventListener("click", () => {
-    settingsBinder.hide();
-    if (menu instanceof HTMLElement) {
-      menu.style.display = "";
+    dismissSettings();
+  });
+}
+// Settings primary action (issue #350): Done mirrors the head close.
+const settingsDone = document.getElementById("settings-done");
+if (settingsDone instanceof HTMLButtonElement) {
+  settingsDone.addEventListener("click", () => {
+    dismissSettings();
+  });
+}
+// Settings reset (issue #350): restore the first-visit defaults,
+// persist them, and repaint the sliders plus toggle plates.
+const settingsReset = document.getElementById("settings-reset");
+if (settingsReset instanceof HTMLButtonElement) {
+  settingsReset.addEventListener("click", () => {
+    try {
+      saveVolume(storage, DEFAULT_VOLUME);
+      saveMusicVolume(storage, DEFAULT_MUSIC_VOLUME);
+      saveFullscreen(storage, false);
+      saveQuality(storage, DEFAULT_QUALITY);
+      saveShowNameTags(storage, DEFAULT_SHOW_NAME_TAGS);
+      settingsBinder.show();
+      setVolume(DEFAULT_VOLUME);
+      setMusicVolume(DEFAULT_MUSIC_VOLUME);
+    } catch {
+      // Reset best-effort: the panel already shows.
     }
   });
 }
@@ -2044,12 +2236,23 @@ if (howtoOpen instanceof HTMLButtonElement) {
 }
 
 const howtoClose = document.getElementById("howto-close");
+/** Shared How-to dismiss: hide the overlay, reveal the menu. */
+function dismissHowto(): void {
+  hideOverlay("howto");
+  if (menu instanceof HTMLElement) {
+    menu.style.display = "";
+  }
+}
 if (howtoClose instanceof HTMLButtonElement) {
   howtoClose.addEventListener("click", () => {
-    hideOverlay("howto");
-    if (menu instanceof HTMLElement) {
-      menu.style.display = "";
-    }
+    dismissHowto();
+  });
+}
+// How-to primary action (issue #350): Got it mirrors the head close.
+const howtoDone = document.getElementById("howto-done");
+if (howtoDone instanceof HTMLButtonElement) {
+  howtoDone.addEventListener("click", () => {
+    dismissHowto();
   });
 }
 
@@ -2091,6 +2294,13 @@ if (challengesClose instanceof HTMLButtonElement) {
     closePanelToMenu("challenges");
   });
 }
+// Challenges primary action (issue #350): Done mirrors the head close.
+const challengesDone = document.getElementById("challenges-done");
+if (challengesDone instanceof HTMLButtonElement) {
+  challengesDone.addEventListener("click", () => {
+    closePanelToMenu("challenges");
+  });
+}
 const lockerClose = document.getElementById("locker-close");
 if (lockerClose instanceof HTMLButtonElement) {
   lockerClose.addEventListener("click", () => {
@@ -2129,6 +2339,7 @@ function applyHashRoute(): OverlayRoute | null {
     showOnly(document, route);
     if (route === "setup") {
       setupBinder.show();
+      paintSetupThumbs();
     } else if (route === "settings") {
       settingsBinder.show();
     } else if (route === "challenges") {
@@ -2278,30 +2489,46 @@ if (restartButton instanceof HTMLButtonElement) {
 }
 
 const endMenuButton = document.getElementById("end-menu");
+/** Shared Menu return from the end screen (Play-again sibling).
+ * Destroys (never hides) the stale standings so no `standings`
+ * substring survives in body HTML, then shows the menu exclusively. */
+function returnToMenuFromEnd(): void {
+  try {
+    destroyStandings(document);
+  } catch {
+    // Destruction best-effort: the menu still shows.
+  }
+  for (const overlayId of OVERLAY_IDS) {
+    hideOverlay(overlayId);
+  }
+  if (menu instanceof HTMLElement) {
+    menu.style.display = "";
+  }
+  // Back on the menu: the calm loop resumes behind the overlay.
+  try {
+    startMenuMusic();
+  } catch {
+    // Soundtrack best-effort: the menu still shows.
+  }
+  // Daily challenges (issue #211): a midnight crossing while the
+  // end screen sat open resets the rows before the panel reopens.
+  try {
+    updateChallengesPanel(document, challengeStore());
+  } catch {
+    // Panel optional: the menu still shows.
+  }
+}
 if (endMenuButton instanceof HTMLButtonElement) {
   endMenuButton.addEventListener("click", () => {
-    // Destroy (never hide) the stale standings so no `standings`
-    // substring survives in body HTML, then show the menu exclusively.
-    destroyStandings(document);
-    for (const overlayId of OVERLAY_IDS) {
-      hideOverlay(overlayId);
-    }
-    if (menu instanceof HTMLElement) {
-      menu.style.display = "";
-    }
-    // Back on the menu: the calm loop resumes behind the overlay.
-    try {
-      startMenuMusic();
-    } catch {
-      // Soundtrack best-effort: the menu still shows.
-    }
-    // Daily challenges (issue #211): a midnight crossing while the
-    // end screen sat open resets the rows before the panel reopens.
-    try {
-      updateChallengesPanel(document, challengeStore());
-    } catch {
-      // Panel optional: the menu still shows.
-    }
+    returnToMenuFromEnd();
+  });
+}
+// End-screen head close (issue #350): the skeleton close mirrors the
+// Menu footer action, so keyboard/AT users keep one dismiss path.
+const endCloseButton = document.getElementById("end-close");
+if (endCloseButton instanceof HTMLButtonElement) {
+  endCloseButton.addEventListener("click", () => {
+    returnToMenuFromEnd();
   });
 }
 

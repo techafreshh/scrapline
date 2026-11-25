@@ -1,5 +1,7 @@
-/* Challenges overlay on the Panel primitive (issue #319): constrained
-  card with a shared header row and token row rhythm. Consumes token
+/* Challenges overlay on the Panel primitive (issue #319, SC-05
+  restyle in #350): constrained card with a shared header row carrying
+  the reset-countdown chip, five rows with icon wells, progress bars
+  and reward chips, and one primary Done action. Consumes token
   variables only, no raw colors, no tiling. The `#stage`-qualified
   selectors outrank the legacy inline style block (the layers.css idiom)
   while the bare selectors keep static scans literal. */
@@ -29,6 +31,13 @@
   letter-spacing: 1px;
   color: var(--color-text);
 }
+#stage #challenges #challenges-countdown,
+#challenges #challenges-countdown {
+  margin-left: auto;
+  font-size: var(--font-label);
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
 #stage #challenges .panel-close,
 #challenges .panel-close {
   min-height: 44px;
@@ -38,11 +47,86 @@
 #challenges .panel-rows {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-8);
+  gap: var(--spacing-12);
   width: 100%;
 }
 #stage #challenges .challenge-row,
 #challenges .challenge-row {
+  display: flex;
+  align-items: center;
   gap: var(--spacing-8);
-  padding: var(--spacing-4) var(--spacing-12);
+  padding: var(--spacing-8) var(--spacing-12);
+}
+#stage #challenges .challenge-icon,
+#challenges .challenge-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+#stage #challenges .challenge-main,
+#challenges .challenge-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+#stage #challenges .challenge-label,
+#challenges .challenge-label {
+  font-size: var(--font-body);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+}
+#stage #challenges .challenge-bar,
+#challenges .challenge-bar {
+  display: block;
+  width: 100%;
+  max-width: 200px;
+  height: 8px;
+}
+#stage #challenges .challenge-fill,
+#challenges .challenge-fill {
+  display: block;
+  height: 100%;
+}
+#stage #challenges .challenge-progress,
+#challenges .challenge-progress {
+  flex: 0 0 auto;
+  font-size: var(--font-label);
+  font-weight: bold;
+  letter-spacing: 0.4px;
+}
+#stage #challenges .challenge-reward,
+#challenges .challenge-reward {
+  flex: 0 0 auto;
+  font-size: var(--font-label);
+  white-space: nowrap;
+}
+#stage #challenges .challenge-check,
+#challenges .challenge-check {
+  flex: 0 0 auto;
+  display: none;
+  font-size: var(--font-body);
+  font-weight: bold;
+}
+#stage #challenges .challenge-row[data-done="true"] .challenge-check,
+#challenges .challenge-row[data-done="true"] .challenge-check {
+  display: inline;
+}
+#stage #challenges .panel-actions,
+#challenges .panel-actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+#stage #challenges #challenges-done,
+#challenges #challenges-done {
+  min-width: 200px;
+  min-height: 48px;
+  font-weight: bold;
 }

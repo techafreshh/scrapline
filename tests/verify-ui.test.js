@@ -36,6 +36,7 @@ const CSS_ROUTES = [
   "/overlays/challenges.css",
   "/overlays/locker.css",
   "/overlays/endscreen.css",
+  "/overlays/connecting.css",
 ];
 // 6 MB shipped budget (the tools/check-budget.js BUDGET_BYTES twin).
 const BUDGET_BYTES = 6291456;

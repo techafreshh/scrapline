@@ -1,6 +1,6 @@
-// Daily challenges: three fixed local-day tasks (rifle kills, grenade
-// kills, a win on dune) progressed from core sim events and surfaced in
-// a menu panel that refreshes at local midnight. Pure progress helpers
+// Daily challenges: five fixed local-day tasks (rifle, grenade, and
+// shotgun kills, wins on dune and kilima) progressed from core sim
+// events and surfaced in a menu panel that refreshes at local midnight. Pure progress helpers
 // stay DOM-free and unit-testable under node like meta/profile.ts; the
 // thin panel binder mirrors the menu/tips.ts idiom (null-safe lookups,
 // missing elements are no-ops, a `window.__challenges` probe mirror).
@@ -20,14 +20,17 @@ export interface ChallengeTemplate {
 }
 
 /**
- * Fixed daily set, always these three in this order: rifle kills,
- * grenade kills, then the dune win. A fixed set (no seeded rotation)
- * keeps the grenade `2/2` acceptance row present every day.
+ * Fixed daily set, always these five in this order: rifle kills,
+ * grenade kills, shotgun kills, then the dune and kilima wins. A fixed
+ * set (no seeded rotation) keeps the grenade `2/2` acceptance row
+ * present every day.
  */
 export const CHALLENGE_TEMPLATES: readonly ChallengeTemplate[] = [
   { id: "rifle-5", label: "Score 5 rifle kills", target: 5, xp: 30 },
   { id: "grenade-2", label: "Score 2 grenade kills", target: 2, xp: 30 },
+  { id: "shotgun-3", label: "Score 3 shotgun kills", target: 3, xp: 40 },
   { id: "win-dune-1", label: "Win a match on dune", target: 1, xp: 50 },
+  { id: "win-kilima-1", label: "Win a match on kilima", target: 1, xp: 50 },
 ];
 
 /** localStorage key holding the challenge JSON object. */
@@ -58,7 +61,7 @@ export interface KillLike {
   weapon: string | null;
 }
 
-/** Minimal match-outcome surface for the dune-win row. */
+/** Minimal match-outcome surface for the map-win rows. */
 export interface WinLike {
   win: boolean;
   map: unknown;
@@ -279,10 +282,10 @@ export function saveChallenges(
 
 /**
  * Progress the kill rows from one drained kill detail: only the local
- * player (`killerId === 0`) counts, `rifle` fills the rifle row and
- * `grenade` the grenade row, clamped at quota. Bot-vs-bot kills and
- * unattributed deaths never count. Returns true when a row advanced.
- * Never throws.
+ * player (`killerId === 0`) counts, `rifle` fills the rifle row,
+ * `grenade` the grenade row, `shotgun` the shotgun row, clamped at
+ * quota. Bot-vs-bot kills and unattributed deaths never count.
+ * Returns true when a row advanced. Never throws.
  */
 export function recordKill(
   state: ChallengeState | null | undefined,
@@ -308,7 +311,9 @@ export function recordKill(
         ? "rifle-5"
         : weapon === "grenade"
           ? "grenade-2"
-          : null;
+          : weapon === "shotgun"
+            ? "shotgun-3"
+            : null;
     if (id === null) {
       return false;
     }
@@ -335,9 +340,10 @@ export function recordKill(
 }
 
 /**
- * Progress the dune-win row: completes only on a win (`win === true`)
- * while the running match's map is `dune`. Losses and other maps never
- * count. Returns true when the row advanced. Never throws.
+ * Progress the win rows: completes the dune row on a win while the
+ * running match's map is `dune`, the kilima row on a win on `kilima`.
+ * Losses and other maps never count. Returns true when a row
+ * advanced. Never throws.
  */
 export function recordWin(
   state: ChallengeState | null | undefined,
@@ -354,14 +360,20 @@ export function recordWin(
       typeof outcome === "object" && outcome !== null
         ? (outcome as Record<string, unknown>)
         : {};
-    if (rec["win"] !== true || rec["map"] !== "dune") {
+    if (rec["win"] !== true) {
       return false;
     }
-    const template = templateFor("win-dune-1");
+    const map = rec["map"];
+    const id =
+      map === "dune" ? "win-dune-1" : map === "kilima" ? "win-kilima-1" : null;
+    if (id === null) {
+      return false;
+    }
+    const template = templateFor(id);
     if (template === undefined) {
       return false;
     }
-    const row = state.progress["win-dune-1"];
+    const row = state.progress[id];
     const current =
       row !== undefined && typeof row.progress === "number" && Number.isFinite(row.progress)
         ? Math.max(0, Math.floor(row.progress))
@@ -369,7 +381,7 @@ export function recordWin(
     if (current >= template.target) {
       return false;
     }
-    state.progress["win-dune-1"] = {
+    state.progress[id] = {
       progress: template.target,
       claimed: row?.claimed === true,
     };
@@ -487,6 +499,8 @@ export const CHALLENGES_PANEL_ID = "challenges-panel";
 export const CHALLENGES_OPEN_ID = "challenges-open";
 /** Row marker attribute: each row carries `data-challenge="<id>"`. */
 export const CHALLENGE_ROW_ATTR = "data-challenge";
+/** Header reset-countdown chip id (time to the next local midnight). */
+export const CHALLENGES_COUNTDOWN_ID = "challenges-countdown";
 /** Panel title element id. */
 export const CHALLENGES_TITLE_ID = "challenges-title";
 
@@ -711,9 +725,39 @@ function panelRows(doc: Document, panel: unknown): unknown[] {
   return rows;
 }
 
+/** Icon-well glyph per challenge row (art lives in chrome.css). */
+export function challengeIconFor(id: unknown): string {
+  try {
+    if (typeof id !== "string") {
+      return "\u25CB";
+    }
+    if (id === "rifle-5") {
+      return "\u2316";
+    }
+    if (id === "grenade-2") {
+      return "\u25CF";
+    }
+    if (id === "shotgun-3") {
+      return "\u271A";
+    }
+    if (id === "win-dune-1") {
+      return "\u2605";
+    }
+    if (id === "win-kilima-1") {
+      return "\u2606";
+    }
+  } catch {
+    // Glyph best-effort: the fallback below still lands.
+  }
+  return "\u25CB";
+}
+
 /**
  * Build one challenge row node: `<div class="challenge-row"
- * data-challenge="<id>">` with label, `N/M` progress, and reward spans.
+ * data-challenge="<id>">` with an icon well, a label plus progress
+ * bar, `N/M` progress text, a reward chip, and a completion check.
+ * The bar/text/check repaint from updateChallengesPanel without
+ * rebuilding the row. Missing builders read null. Never throws.
  */
 function buildRow(doc: Document, template: ChallengeTemplate): unknown {
   const row = makeEl(doc, "div");
@@ -721,11 +765,33 @@ function buildRow(doc: Document, template: ChallengeTemplate): unknown {
     return null;
   }
   setAttr(row, CHALLENGE_ROW_ATTR, template.id);
+  setAttr(row, "data-done", "false");
   try {
     (row as { className?: unknown }).className = "challenge-row";
   } catch {
     // Class best-effort: the attribute marker still selects the row.
   }
+  const icon = makeEl(doc, "span");
+  if (icon !== null) {
+    try {
+      (icon as { className?: unknown }).className = "challenge-icon";
+    } catch {
+      // Class best-effort only.
+    }
+    setAttr(icon, "data-icon", template.id);
+    setText(icon, challengeIconFor(template.id));
+    appendKid(row, icon);
+  }
+  const main = makeEl(doc, "span");
+  if (main !== null) {
+    try {
+      (main as { className?: unknown }).className = "challenge-main";
+    } catch {
+      // Class best-effort only.
+    }
+    appendKid(row, main);
+  }
+  const mainParent = main !== null ? main : row;
   const label = makeEl(doc, "span");
   if (label !== null) {
     try {
@@ -734,7 +800,27 @@ function buildRow(doc: Document, template: ChallengeTemplate): unknown {
       // Class best-effort only.
     }
     setText(label, template.label);
-    appendKid(row, label);
+    appendKid(mainParent, label);
+  }
+  const bar = makeEl(doc, "span");
+  if (bar !== null) {
+    try {
+      (bar as { className?: unknown }).className = "challenge-bar";
+    } catch {
+      // Class best-effort only.
+    }
+    setAttr(bar, "aria-hidden", "true");
+    const fill = makeEl(doc, "span");
+    if (fill !== null) {
+      try {
+        (fill as { className?: unknown }).className = "challenge-fill";
+      } catch {
+        // Class best-effort only.
+      }
+      setStyle(fill, "width", "0%");
+      appendKid(bar, fill);
+    }
+    appendKid(mainParent, bar);
   }
   const progress = makeEl(doc, "span");
   if (progress !== null) {
@@ -755,6 +841,17 @@ function buildRow(doc: Document, template: ChallengeTemplate): unknown {
     }
     setText(reward, `${template.xp} XP`);
     appendKid(row, reward);
+  }
+  const check = makeEl(doc, "span");
+  if (check !== null) {
+    try {
+      (check as { className?: unknown }).className = "challenge-check";
+    } catch {
+      // Class best-effort only.
+    }
+    setAttr(check, "aria-hidden", "true");
+    setText(check, "\u2713");
+    appendKid(row, check);
   }
   return row;
 }
@@ -871,11 +968,83 @@ function isPanelVisible(panel: unknown): boolean {
   }
 }
 
+/** Clamped quota fill for one template id (0 for unknown ids). */
+function fillOf(
+  state: ChallengeState | null | undefined,
+  id: unknown,
+): number {
+  try {
+    const template = templateFor(id);
+    if (template === undefined) {
+      return 0;
+    }
+    if (state === null || state === undefined || typeof state !== "object") {
+      return 0;
+    }
+    const row = (state as { progress?: unknown }).progress as Record<
+      string,
+      ChallengeProgress
+    > | null;
+    if (row === null || typeof row !== "object") {
+      return 0;
+    }
+    const entry = row[template.id];
+    if (entry === undefined || typeof entry.progress !== "number") {
+      return 0;
+    }
+    return Math.max(0, Math.min(template.target, Math.floor(entry.progress)));
+  } catch {
+    return 0;
+  }
+}
+
+/** Milliseconds until the next local midnight (the daily reset). */
+export function msToMidnight(nowMs?: unknown): number {
+  try {
+    const stamp =
+      typeof nowMs === "number" && Number.isFinite(nowMs) ? nowMs : Date.now();
+    const date = new Date(stamp);
+    const midnight = new Date(date);
+    midnight.setHours(24, 0, 0, 0);
+    const delta = midnight.getTime() - date.getTime();
+    return Number.isFinite(delta) && delta >= 0 ? Math.floor(delta) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Short reset-countdown readout (`Resets in 4h 12m`, `Resets in 12m`,
+ * `Resets soon`) for the header chip. Never throws, never empty.
+ */
+export function countdownText(ms?: unknown): string {
+  try {
+    const total =
+      typeof ms === "number" && Number.isFinite(ms) && ms > 0
+        ? Math.floor(ms)
+        : 0;
+    const minutes = Math.floor(total / 60000);
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes - hours * 60;
+    if (hours > 0) {
+      return `Resets in ${hours}h ${rest}m`;
+    }
+    if (minutes > 0) {
+      return `Resets in ${minutes}m`;
+    }
+    return "Resets soon";
+  } catch {
+    return "Resets soon";
+  }
+}
+
 /**
  * Repaint the panel rows from a state: each `data-challenge` row's
- * progress span reads `N/M` and the row carries `data-done` once its
- * quota fills. Rows are never rebuilt here. Mirrors
- * `window.__challenges`. Returns the painted row count. Never throws.
+ * progress span reads `N/M`, its bar fill tracks quota fill, and the
+ * row carries `data-done` once its quota fills. The header
+ * reset-countdown chip reads the time to local midnight. Rows are
+ * never rebuilt here. Mirrors `window.__challenges`. Returns the
+ * painted row count. Never throws.
  */
 export function updateChallengesPanel(
   doc: Document,
@@ -896,6 +1065,7 @@ export function updateChallengesPanel(
         continue;
       }
       const text = challengeProgressText(parsed, id);
+      const done = text === `${template.target}/${template.target}`;
       const slot = childByClass(row, "challenge-progress");
       if (slot !== null) {
         setText(slot, text);
@@ -903,8 +1073,29 @@ export function updateChallengesPanel(
         // Skeleton without span hooks: repaint the row text in place.
         setText(row, `${template.label} ${text} ${template.xp} XP`);
       }
-      setAttr(row, "data-done", text === `${template.target}/${template.target}` ? "true" : "false");
+      // Bar fill tracks quota fill (nested hooks repaint best-effort).
+      const fill = childByClass(row, "challenge-fill");
+      if (fill !== null) {
+        const pct =
+          template.target > 0
+            ? Math.max(
+                0,
+                Math.min(100, Math.round((fillOf(parsed, id) / template.target) * 100)),
+              )
+            : 0;
+        setStyle(fill, "width", `${pct}%`);
+      }
+      setAttr(row, "data-done", done ? "true" : "false");
       painted += 1;
+    }
+    // Header reset-countdown chip (best-effort: static text stands).
+    try {
+      const chip = byId(doc, CHALLENGES_COUNTDOWN_ID);
+      if (chip !== null && typeof chip === "object") {
+        setText(chip, countdownText(msToMidnight()));
+      }
+    } catch {
+      // Chip optional: the rows above already landed.
     }
     mirrorChallenges(parsed);
     return painted;

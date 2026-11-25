@@ -1,5 +1,7 @@
-/* How to Play overlay on the Panel primitive (issue #319): constrained
-  card with a shared header row and token row rhythm. Consumes token
+/* How to Play overlay on the Panel primitive (issue #319, SC-04
+  restyle in #350): wide card with a shared header row, an eleven-row
+  controls table with right-aligned keycaps in one column beside a
+  three-tip rail, and one primary Got-it action. Consumes token
   variables only, no raw colors, no tiling. The `#stage`-qualified
   selectors outrank the legacy inline style block (the layers.css idiom)
   while the bare selectors keep static scans literal. */
@@ -13,6 +15,7 @@
   gap: var(--spacing-12);
   padding: var(--spacing-24);
   background: var(--color-panel);
+  width: min(720px, calc(100vw - 48px));
 }
 #stage #howto .panel-head,
 #howto .panel-head {
@@ -41,9 +44,54 @@
   gap: var(--spacing-8);
   width: 100%;
 }
+#stage #howto .howto-cols,
+#howto .howto-cols {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--spacing-16);
+}
 #stage #howto table,
 #howto table {
   border-collapse: collapse;
   font-size: var(--font-body);
   color: var(--color-text);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#stage #howto .key-cell,
+#howto .key-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+#stage #howto .key-cell .sl-keycap,
+#howto .key-cell .sl-keycap {
+  margin-left: var(--spacing-4);
+}
+#stage #howto .howto-tips,
+#howto .howto-tips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  flex: 0 0 180px;
+  min-width: 0;
+}
+#stage #howto .howto-tip,
+#howto .howto-tip {
+  font-size: var(--font-label);
+  line-height: 1.5;
+  color: var(--color-cyan-pale);
+  padding: var(--spacing-8) var(--spacing-12);
+  box-shadow: inset 4px 0 0 var(--color-cyan);
+}
+#stage #howto .panel-actions,
+#howto .panel-actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+#stage #howto #howto-done,
+#howto #howto-done {
+  min-width: 200px;
+  min-height: 48px;
+  font-weight: bold;
 }

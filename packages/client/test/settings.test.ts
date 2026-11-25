@@ -780,3 +780,110 @@ describe("music binder", () => {
     expect(slider.value).toBe("0.3");
   });
 });
+
+describe("chrome-kit toggle plates (issue #350)", () => {
+  /** Button with a label slot plus a toggle plate (the SC-03 row). */
+  function fakeToggle(initial: string, on: boolean): {
+    textContent: string | null;
+    listeners: Map<string, Array<() => void>>;
+    attrs: Map<string, string>;
+    plateOn: boolean;
+    label: string;
+    addEventListener(type: string, listener: () => void): void;
+    fire(type: string): void;
+  } {
+    const listeners = new Map<string, Array<() => void>>();
+    const attrs = new Map<string, string>([["aria-checked", on ? "true" : "false"]]);
+    const plate = {
+      classes: new Set<string>(on ? ["on"] : []),
+      add: (name: string): void => {
+        plate.classes.add(name);
+      },
+      remove: (name: string): void => {
+        plate.classes.delete(name);
+      },
+    };
+    const slotText = { textContent: initial };
+    const button = {
+      textContent: initial,
+      listeners,
+      attrs,
+      plateOn: on,
+      label: initial,
+      addEventListener(type: string, listener: () => void): void {
+        const list = listeners.get(type) ?? [];
+        list.push(listener);
+        listeners.set(type, list);
+      },
+      fire(type: string): void {
+        for (const listener of listeners.get(type) ?? []) {
+          listener();
+        }
+      },
+    };
+    (
+      button as unknown as Record<string, unknown>
+    ).querySelector = (sel: string): unknown => {
+      if (sel === ".toggle-text") {
+        return {
+          get textContent(): string {
+            return slotText.textContent;
+          },
+          set textContent(v: string) {
+            slotText.textContent = String(v);
+            button.label = String(v);
+          },
+        };
+      }
+      if (sel === ".sl-toggle") {
+        return {
+          classList: {
+            add: (name: string): void => {
+              plate.classes.add(name);
+              button.plateOn = plate.classes.has("on");
+            },
+            remove: (name: string): void => {
+              plate.classes.delete(name);
+              button.plateOn = plate.classes.has("on");
+            },
+          },
+        };
+      }
+      return null;
+    };
+    (
+      button as unknown as Record<string, unknown>
+    ).setAttribute = (k: string, v: string): void => {
+      attrs.set(k, v);
+    };
+    return button;
+  }
+
+  it("syncs the label slot, plate, and switch semantics on toggle", () => {
+    const fullscreen = fakeToggle("Fullscreen: OFF", false);
+    const quality = fakeToggle("Quality: HIGH", true);
+    const nametags = fakeToggle("Name Tags: ON", true);
+    const overlay = { style: { display: "none" } };
+    const binder = bindSettings(
+      fakeDoc({
+        settings: overlay,
+        "btn-fullscreen": fullscreen,
+        "btn-quality": quality,
+        "btn-nametags": nametags,
+      }),
+      fakeStorage(),
+    );
+    expect(fullscreen.label).toBe("Fullscreen: OFF");
+    expect(fullscreen.plateOn).toBe(false);
+    void binder.toggleFullscreen();
+    expect(fullscreen.label).toBe("Fullscreen: ON");
+    expect(fullscreen.plateOn).toBe(true);
+    expect(fullscreen.attrs.get("aria-checked")).toBe("true");
+    void binder.toggleQuality();
+    expect(quality.label).toBe("Quality: LOW");
+    expect(quality.plateOn).toBe(false);
+    void binder.toggleShowNameTags();
+    expect(nametags.label).toBe("Name Tags: OFF");
+    expect(nametags.plateOn).toBe(false);
+  });
+});

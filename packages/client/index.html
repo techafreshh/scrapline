@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="/overlays/challenges.css" />
     <link rel="stylesheet" href="/overlays/locker.css" />
     <link rel="stylesheet" href="/overlays/endscreen.css" />
+    <link rel="stylesheet" href="/overlays/connecting.css" />
     <link
       rel="preload"
       href="./assets/fonts/orbitron-700.woff2"
@@ -1026,24 +1027,26 @@
         <button id="howto-open" class="sl-btn menu-secondary">How to Play</button>
         <div id="challenges-panel" style="display: none">
           <span id="challenges-title">Daily Challenges</span>
-          <div class="challenge-row" data-challenge="rifle-5" data-done="false"><span class="challenge-label">Score 5 rifle kills</span><span class="challenge-progress">0/5</span><span class="challenge-reward">30 XP</span></div>
-          <div class="challenge-row" data-challenge="grenade-2" data-done="false"><span class="challenge-label">Score 2 grenade kills</span><span class="challenge-progress">0/2</span><span class="challenge-reward">30 XP</span></div>
-          <div class="challenge-row" data-challenge="win-dune-1" data-done="false"><span class="challenge-label">Win a match on dune</span><span class="challenge-progress">0/1</span><span class="challenge-reward">50 XP</span></div>
+          <div class="challenge-row" data-challenge="rifle-5" data-done="false"><span class="challenge-icon" data-icon="rifle-5" aria-hidden="true">&#8982;</span><span class="challenge-main"><span class="challenge-label">Score 5 rifle kills</span><span class="challenge-bar" aria-hidden="true"><span class="challenge-fill" style="width: 0%"></span></span></span><span class="challenge-progress">0/5</span><span class="challenge-reward">30 XP</span><span class="challenge-check" aria-hidden="true">&#10003;</span></div>
+          <div class="challenge-row" data-challenge="grenade-2" data-done="false"><span class="challenge-icon" data-icon="grenade-2" aria-hidden="true">&#9679;</span><span class="challenge-main"><span class="challenge-label">Score 2 grenade kills</span><span class="challenge-bar" aria-hidden="true"><span class="challenge-fill" style="width: 0%"></span></span></span><span class="challenge-progress">0/2</span><span class="challenge-reward">30 XP</span><span class="challenge-check" aria-hidden="true">&#10003;</span></div>
+          <div class="challenge-row" data-challenge="shotgun-3" data-done="false"><span class="challenge-icon" data-icon="shotgun-3" aria-hidden="true">&#10022;</span><span class="challenge-main"><span class="challenge-label">Score 3 shotgun kills</span><span class="challenge-bar" aria-hidden="true"><span class="challenge-fill" style="width: 0%"></span></span></span><span class="challenge-progress">0/3</span><span class="challenge-reward">40 XP</span><span class="challenge-check" aria-hidden="true">&#10003;</span></div>
+          <div class="challenge-row" data-challenge="win-dune-1" data-done="false"><span class="challenge-icon" data-icon="win-dune-1" aria-hidden="true">&#9733;</span><span class="challenge-main"><span class="challenge-label">Win a match on dune</span><span class="challenge-bar" aria-hidden="true"><span class="challenge-fill" style="width: 0%"></span></span></span><span class="challenge-progress">0/1</span><span class="challenge-reward">50 XP</span><span class="challenge-check" aria-hidden="true">&#10003;</span></div>
+          <div class="challenge-row" data-challenge="win-kilima-1" data-done="false"><span class="challenge-icon" data-icon="win-kilima-1" aria-hidden="true">&#9734;</span><span class="challenge-main"><span class="challenge-label">Win a match on kilima</span><span class="challenge-bar" aria-hidden="true"><span class="challenge-fill" style="width: 0%"></span></span></span><span class="challenge-progress">0/1</span><span class="challenge-reward">50 XP</span><span class="challenge-check" aria-hidden="true">&#10003;</span></div>
         </div>
         <div id="locker-panel" style="display: none">
           <span id="locker-title">Cosmetics Locker</span>
           <div id="locker-grid">
-            <button class="locker-item" data-locker="recruit-cyan" data-locked="false" data-palette="#00E5FF" data-helmet="cap" data-visor="slit" data-level="1" aria-pressed="false" type="button"><span class="locker-label">Recruit Cyan</span><span class="locker-combo">cap slit #00E5FF</span><span class="locker-lock">Lv 1</span></button>
-            <button class="locker-item" data-locker="street-ember" data-locked="false" data-palette="#FF6B35" data-helmet="beret" data-visor="slit" data-level="1" aria-pressed="false" type="button"><span class="locker-label">Street Ember</span><span class="locker-combo">beret slit #FF6B35</span><span class="locker-lock">Lv 1</span></button>
-            <button class="locker-item" data-locker="ranger-lime" data-locked="true" data-palette="#A3E635" data-helmet="hood" data-visor="round" data-level="2" aria-pressed="false" type="button"><span class="locker-label">Ranger Lime</span><span class="locker-combo">LOCKED · Lv 2</span><span class="locker-lock">LOCKED</span></button>
-            <button class="locker-item" data-locker="violet-ops" data-locked="true" data-palette="#C084FC" data-helmet="bandana" data-visor="shade" data-level="2" data-require="rifle-5" aria-pressed="false" type="button"><span class="locker-label">Violet Ops</span><span class="locker-combo">LOCKED · Lv 2</span><span class="locker-lock">LOCKED</span></button>
-            <button class="locker-item" data-locker="ember-ops" data-locked="true" data-palette="#FF6B35" data-helmet="beret" data-visor="round" data-level="3" aria-pressed="false" type="button"><span class="locker-label">Ember Ops</span><span class="locker-combo">LOCKED · Lv 3</span><span class="locker-lock">LOCKED</span></button>
-            <button class="locker-item" data-locker="frost-hood" data-locked="true" data-palette="#00E5FF" data-helmet="hood" data-visor="shade" data-level="3" data-require="grenade-2" aria-pressed="false" type="button"><span class="locker-label">Frost Hood</span><span class="locker-combo">LOCKED · Lv 3</span><span class="locker-lock">LOCKED</span></button>
-            <button class="locker-item" data-locker="dune-veteran" data-locked="true" data-palette="#A3E635" data-helmet="bandana" data-visor="round" data-level="4" aria-pressed="false" type="button"><span class="locker-label">Dune Veteran</span><span class="locker-combo">LOCKED · Lv 4</span><span class="locker-lock">LOCKED</span></button>
-            <button class="locker-item" data-locker="elite-spectre" data-locked="true" data-palette="#C084FC" data-helmet="cap" data-visor="shade" data-level="5" data-require="win-dune-1" aria-pressed="false" type="button"><span class="locker-label">Elite Spectre</span><span class="locker-combo">LOCKED · Lv 5</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="recruit-cyan" data-locked="false" data-palette="#00E5FF" data-helmet="cap" data-visor="slit" data-level="1" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#00E5FF" aria-hidden="true"></span><span class="locker-label">Recruit Cyan</span><span class="locker-combo">cap slit #00E5FF</span><span class="locker-lock">Lv 1</span></button>
+            <button class="locker-item" data-locker="street-ember" data-locked="false" data-palette="#FF6B35" data-helmet="beret" data-visor="slit" data-level="1" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#FF6B35" aria-hidden="true"></span><span class="locker-label">Street Ember</span><span class="locker-combo">beret slit #FF6B35</span><span class="locker-lock">Lv 1</span></button>
+            <button class="locker-item" data-locker="ranger-lime" data-locked="true" data-palette="#A3E635" data-helmet="hood" data-visor="round" data-level="2" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#A3E635" aria-hidden="true"></span><span class="locker-label">Ranger Lime</span><span class="locker-combo">LOCKED · Lv 2</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="violet-ops" data-locked="true" data-palette="#C084FC" data-helmet="bandana" data-visor="shade" data-level="2" data-require="rifle-5" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#C084FC" aria-hidden="true"></span><span class="locker-label">Violet Ops</span><span class="locker-combo">LOCKED · Lv 2</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="ember-ops" data-locked="true" data-palette="#FF6B35" data-helmet="beret" data-visor="round" data-level="3" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#FF6B35" aria-hidden="true"></span><span class="locker-label">Ember Ops</span><span class="locker-combo">LOCKED · Lv 3</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="frost-hood" data-locked="true" data-palette="#00E5FF" data-helmet="hood" data-visor="shade" data-level="3" data-require="grenade-2" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#00E5FF" aria-hidden="true"></span><span class="locker-label">Frost Hood</span><span class="locker-combo">LOCKED · Lv 3</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="dune-veteran" data-locked="true" data-palette="#A3E635" data-helmet="bandana" data-visor="round" data-level="4" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#A3E635" aria-hidden="true"></span><span class="locker-label">Dune Veteran</span><span class="locker-combo">LOCKED · Lv 4</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="elite-spectre" data-locked="true" data-palette="#C084FC" data-helmet="cap" data-visor="shade" data-level="5" data-require="win-dune-1" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#C084FC" aria-hidden="true"></span><span class="locker-label">Elite Spectre</span><span class="locker-combo">LOCKED · Lv 5</span><span class="locker-lock">LOCKED</span></button>
           </div>
-          <canvas id="locker-preview" width="96" height="96" data-helmet="cap" data-visor="slit" data-palette="#00E5FF" data-equipped="recruit-cyan"></canvas>
-          <span id="locker-status" data-equipped="recruit-cyan">Equipped Recruit Cyan #00E5FF</span>
+          <canvas id="locker-preview" class="locker-preview" width="96" height="96" data-helmet="cap" data-visor="slit" data-palette="#00E5FF" data-equipped="recruit-cyan"></canvas>
+          <span id="locker-status" class="locker-status" data-equipped="recruit-cyan">Equipped Recruit Cyan #00E5FF</span>
         </div>
         </div>
         <div class="menu-stage">
@@ -1072,24 +1075,27 @@
         <div class="sl-panel">
         <div class="panel-head"><h2>Match setup</h2><button id="setup-close" class="sl-btn panel-close" type="button">Close</button></div>
         <div class="panel-rows">
-        <div class="setup-row">
-          <span>Bots</span>
+        <div class="setup-row bots-row">
+          <span class="row-label">Bots</span>
           <button id="bots-minus" class="sl-btn" aria-label="Fewer bots">-</button>
           <span id="bots-value">3</span>
           <button id="bots-plus" class="sl-btn" aria-label="More bots">+</button>
         </div>
-        <div class="setup-row">
+        <div class="setup-row tier-row" role="group" aria-label="Difficulty">
+          <span class="row-label">Skill</span>
           <button data-tier="easy" aria-pressed="false">easy</button>
           <button data-tier="normal" aria-pressed="true">normal</button>
           <button data-tier="hard" aria-pressed="false">hard</button>
           <button data-tier="elite" aria-pressed="false">elite</button>
         </div>
-        <div class="setup-row">
-          <button data-map="kilima" aria-pressed="true">kilima</button>
-          <button data-map="dune" aria-pressed="false">dune</button>
-          <button data-map="frostbite" aria-pressed="false">frostbite</button>
+        <div class="setup-row map-row" role="group" aria-label="Arena">
+          <span class="row-label">Arena</span>
+          <button data-map="kilima" aria-pressed="true"><canvas class="setup-thumb" data-setup-thumb="kilima" width="120" height="60"></canvas><span class="map-pick-name">kilima</span></button>
+          <button data-map="dune" aria-pressed="false"><canvas class="setup-thumb" data-setup-thumb="dune" width="120" height="60"></canvas><span class="map-pick-name">dune</span></button>
+          <button data-map="frostbite" aria-pressed="false"><canvas class="setup-thumb" data-setup-thumb="frostbite" width="120" height="60"></canvas><span class="map-pick-name">frostbite</span></button>
         </div>
-        <div id="cosmetics" class="setup-row">
+        <div id="cosmetics" class="setup-row cos-row">
+          <span class="row-label">Kit</span>
           <label for="cos-helmet">Helmet</label>
           <select id="cos-helmet">
             <option value="cap">cap</option>
@@ -1111,8 +1117,13 @@
             <option value="#C084FC">#C084FC</option>
           </select>
         </div>
-        <div id="cosmetics-preview" data-helmet="cap" data-visor="slit" data-palette="#00E5FF"></div>
-        <button id="btn-start" class="sl-btn" type="button">Start</button>
+        <div class="setup-row preview-row">
+          <span class="row-label">Look</span>
+          <div id="cosmetics-preview" data-helmet="cap" data-visor="slit" data-palette="#00E5FF"></div>
+        </div>
+        </div>
+        <div class="panel-actions">
+        <button id="btn-start" class="sl-btn menu-cta" type="button">Start</button>
         </div>
         </div>
       </div>
@@ -1120,51 +1131,79 @@
         <div class="sl-panel">
         <div class="panel-head"><h2>Settings</h2><button id="settings-close" class="sl-btn panel-close" type="button">Close</button></div>
         <div class="panel-rows">
-        <div class="setup-row">
+        <div class="setup-row setting-row">
           <label for="volume">Master volume</label>
           <input type="range" id="volume" min="0" max="1" step="0.01" />
         </div>
-        <div class="setup-row">
+        <div class="setup-row setting-row">
           <label for="music-volume">Music volume</label>
           <input type="range" id="music-volume" min="0" max="1" step="0.01" />
         </div>
-        <button id="btn-fullscreen" class="sl-btn">Fullscreen: OFF</button>
-        <button id="btn-quality" class="sl-btn">Quality: HIGH</button>
-        <button id="btn-nametags" class="sl-btn">Name Tags: ON</button>
+        <div class="setup-row setting-row">
+          <span class="row-label" id="fullscreen-label">Fullscreen</span>
+          <button id="btn-fullscreen" class="sl-btn sl-toggle-btn" role="switch" aria-checked="false" aria-labelledby="fullscreen-label" type="button"><span class="sl-toggle" aria-hidden="true"></span><span class="toggle-text">Fullscreen: OFF</span></button>
+        </div>
+        <div class="setup-row setting-row">
+          <span class="row-label" id="quality-label">Quality</span>
+          <button id="btn-quality" class="sl-btn sl-toggle-btn" role="switch" aria-checked="true" aria-labelledby="quality-label" type="button"><span class="sl-toggle on" aria-hidden="true"></span><span class="toggle-text">Quality: HIGH</span></button>
+        </div>
+        <div class="setup-row setting-row">
+          <span class="row-label" id="nametags-label">Name tags</span>
+          <button id="btn-nametags" class="sl-btn sl-toggle-btn" role="switch" aria-checked="true" aria-labelledby="nametags-label" type="button"><span class="sl-toggle on" aria-hidden="true"></span><span class="toggle-text">Name Tags: ON</span></button>
+        </div>
         <p id="zoom-hint">Zoom hint: press Z to cycle camera zoom.</p>
+        </div>
+        <div class="panel-actions">
+        <button id="settings-reset" class="sl-btn" type="button">Reset</button>
+        <button id="settings-done" class="sl-btn menu-cta" type="button">Done</button>
         </div>
         </div>
       </div>
       <div id="howto" style="display: none">
         <div class="sl-panel">
         <div class="panel-head"><h2>How to Play</h2><button id="howto-close" class="sl-btn panel-close" type="button">Close</button></div>
-        <div class="panel-rows">
+        <div class="panel-rows howto-cols">
         <table id="controls-table">
           <thead>
             <tr><th>Action</th><th>Keys</th></tr>
           </thead>
           <tbody>
-            <tr><td>Move left / right</td><td>A / D or arrow keys</td></tr>
-            <tr><td>Jump</td><td>Space, W, or up arrow</td></tr>
-            <tr><td>Jetpack (hold to fly)</td><td>Space, W, or up arrow</td></tr>
-            <tr><td>Fire weapon</td><td>Left mouse button</td></tr>
-            <tr><td>Grenade</td><td>G or right mouse button</td></tr>
-            <tr><td>Reload</td><td>R</td></tr>
-            <tr><td>Crouch</td><td>S or down arrow</td></tr>
-            <tr><td>Zoom camera</td><td>Z</td></tr>
-            <tr><td>Gamepad: move / hop-jet / fire / grenade / reload / swap</td><td>Left stick / A / RT / LT / X / D-pad left-right</td></tr>
+            <tr><td>Move left</td><td class="key-cell"><span class="sl-keycap">A</span><span class="sl-keycap">&#8592;</span></td></tr>
+            <tr><td>Move right</td><td class="key-cell"><span class="sl-keycap">D</span><span class="sl-keycap">&#8594;</span></td></tr>
+            <tr><td>Jump</td><td class="key-cell"><span class="sl-keycap">Space</span><span class="sl-keycap">W</span><span class="sl-keycap">&#8593;</span></td></tr>
+            <tr><td>Jetpack (hold to fly)</td><td class="key-cell"><span class="sl-keycap">Space</span><span class="sl-keycap">W</span><span class="sl-keycap">&#8593;</span></td></tr>
+            <tr><td>Fire weapon</td><td class="key-cell"><span class="sl-keycap">Mouse L</span></td></tr>
+            <tr><td>Grenade</td><td class="key-cell"><span class="sl-keycap">G</span><span class="sl-keycap">Mouse R</span></td></tr>
+            <tr><td>Reload</td><td class="key-cell"><span class="sl-keycap">R</span></td></tr>
+            <tr><td>Crouch</td><td class="key-cell"><span class="sl-keycap">S</span><span class="sl-keycap">&#8595;</span></td></tr>
+            <tr><td>Zoom camera</td><td class="key-cell"><span class="sl-keycap">Z</span></td></tr>
+            <tr><td>Gamepad move / hop-jet</td><td class="key-cell"><span class="sl-keycap">Stick</span><span class="sl-keycap">A</span></td></tr>
+            <tr><td>Gamepad fire / grenade / reload</td><td class="key-cell"><span class="sl-keycap">RT</span><span class="sl-keycap">LT</span><span class="sl-keycap">X</span></td></tr>
           </tbody>
         </table>
+        <div class="howto-tips">
+          <div class="howto-tip">Hold jump to jet — fuel burns fast, land to refill.</div>
+          <div class="howto-tip">Grenades bounce off pads for bank shots.</div>
+          <div class="howto-tip">First to the score limit takes the match.</div>
+        </div>
+        </div>
+        <div class="panel-actions">
+        <button id="howto-done" class="sl-btn menu-cta" type="button">Got it</button>
         </div>
         </div>
       </div>
       <div id="challenges" style="display: none">
         <div class="sl-panel">
-        <div class="panel-head"><h2>Challenges</h2><button id="challenges-close" class="sl-btn panel-close" type="button">Close</button></div>
+        <div class="panel-head"><h2>Challenges</h2><span id="challenges-countdown" class="sl-chip">Resets in 24h 0m</span><button id="challenges-close" class="sl-btn panel-close" type="button">Close</button></div>
         <div class="panel-rows">
-        <div class="challenge-row" data-challenge="rifle-5" data-done="false"><span class="challenge-label">Score 5 rifle kills</span><span class="challenge-progress">0/5</span><span class="challenge-reward">30 XP</span></div>
-        <div class="challenge-row" data-challenge="grenade-2" data-done="false"><span class="challenge-label">Score 2 grenade kills</span><span class="challenge-progress">0/2</span><span class="challenge-reward">30 XP</span></div>
-        <div class="challenge-row" data-challenge="win-dune-1" data-done="false"><span class="challenge-label">Win a match on dune</span><span class="challenge-progress">0/1</span><span class="challenge-reward">50 XP</span></div>
+        <div class="challenge-row" data-challenge="rifle-5" data-done="false"><span class="challenge-icon" data-icon="rifle-5" aria-hidden="true">&#8982;</span><span class="challenge-main"><span class="challenge-label">Score 5 rifle kills</span><span class="challenge-bar" aria-hidden="true"><span class="challenge-fill" style="width: 0%"></span></span></span><span class="challenge-progress">0/5</span><span class="challenge-reward">30 XP</span><span class="challenge-check" aria-hidden="true">&#10003;</span></div>
+        <div class="challenge-row" data-challenge="grenade-2" data-done="false"><span class="challenge-icon" data-icon="grenade-2" aria-hidden="true">&#9679;</span><span class="challenge-main"><span class="challenge-label">Score 2 grenade kills</span><span class="challenge-bar" aria-hidden="true"><span class="challenge-fill" style="width: 0%"></span></span></span><span class="challenge-progress">0/2</span><span class="challenge-reward">30 XP</span><span class="challenge-check" aria-hidden="true">&#10003;</span></div>
+        <div class="challenge-row" data-challenge="shotgun-3" data-done="false"><span class="challenge-icon" data-icon="shotgun-3" aria-hidden="true">&#10022;</span><span class="challenge-main"><span class="challenge-label">Score 3 shotgun kills</span><span class="challenge-bar" aria-hidden="true"><span class="challenge-fill" style="width: 0%"></span></span></span><span class="challenge-progress">0/3</span><span class="challenge-reward">40 XP</span><span class="challenge-check" aria-hidden="true">&#10003;</span></div>
+        <div class="challenge-row" data-challenge="win-dune-1" data-done="false"><span class="challenge-icon" data-icon="win-dune-1" aria-hidden="true">&#9733;</span><span class="challenge-main"><span class="challenge-label">Win a match on dune</span><span class="challenge-bar" aria-hidden="true"><span class="challenge-fill" style="width: 0%"></span></span></span><span class="challenge-progress">0/1</span><span class="challenge-reward">50 XP</span><span class="challenge-check" aria-hidden="true">&#10003;</span></div>
+        <div class="challenge-row" data-challenge="win-kilima-1" data-done="false"><span class="challenge-icon" data-icon="win-kilima-1" aria-hidden="true">&#9734;</span><span class="challenge-main"><span class="challenge-label">Win a match on kilima</span><span class="challenge-bar" aria-hidden="true"><span class="challenge-fill" style="width: 0%"></span></span></span><span class="challenge-progress">0/1</span><span class="challenge-reward">50 XP</span><span class="challenge-check" aria-hidden="true">&#10003;</span></div>
+        </div>
+        <div class="panel-actions">
+        <button id="challenges-done" class="sl-btn menu-cta" type="button">Done</button>
         </div>
         </div>
       </div>
@@ -1172,16 +1211,28 @@
         <div class="sl-panel">
         <div class="panel-head"><h2>Locker</h2><button id="locker-close" class="sl-btn panel-close" type="button">Close</button></div>
         <div class="panel-rows">
+        <div id="locker-tabs" role="group" aria-label="Filter locker">
+          <button data-locker-tab="all" aria-pressed="true" type="button">All</button>
+          <button data-locker-tab="unlocked" aria-pressed="false" type="button">Unlocked</button>
+          <button data-locker-tab="locked" aria-pressed="false" type="button">Locked</button>
+        </div>
+        <div class="locker-cols">
         <div class="locker-grid">
-            <button class="locker-item" data-locker="recruit-cyan" data-locked="false" data-palette="#00E5FF" data-helmet="cap" data-visor="slit" data-level="1" aria-pressed="false" type="button"><span class="locker-label">Recruit Cyan</span><span class="locker-combo">cap slit #00E5FF</span><span class="locker-lock">Lv 1</span></button>
-            <button class="locker-item" data-locker="street-ember" data-locked="false" data-palette="#FF6B35" data-helmet="beret" data-visor="slit" data-level="1" aria-pressed="false" type="button"><span class="locker-label">Street Ember</span><span class="locker-combo">beret slit #FF6B35</span><span class="locker-lock">Lv 1</span></button>
-            <button class="locker-item" data-locker="ranger-lime" data-locked="true" data-palette="#A3E635" data-helmet="hood" data-visor="round" data-level="2" aria-pressed="false" type="button"><span class="locker-label">Ranger Lime</span><span class="locker-combo">LOCKED · Lv 2</span><span class="locker-lock">LOCKED</span></button>
-            <button class="locker-item" data-locker="violet-ops" data-locked="true" data-palette="#C084FC" data-helmet="bandana" data-visor="shade" data-level="2" data-require="rifle-5" aria-pressed="false" type="button"><span class="locker-label">Violet Ops</span><span class="locker-combo">LOCKED · Lv 2</span><span class="locker-lock">LOCKED</span></button>
-            <button class="locker-item" data-locker="ember-ops" data-locked="true" data-palette="#FF6B35" data-helmet="beret" data-visor="round" data-level="3" aria-pressed="false" type="button"><span class="locker-label">Ember Ops</span><span class="locker-combo">LOCKED · Lv 3</span><span class="locker-lock">LOCKED</span></button>
-            <button class="locker-item" data-locker="frost-hood" data-locked="true" data-palette="#00E5FF" data-helmet="hood" data-visor="slit" data-level="3" data-require="grenade-2" aria-pressed="false" type="button"><span class="locker-label">Frost Hood</span><span class="locker-combo">LOCKED · Lv 3</span><span class="locker-lock">LOCKED</span></button>
-            <button class="locker-item" data-locker="dune-veteran" data-locked="true" data-palette="#A3E635" data-helmet="bandana" data-visor="round" data-level="4" aria-pressed="false" type="button"><span class="locker-label">Dune Veteran</span><span class="locker-combo">LOCKED · Lv 4</span><span class="locker-lock">LOCKED</span></button>
-            <button class="locker-item" data-locker="elite-spectre" data-locked="true" data-palette="#C084FC" data-helmet="cap" data-visor="slit" data-level="5" data-require="win-dune-1" aria-pressed="false" type="button"><span class="locker-label">Elite Spectre</span><span class="locker-combo">LOCKED · Lv 5</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="recruit-cyan" data-locked="false" data-palette="#00E5FF" data-helmet="cap" data-visor="slit" data-level="1" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#00E5FF" aria-hidden="true"></span><span class="locker-label">Recruit Cyan</span><span class="locker-combo">cap slit #00E5FF</span><span class="locker-lock">Lv 1</span></button>
+            <button class="locker-item" data-locker="street-ember" data-locked="false" data-palette="#FF6B35" data-helmet="beret" data-visor="slit" data-level="1" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#FF6B35" aria-hidden="true"></span><span class="locker-label">Street Ember</span><span class="locker-combo">beret slit #FF6B35</span><span class="locker-lock">Lv 1</span></button>
+            <button class="locker-item" data-locker="ranger-lime" data-locked="true" data-palette="#A3E635" data-helmet="hood" data-visor="round" data-level="2" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#A3E635" aria-hidden="true"></span><span class="locker-label">Ranger Lime</span><span class="locker-combo">LOCKED · Lv 2</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="violet-ops" data-locked="true" data-palette="#C084FC" data-helmet="bandana" data-visor="shade" data-level="2" data-require="rifle-5" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#C084FC" aria-hidden="true"></span><span class="locker-label">Violet Ops</span><span class="locker-combo">LOCKED · Lv 2</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="ember-ops" data-locked="true" data-palette="#FF6B35" data-helmet="beret" data-visor="round" data-level="3" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#FF6B35" aria-hidden="true"></span><span class="locker-label">Ember Ops</span><span class="locker-combo">LOCKED · Lv 3</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="frost-hood" data-locked="true" data-palette="#00E5FF" data-helmet="hood" data-visor="slit" data-level="3" data-require="grenade-2" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#00E5FF" aria-hidden="true"></span><span class="locker-label">Frost Hood</span><span class="locker-combo">LOCKED · Lv 3</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="dune-veteran" data-locked="true" data-palette="#A3E635" data-helmet="bandana" data-visor="round" data-level="4" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#A3E635" aria-hidden="true"></span><span class="locker-label">Dune Veteran</span><span class="locker-combo">LOCKED · Lv 4</span><span class="locker-lock">LOCKED</span></button>
+            <button class="locker-item" data-locker="elite-spectre" data-locked="true" data-palette="#C084FC" data-helmet="cap" data-visor="slit" data-level="5" data-require="win-dune-1" aria-pressed="false" type="button"><span class="locker-swatch" data-palette="#C084FC" aria-hidden="true"></span><span class="locker-label">Elite Spectre</span><span class="locker-combo">LOCKED · Lv 5</span><span class="locker-lock">LOCKED</span></button>
           </div>
+        <div class="locker-side">
+          <canvas id="locker-preview-full" class="locker-preview" width="96" height="96" data-helmet="cap" data-visor="slit" data-palette="#00E5FF" data-equipped="recruit-cyan"></canvas>
+          <span id="locker-status-full" class="locker-status" data-equipped="recruit-cyan">Equipped Recruit Cyan #00E5FF</span>
+          <button id="locker-equip" class="sl-btn menu-cta" type="button">Equip</button>
+        </div>
+        </div>
         </div>
         </div>
       </div>
@@ -1220,11 +1271,28 @@
       <div id="respawn" style="display: none"><div id="respawn-card"></div></div>
       <div id="end-screen" style="display: none">
         <div class="sl-panel">
-        <h2>Match over</h2>
-        <div id="end-winner"></div>
+        <div class="panel-head"><h2>Match over</h2><button id="end-close" class="sl-btn panel-close" type="button">Close</button></div>
+        <div class="panel-rows">
+        <div id="end-winner"><span class="winner-trophy" aria-hidden="true">&#9733;</span><span class="winner-text">Winner: -</span></div>
         <div id="end-standings"></div>
-        <button id="restart" class="sl-btn">Play again</button>
+        </div>
+        <div class="panel-actions">
+        <button id="restart" class="sl-btn menu-cta">Play again</button>
         <button id="end-menu" class="sl-btn">Menu</button>
+        </div>
+        </div>
+      </div>
+      <div id="net-status" style="display: none" data-state="connecting">
+        <div class="sl-panel net-card">
+        <div class="panel-head"><h2 id="net-title">Connecting…</h2><button id="net-cancel" class="sl-btn panel-close" type="button">Cancel</button></div>
+        <div class="panel-rows">
+        <div class="net-well" aria-hidden="true"><span class="net-chevron">&#8250;</span><span class="net-chevron">&#8250;</span><span class="net-chevron">&#8250;</span></div>
+        <p id="net-hint">Joining room…</p>
+        <div class="net-track" aria-hidden="true"><div class="net-fill"></div></div>
+        </div>
+        <div class="panel-actions">
+        <button id="net-retry" class="sl-btn menu-cta" type="button" style="display: none">Retry</button>
+        </div>
         </div>
       </div>
     </div>
@@ -1241,6 +1309,13 @@
     >
       If the canvas above stays black, JavaScript is disabled.
     </p>
+    <noscript>
+      <div
+        id="noscript-art"
+        role="img"
+        aria-label="Scrapline needs JavaScript and WebGL to run."
+      ></div>
+    </noscript>
     <script type="module" src="/src/main.ts"></script>
     <script>
       // Offline-first PWA registration (issue #159): cache the built

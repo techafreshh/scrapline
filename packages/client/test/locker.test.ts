@@ -8,12 +8,17 @@ import {
   LOCKER_GRID_ID,
   LOCKER_ITEM_ATTR,
   LOCKER_ITEMS,
+  LOCKER_EQUIP_ID,
   LOCKER_KEY,
   LOCKER_OPEN_ID,
   LOCKER_PANEL_ID,
+  LOCKER_PREVIEW_FULL_ID,
+  LOCKER_TAB_ATTR,
   LOCKER_PREVIEW_ID,
+  applyLockerTab,
   bindLocker,
   ensureLockerOpen,
+  parseLockerTab,
   ensureLockerPanel,
   isChallengeDone,
   isLockerUnlocked,
@@ -377,5 +382,87 @@ describe("in-match accent", () => {
     setLocalAccent("#C084FC");
     clearLocalAccent();
     expect(soldierAccentFor(0)).toBe(teamCss(0));
+  });
+});
+
+describe("tab filters and explicit equip (issue #350)", () => {
+  it("normalizes tab names with an all fallback", () => {
+    expect(parseLockerTab("locked")).toBe("locked");
+    expect(parseLockerTab(" Unlocked ")).toBe("unlocked");
+    expect(parseLockerTab("ALL")).toBe("all");
+    expect(parseLockerTab("nope")).toBe("all");
+    expect(parseLockerTab(null)).toBe("all");
+  });
+
+  /** Fake document that also resolves `[data-locker-tab]` scans. */
+  function tabDoc(): FakeDoc {
+    const doc = makeDoc();
+    const base = doc.querySelectorAll.bind(doc);
+    doc.querySelectorAll = (sel: string): FakeEl[] => {
+      if (sel === `[${LOCKER_TAB_ATTR}]`) {
+        const out: FakeEl[] = [];
+        const seen = new Set<FakeEl>();
+        const collect = (el: FakeEl): void => {
+          if (seen.has(el)) {
+            return;
+          }
+          seen.add(el);
+          if (el.attrs.has(LOCKER_TAB_ATTR)) {
+            out.push(el);
+          }
+          for (const kid of el.children) {
+            collect(kid);
+          }
+        };
+        for (const el of doc.elements.values()) {
+          collect(el);
+        }
+        for (const el of doc.created) {
+          collect(el);
+        }
+        return out;
+      }
+      return base(sel);
+    };
+    return doc;
+  }
+
+  it("filters rows per tab and marks the active filter", () => {
+    const doc = tabDoc();
+    ensureLockerPanel(doc as unknown as Document);
+    updateLockerPanel(doc as unknown as Document, 1, null, DEFAULT_LOCKER_ID);
+    const tabs = new Map<string, FakeEl>();
+    for (const name of ["all", "unlocked", "locked"]) {
+      const tab = makeEl();
+      tab.setAttribute(LOCKER_TAB_ATTR, name);
+      doc.elements.get("menu")?.appendChild(tab);
+      tabs.set(name, tab);
+    }
+    expect(applyLockerTab(doc as unknown as Document, "locked")).toBe("locked");
+    expect(tabs.get("locked")?.getAttribute("aria-pressed")).toBe("true");
+    expect(tabs.get("all")?.getAttribute("aria-pressed")).toBe("false");
+    for (const row of doc.querySelectorAll(`[${LOCKER_ITEM_ATTR}]`)) {
+      const locked = row.getAttribute("data-locked") === "true";
+      expect(row.style["display"]).toBe(locked ? "" : "none");
+    }
+    expect(applyLockerTab(doc as unknown as Document, "all")).toBe("all");
+    for (const row of doc.querySelectorAll(`[${LOCKER_ITEM_ATTR}]`)) {
+      expect(row.style["display"]).toBe("");
+    }
+  });
+
+  it("equips the previewed pick from the explicit button", () => {
+    stubWindow();
+    const storage = fakeStorage({ "scrapline.profile": '{"xp":200}' });
+    const doc = makeDoc(["menu", "locker", LOCKER_PREVIEW_FULL_ID, LOCKER_EQUIP_ID]);
+    const preview = doc.getElementById(LOCKER_PREVIEW_FULL_ID) as unknown as FakeEl;
+    preview.setAttribute("data-equipped", "ranger-lime");
+    const binder = bindLocker(doc as unknown as Document, storage);
+    expect(binder.level).toBe(3);
+    const equip = doc.getElementById(LOCKER_EQUIP_ID) as unknown as FakeEl;
+    equip.fire("click");
+    expect(binder.selected).toBe("ranger-lime");
+    expect(storage.getItem(LOCKER_KEY)).toBe("ranger-lime");
+    binder.stop();
   });
 });

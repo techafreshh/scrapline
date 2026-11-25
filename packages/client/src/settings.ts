@@ -446,11 +446,72 @@ function renderMusic(doc: Document, volume: number): void {
   }
 }
 
+/** Write the toggle label: the inner `.toggle-text` when the chrome-kit
+ * row markup is present, else the button text itself (fake-doc shape). */
+function renderToggleLabel(button: ButtonLike, text: string): void {
+  try {
+    const query = (button as unknown as { querySelector?: unknown }).querySelector;
+    if (typeof query === "function") {
+      const slot = (query as (sel: string) => unknown).call(button, ".toggle-text");
+      if (slot !== null && typeof slot === "object" && "textContent" in slot) {
+        (slot as { textContent: unknown }).textContent = text;
+        return;
+      }
+    }
+  } catch {
+    // Slot unreadable: the button text below still lands.
+  }
+  try {
+    button.textContent = text;
+  } catch {
+    // Text-less shims: the toggle class below still lands.
+  }
+}
+
+/** Sync the chrome-kit toggle plate plus the switch semantics. */
+function renderToggleState(button: ButtonLike, on: boolean): void {
+  try {
+    const query = (button as unknown as { querySelector?: unknown }).querySelector;
+    if (typeof query === "function") {
+      const plate = (query as (sel: string) => unknown).call(button, ".sl-toggle");
+      if (plate !== null && typeof plate === "object") {
+        const cls = (plate as { classList?: unknown }).classList as
+          | { add?: unknown; remove?: unknown }
+          | undefined;
+        if (cls !== undefined && cls !== null) {
+          if (typeof cls.add === "function" && typeof cls.remove === "function") {
+            if (on) {
+              (cls.add as (name: string) => void).call(cls, "on");
+            } else {
+              (cls.remove as (name: string) => void).call(cls, "on");
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Plate optional: the label above already landed.
+  }
+  try {
+    const set = (button as unknown as { setAttribute?: unknown }).setAttribute;
+    if (typeof set === "function") {
+      (set as (name: string, value: string) => void).call(
+        button,
+        "aria-checked",
+        on ? "true" : "false",
+      );
+    }
+  } catch {
+    // Attribute best-effort only.
+  }
+}
+
 /** Render the fullscreen button label; missing button is a no-op. */
 function renderFullscreen(doc: Document, on: boolean): void {
   const button = asButton(doc.getElementById("btn-fullscreen"));
   if (button !== null) {
-    button.textContent = on ? "Fullscreen: ON" : "Fullscreen: OFF";
+    renderToggleLabel(button, on ? "Fullscreen: ON" : "Fullscreen: OFF");
+    renderToggleState(button, on);
   }
 }
 
@@ -458,8 +519,9 @@ function renderFullscreen(doc: Document, on: boolean): void {
 function renderQuality(doc: Document, quality: Quality): void {
   const button = asButton(doc.getElementById("btn-quality"));
   if (button !== null) {
-    button.textContent =
-      parseQuality(quality) === "low" ? "Quality: LOW" : "Quality: HIGH";
+    const low = parseQuality(quality) === "low";
+    renderToggleLabel(button, low ? "Quality: LOW" : "Quality: HIGH");
+    renderToggleState(button, !low);
   }
 }
 
@@ -467,7 +529,8 @@ function renderQuality(doc: Document, quality: Quality): void {
 function renderNametags(doc: Document, on: boolean): void {
   const button = asButton(doc.getElementById("btn-nametags"));
   if (button !== null) {
-    button.textContent = on ? "Name Tags: ON" : "Name Tags: OFF";
+    renderToggleLabel(button, on ? "Name Tags: ON" : "Name Tags: OFF");
+    renderToggleState(button, on);
   }
 }
 

@@ -1,21 +1,25 @@
 // Daily challenge tests: local day-id identity plus rollover reset,
-// rifle vs grenade vs bot kill attribution, dune-win gating, one-shot
-// XP banking, and the 3-row `data-challenge` panel render. Mirrors
+// kill attribution, map-win gating, one-shot XP banking, and the
+// 5-row `data-challenge` panel render. Mirrors
 // profile.test.ts (small local builders, behavior assertions, no
 // padding, fake storage/docs only — no jsdom).
 import { describe, expect, it, afterEach } from "vitest";
 import {
   bindChallenges,
+  challengeIconFor,
   challengeProgressText,
   challengeRows,
   CHALLENGE_ROW_ATTR,
+  CHALLENGES_COUNTDOWN_ID,
   CHALLENGE_TEMPLATES,
   CHALLENGES_KEY,
   CHALLENGES_OPEN_ID,
   CHALLENGES_PANEL_ID,
   collectDueXp,
+  countdownText,
   dayIdFor,
   defaultChallengeState,
+  msToMidnight,
   ensureChallengesPanel,
   loadChallenges,
   parseChallengeState,
@@ -180,11 +184,13 @@ describe("day identity", () => {
     expect(dayIdFor(null)).toBe(TODAY);
   });
 
-  it("carries exactly the three fixed templates in order", () => {
+  it("carries exactly the five fixed templates in order", () => {
     expect(CHALLENGE_TEMPLATES.map((t) => t.id)).toEqual([
       "rifle-5",
       "grenade-2",
+      "shotgun-3",
       "win-dune-1",
+      "win-kilima-1",
     ]);
   });
 
@@ -289,13 +295,16 @@ describe("kill attribution", () => {
   });
 });
 
-describe("dune-win gating", () => {
-  it("completes only on a win while the map is dune", () => {
+describe("map-win gating", () => {
+  it("completes each win row only on a win in its own map", () => {
     const state = defaultChallengeState(TODAY);
     expect(recordWin(state, { win: false, map: "dune" })).toBe(false);
-    expect(recordWin(state, { win: true, map: "kilima" })).toBe(false);
+    expect(recordWin(state, { win: true, map: "frostbite" })).toBe(false);
     expect(recordWin(state, { win: true, map: "dune" })).toBe(true);
     expect(challengeProgressText(state, "win-dune-1")).toBe("1/1");
+    expect(challengeProgressText(state, "win-kilima-1")).toBe("0/1");
+    expect(recordWin(state, { win: true, map: "kilima" })).toBe(true);
+    expect(challengeProgressText(state, "win-kilima-1")).toBe("1/1");
     expect(recordWin(state, { win: true, map: "dune" })).toBe(false);
   });
 
@@ -330,7 +339,7 @@ describe("one-shot XP banking", () => {
 });
 
 describe("challenge panel binder", () => {
-  it("renders exactly 3 data-challenge rows in template order", () => {
+  it("renders exactly 5 data-challenge rows in template order", () => {
     const doc = makeDoc();
     const panel = ensureChallengesPanel(doc as unknown as Document);
     expect(panel).not.toBeNull();
@@ -340,10 +349,12 @@ describe("challenge panel binder", () => {
     expect(rows.map((row) => row.getAttribute(CHALLENGE_ROW_ATTR))).toEqual([
       "rifle-5",
       "grenade-2",
+      "shotgun-3",
       "win-dune-1",
+      "win-kilima-1",
     ]);
     const panelEl = doc.getElementById(CHALLENGES_PANEL_ID) as unknown as FakeEl;
-    expect(panelEl.children.length).toBe(4);
+    expect(panelEl.children.length).toBe(6);
   });
 
   it("keeps the skeleton rows and repaints 2/2 without rebuilding", () => {
@@ -362,7 +373,7 @@ describe("challenge panel binder", () => {
     recordKill(state, { killerId: 0, weapon: "grenade" });
     recordKill(state, { killerId: 0, weapon: "grenade" });
     const before = doc.querySelectorAll(`[${CHALLENGE_ROW_ATTR}]`);
-    expect(updateChallengesPanel(doc as unknown as Document, state)).toBe(3);
+    expect(updateChallengesPanel(doc as unknown as Document, state)).toBe(5);
     const after = doc.querySelectorAll(`[${CHALLENGE_ROW_ATTR}]`);
     expect(after.map((row) => row.getAttribute(CHALLENGE_ROW_ATTR))).toEqual(
       before.map((row) => row.getAttribute(CHALLENGE_ROW_ATTR)),
@@ -393,7 +404,9 @@ describe("challenge panel binder", () => {
     expect(mirror?.rows.map((row) => `${row.id}:${row.text}`)).toEqual([
       "rifle-5:0/5",
       "grenade-2:2/2",
+      "shotgun-3:0/3",
       "win-dune-1:0/1",
+      "win-kilima-1:0/1",
     ]);
     // Opening the panel repaints from storage (midnight-safe).
     const panel = doc.getElementById(CHALLENGES_PANEL_ID) as unknown as FakeEl;
@@ -423,8 +436,91 @@ describe("probe rows", () => {
     recordKill(state, { killerId: 0, weapon: "grenade" });
     recordKill(state, { killerId: 0, weapon: "grenade" });
     const rows = challengeRows(state);
-    expect(rows.map((row) => row.text)).toEqual(["0/5", "2/2", "0/1"]);
-    expect(rows.map((row) => row.done)).toEqual([false, true, false]);
-    expect(rows.map((row) => row.xp)).toEqual([30, 30, 50]);
+    expect(rows.map((row) => row.text)).toEqual(["0/5", "2/2", "0/3", "0/1", "0/1"]);
+    expect(rows.map((row) => row.done)).toEqual([false, true, false, false, false]);
+    expect(rows.map((row) => row.xp)).toEqual([30, 30, 40, 50, 50]);
+  });
+});
+
+describe("five-row screen kit (issue #350)", () => {
+  it("counts shotgun kills and kilima wins in their own rows", () => {
+    const state = defaultChallengeState(TODAY);
+    expect(recordKill(state, { killerId: 0, weapon: "shotgun" })).toBe(true);
+    expect(state.progress["shotgun-3"]?.progress).toBe(1);
+    expect(challengeProgressText(state, "shotgun-3")).toBe("1/3");
+    expect(recordWin(state, { win: true, map: "kilima" })).toBe(true);
+    expect(challengeProgressText(state, "win-kilima-1")).toBe("1/1");
+    expect(challengeProgressText(state, "win-dune-1")).toBe("0/1");
+  });
+
+  it("hands every template a distinct icon-well glyph", () => {
+    const glyphs = CHALLENGE_TEMPLATES.map((t) => challengeIconFor(t.id));
+    for (const glyph of glyphs) {
+      expect(glyph.trim().length).toBeGreaterThan(0);
+    }
+    expect(new Set(glyphs).size).toBe(CHALLENGE_TEMPLATES.length);
+  });
+
+  it("reads a non-negative countdown to midnight", () => {
+    expect(msToMidnight(Date.now())).toBeGreaterThanOrEqual(0);
+    expect(msToMidnight(Number.NaN)).toBeGreaterThanOrEqual(0);
+    expect(countdownText(5 * 3600 * 1000 + 12 * 60 * 1000)).toBe("Resets in 5h 12m");
+    expect(countdownText(9 * 60 * 1000)).toBe("Resets in 9m");
+    expect(countdownText(0)).toBe("Resets soon");
+  });
+
+  it("paints bar fills, done flags, and the countdown chip", () => {
+    const doc = makeDoc(["menu", CHALLENGES_PANEL_ID, CHALLENGES_COUNTDOWN_ID]);
+    const panel = doc.getElementById(CHALLENGES_PANEL_ID) as unknown as FakeEl;
+    const fills = new Map<string, FakeEl>();
+    for (const template of CHALLENGE_TEMPLATES) {
+      const row = makeEl();
+      row.setAttribute(CHALLENGE_ROW_ATTR, template.id);
+      const slot = makeEl();
+      slot.className = "challenge-progress";
+      slot.textContent = `0/${template.target}`;
+      row.appendChild(slot);
+      const fill = makeEl();
+      fill.className = "challenge-fill";
+      fills.set(template.id, fill);
+      (
+        row as unknown as Record<string, unknown>
+      ).querySelector = (sel: string): FakeEl | null =>
+        sel === ".challenge-fill" ? fill : null;
+      panel.appendChild(row);
+    }
+    const state = defaultChallengeState(TODAY);
+    for (let i = 0; i < 5; i += 1) {
+      recordKill(state, { killerId: 0, weapon: "rifle" });
+    }
+    recordKill(state, { killerId: 0, weapon: "shotgun" });
+    expect(updateChallengesPanel(doc as unknown as Document, state)).toBe(5);
+    expect(fills.get("rifle-5")?.style["width"]).toBe("100%");
+    expect(fills.get("shotgun-3")?.style["width"]).toBe("33%");
+    const rifle = doc
+      .querySelectorAll(`[${CHALLENGE_ROW_ATTR}]`)
+      .find((row) => row.getAttribute(CHALLENGE_ROW_ATTR) === "rifle-5");
+    expect(rifle?.getAttribute("data-done")).toBe("true");
+    const chip = doc.getElementById(CHALLENGES_COUNTDOWN_ID) as unknown as FakeEl;
+    expect(chip.textContent).toMatch(/^Resets/);
+  });
+
+  it("builds rows with icon, bar, reward, and check hooks", () => {
+    const doc = makeDoc();
+    const panel = ensureChallengesPanel(doc as unknown as Document);
+    expect(panel).not.toBeNull();
+    const rows = doc.querySelectorAll(`[${CHALLENGE_ROW_ATTR}]`);
+    expect(rows.length).toBe(CHALLENGE_TEMPLATES.length);
+    for (const row of rows) {
+      const names = row.children.map((kid) => kid.className);
+      expect(names).toContain("challenge-progress");
+      const flat = row.children
+        .map((kid) => [kid.className, ...kid.children.map((g) => g.className)])
+        .flat();
+      expect(flat).toContain("challenge-icon");
+      expect(flat).toContain("challenge-bar");
+      expect(flat).toContain("challenge-reward");
+      expect(flat).toContain("challenge-check");
+    }
   });
 });

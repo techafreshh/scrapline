@@ -720,6 +720,20 @@ function main() {
     fail(err && err.message ? err.message : String(err));
   }
 
+  // Icon kit phase (issue #351, act A6): slice the IC-* sheets into
+  // icon.* PNG-8 art (weapons + 16px small set, pickups, 20 glyphs,
+  // challenges, cosmetics, rank badge + star pips, status) plus the
+  // PWA app icons (512 + 192 maskable). Runs after the menu phase so
+  // the manifest/icons.json merge wins; deterministic, so committed
+  // bytes equal rebuilt bytes; failures name slice-icons, never this.
+  try {
+    const { sliceIcons } = require("./slice-icons.js");
+    const iconsWritten = sliceIcons(ATLAS_SRC);
+    console.log(`build-atlas: icon kit -> ${iconsWritten.icons.length} icon frames + ${iconsWritten.apps.length} app icons`);
+  } catch (err) {
+    fail(err && err.message ? err.message : String(err));
+  }
+
   // No-JS fallback phase (issue #350, SC-11): the procedural
   // single-image `<noscript>` plate joins the staged ui/ kit.
   // Deterministic, so committed bytes equal rebuilt bytes.

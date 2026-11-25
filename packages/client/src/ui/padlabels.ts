@@ -7,7 +7,7 @@
 // never throws.
 
 import { projectCamera, type Camera } from "../renderer/camera";
-import { weaponPlaqueFor } from "../view/props";
+import { pickupPaintFor, weaponPlaqueFor } from "../view/props";
 
 /** World px above the pad center where the label anchor sits. */
 export const PADLABEL_LIFT_PX = 8;
@@ -184,6 +184,36 @@ function setDisplay(el: unknown, display: string): void {
     }
   } catch {
     // Style-less fakes: removal below still hides the label.
+  }
+}
+
+/**
+ * Paint a label's accent rail from its pickup kind (HU-13): health
+ * reads green, grenades amber, weapon/fuel pads cyan. The accent lands
+ * as an inset underline plus a data-accent mirror for probes.
+ * Change-guarded so the every-frame reconcile stays cheap; never throws.
+ */
+function paintLabelAccent(el: unknown, kind: unknown): void {
+  let edge = "#22d3ee";
+  try {
+    edge = pickupPaintFor(kind).edgeCss;
+  } catch {
+    // Hostile kinds: the cyan fallback stands.
+  }
+  const underline = `inset 0 -3px 0 ${edge}`;
+  try {
+    const style = (el as { style?: unknown }).style;
+    if (typeof style === "object" && style !== null) {
+      const bag = style as Record<string, unknown>;
+      if (bag["boxShadow"] !== underline) {
+        bag["boxShadow"] = underline;
+      }
+    }
+  } catch {
+    // Style-less fakes: the attribute mirror below still carries it.
+  }
+  if (readAttr(el, "data-accent") !== edge) {
+    writeAttr(el, "data-accent", edge);
   }
 }
 
@@ -377,6 +407,7 @@ export function updatePadlabels(
     if (readText(node) !== wantText) {
       writeText(node, wantText);
     }
+    paintLabelAccent(node, pickup.kind);
     placeLabel(node, point.x, point.y);
     setDisplay(node, "");
   }

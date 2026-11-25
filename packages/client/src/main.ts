@@ -199,9 +199,13 @@ import {
   endStandingsRows,
   flashCrosshair,
   flashHpDamage,
+  flashKillMarker,
+  isSniperScoped,
   killsFromDiff,
+  pickupToastFor,
   playerName,
   pushKillfeed,
+  updateCrosshairState,
   updateHud,
   type HudHandles,
 } from "./hud/hud";
@@ -1082,9 +1086,11 @@ function stepOnce(): string[] {
   }
   for (const kill of world.drainKillDetails()) {
     killsThisFrame.push(kill);
-    // Kill-confirm blip when the local player lands the kill.
+    // Kill-confirm blip plus reticle kill marker (HU-09) when the
+    // local player lands the kill; the hit marker rides damage above.
     if (kill.killerId === 0) {
       playKill();
+      flashKillMarker(document);
     }
     // Feed entries carry the sim-recorded killing weapon (fallback to
     // the killer's live weapon when the detail predates the field),
@@ -1130,6 +1136,15 @@ function stepOnce(): string[] {
   }
   for (const pickup of world.drainPickupDetails()) {
     pickupsThisFrame.push(pickup);
+    // Pickup toast (HU-15) for the local player only: the pad kind
+    // reads its short gain label with the pickup accent. Bots and
+    // unknown kinds stay silent so the feed never spams.
+    if (pickup.player === 0) {
+      const toast = pickupToastFor(pickup.kind);
+      if (toast !== null) {
+        showToast(toastHandles, toast, pickup.kind);
+      }
+    }
   }
   // The jet loop follows the local player's jetting state plus fuel:
   // a missing or dead player silences it (match end below re-silences).
@@ -1328,12 +1343,22 @@ function frame(now: number): void {
         name: hud.ammoName,
         counts: hud.ammoCounts,
         pips: hud.ammoPips,
+        mags: hud.ammoMags ?? null,
       },
       {
         magAmmo: local.magAmmo,
         weapon: local.weapon,
         grenades: local.grenades ?? GRENADE_MAX,
       },
+    );
+    // Per-weapon reticle plus sniper scope (HU-09/HU-11): the skin
+    // follows the held weapon every frame (change-guarded inside),
+    // and a steadied (crouched) sniper raises the lens overlay.
+    updateCrosshairState(
+      document,
+      local.weapon,
+      local.alive === true &&
+        isSniperScoped(local.weapon, local.crouching),
     );
   }
   if (world !== null) {
@@ -1451,6 +1476,12 @@ function showEndScreen(): void {
   }
   if (hud.hud !== null) {
     hud.hud.style.display = "none";
+  }
+  // HU-07 top-centre chip (issue #349): a stage child since the HUD
+  // strip only hugs the top-left, so it hides on its own handle.
+  const centerGone = hud.center ?? null;
+  if (centerGone !== null) {
+    centerGone.style.display = "none";
   }
   if (hud.ammoModule !== null) {
     hud.ammoModule.style.display = "none";
@@ -1702,6 +1733,10 @@ function startMatch(config: SetupConfig, options?: { persist?: boolean }): void 
   }
   if (hud.hud !== null) {
     hud.hud.style.display = "";
+  }
+  const centerBack = hud.center ?? null;
+  if (centerBack !== null) {
+    centerBack.style.display = "";
   }
   if (hud.ammoModule !== null) {
     hud.ammoModule.style.display = "";

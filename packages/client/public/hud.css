@@ -81,21 +81,88 @@
   white-space: nowrap;
 }
 #stage #ammo-pips .pip.grenade-pip,
-#ammo-pips .pip.grenade-pip {
+#ammo-pips .pip.grenade-pip,
+#stage #hud-grenade-pips .pip.grenade-pip,
+#hud-grenade-pips .pip.grenade-pip {
   color: var(--color-cyan);
   border-color: var(--color-cyan);
 }
 #stage #ammo-pips .pip.grenade-pip.filled,
-#ammo-pips .pip.grenade-pip.filled {
+#ammo-pips .pip.grenade-pip.filled,
+#stage #hud-grenade-pips .pip.grenade-pip.filled,
+#hud-grenade-pips .pip.grenade-pip.filled {
   background-color: var(--color-cyan);
   color: var(--color-cyan);
   border-color: var(--color-cyan);
 }
 #stage #ammo-pips .pip.grenade-pip.empty,
-#ammo-pips .pip.grenade-pip.empty {
+#ammo-pips .pip.grenade-pip.empty,
+#stage #hud-grenade-pips .pip.grenade-pip.empty,
+#hud-grenade-pips .pip.grenade-pip.empty {
   background-color: transparent;
   color: var(--color-cyan);
   border-color: var(--color-cyan);
+}
+/* HU-01 status hug (issue #349): the #hud strip only spans its
+  top-left cluster so the centre third stays clear for play. */
+#stage #hud,
+#hud {
+  right: auto;
+  max-width: 48vw;
+}
+/* HU-06 status grenade pips: the same cyan sockets as the module. */
+#stage #hud-grenade-pips,
+#hud-grenade-pips {
+  display: inline-flex;
+  gap: var(--spacing-4);
+  align-items: center;
+}
+/* HU-05 magazine pips (issue #349): five square sockets beside the
+  grenade pips; filled reads cyan, low ammo reads warm with a blink. */
+#stage #ammo-mags,
+#ammo-mags {
+  display: inline-flex;
+  gap: var(--spacing-4);
+  margin-left: var(--spacing-8);
+  align-items: center;
+}
+#stage #ammo-mags .pip.mag-pip,
+#ammo-mags .pip.mag-pip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--color-cyan);
+  background-color: transparent;
+}
+#stage #ammo-mags .pip.mag-pip.filled,
+#ammo-mags .pip.mag-pip.filled {
+  background-color: var(--color-cyan);
+}
+#stage #ammo-mags .pip.mag-pip.low,
+#ammo-mags .pip.mag-pip.low {
+  border-color: var(--color-warm);
+}
+#stage #ammo-mags .pip.mag-pip.filled.low,
+#ammo-mags .pip.mag-pip.filled.low {
+  background-color: var(--color-warm);
+}
+#stage #ammo-mags .pip.mag-pip.empty.low,
+#ammo-mags .pip.mag-pip.empty.low {
+  animation: hud-mag-low 0.6s ease-in-out infinite alternate;
+}
+@keyframes hud-mag-low {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.35;
+  }
+}
+/* HU-12 name-tag team rail (issue #349): the left edge takes the
+  text color, which the binder paints per team. */
+#stage .nametag,
+.nametag {
+  border-left: 3px solid;
 }
 /* HP fill plus damage flash and own-kill highlight (issue #318): the
   HP bar fills from the success token and flashes the warm token while
@@ -110,9 +177,33 @@
   background: var(--color-success);
   transition: width 0.2s ease-out;
 }
+/* HU-03 three HP states (issue #349): high reads success, mid reads
+  gold, low reads danger. The hurt flash below still wins while set. */
+#stage .hp-fill.hp-mid,
+.hp-fill.hp-mid {
+  background: var(--color-gold);
+}
+#stage .hp-fill.hp-low,
+.hp-fill.hp-low {
+  background: var(--color-danger);
+}
 #stage .hp-fill.hurt,
 .hp-fill.hurt {
   background-color: var(--color-warm);
+}
+/* HU-04 low-fuel flag (issue #349): the cyan bar blinks under a
+  quarter tank so fuel never reads as a second HP bar. */
+#stage #hud-fuel.fuel-low,
+#hud-fuel.fuel-low {
+  animation: hud-fuel-low 0.6s ease-in-out infinite alternate;
+}
+@keyframes hud-fuel-low {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.35;
+  }
 }
 #stage #killfeed .kill-entry,
 #killfeed .kill-entry {

@@ -270,3 +270,150 @@ test("GET /hud.css serves the HP flash and own-kill rules (issue #318)", async (
   assert.match(hud.text, /\.kill-entry\.own/);
   assert.doesNotMatch(hud.text, /#[0-9a-fA-F]{6}/, "hud.css stays token-only");
 });
+
+test("GET / mounts the HU-01 four-corner clusters plus reticle set (issue #349)", async () => {
+  const root = await get("/");
+  assert.equal(root.status, 200);
+  for (const id of [
+    "hud-status",
+    "hud-center",
+    "killfeed",
+    "ammo-module",
+    "ammo-mags",
+    "hud-grenade-pips",
+    "crosshair",
+    "scope",
+    "scope-ring",
+    "respawn-card",
+    "nametags",
+    "padlabels",
+  ]) {
+    assert.match(root.text, new RegExp(`id="${id}"`), `served HTML must mount #${id}`);
+  }
+  assert.match(root.text, /id="crosshair"[^>]*data-weapon="pistol"/);
+  // The centre chip is a stage-level sibling of the left strip (never
+  // nested inside it) so left:50% truly centres on the viewport.
+  const hudOpen = root.text.indexOf('<div id="hud"');
+  const centerOpen = root.text.indexOf('<div id="hud-center"');
+  assert.ok(hudOpen !== -1 && centerOpen !== -1 && centerOpen > hudOpen);
+  const between = root.text.slice(hudOpen, centerOpen);
+  const opens = (between.match(/<div/g) || []).length;
+  const closes = (between.match(/<\/div>/g) || []).length;
+  assert.equal(opens, closes, "#hud must close before #hud-center opens");
+});
+
+test("static HU-01 clusters hug the four corners with a clear centre (issue #349)", () => {
+  const css = fs.readFileSync(HUD_CSS, "utf8");
+  const hudBody = ruleBody(css, "#hud {");
+  assert.match(hudBody, /right\s*:\s*auto/, "#hud must release the right edge");
+  assert.match(hudBody, /max-width/, "#hud must hug the top-left cluster");
+  const killBody = ruleBody(css, "#killfeed.hud-module");
+  assert.match(killBody, /top\s*:\s*var\(--spacing-8\)/, "killfeed must pin top-right");
+  assert.equal(declarationValue(killBody, "bottom"), "auto");
+});
+
+test("static HP three-state bands plus low-fuel flag ride tokens (issue #349)", () => {
+  const css = fs.readFileSync(HUD_CSS, "utf8");
+  const mid = ruleBody(css, ".hp-fill.hp-mid");
+  assert.match(
+    declarationValue(mid, "background") || "",
+    /var\(--color-gold\)/,
+    "mid HP must read the gold token",
+  );
+  const low = ruleBody(css, ".hp-fill.hp-low");
+  assert.match(
+    declarationValue(low, "background") || "",
+    /var\(--color-danger\)/,
+    "low HP must read the danger token",
+  );
+  const fuel = ruleBody(css, "#hud-fuel.fuel-low");
+  assert.match(declarationValue(fuel, "animation") || "", /hud-fuel-low/);
+  assert.match(css, /@keyframes hud-fuel-low/, "low fuel must blink in code");
+  assert.doesNotMatch(css, /#[0-9a-fA-F]{6}/, "hud.css stays token-only");
+  assert.doesNotMatch(css, /background-image/, "hud.css must never tile an image");
+  assert.doesNotMatch(css, /z-index/, "stacking stays owned by layers.css");
+});
+
+test("static magazine pips render five sockets with low-ammo styling (issue #349)", () => {
+  const css = fs.readFileSync(HUD_CSS, "utf8");
+  const filled = ruleBody(css, "#ammo-mags .pip.mag-pip.filled");
+  assert.match(
+    declarationValue(filled, "background-color") || "",
+    /var\(--color-cyan\)/,
+    "filled mag pips must read cyan",
+  );
+  const low = ruleBody(css, "#ammo-mags .pip.mag-pip.filled.low");
+  assert.match(
+    declarationValue(low, "background-color") || "",
+    /var\(--color-warm\)/,
+    "low mag pips must read warm",
+  );
+  const html = fs.readFileSync(SRC_HTML, "utf8");
+  assert.match(html, /id="ammo-mags"/, "served HTML must mount the mag row");
+  const ammo = fs.readFileSync(
+    path.join(ROOT, "packages", "client", "src", "ui", "ammo.ts"),
+    "utf8",
+  );
+  assert.match(ammo, /MAG_PIP_COUNT = 5/, "ammo module must model five mag pips");
+});
+
+test("served crosshair swaps per weapon with hit and kill markers (issue #349)", async () => {
+  const root = await get("/");
+  assert.equal(root.status, 200);
+  for (const weapon of ["smg", "rifle", "shotgun", "sniper", "rocket"]) {
+    assert.match(
+      root.text,
+      new RegExp(`data-weapon="${weapon}`),
+      `served HTML must skin the ${weapon} reticle`,
+    );
+  }
+  assert.match(root.text, /#crosshair\.kill/, "served HTML must carry the kill marker");
+  assert.match(root.text, /#crosshair\.scoped/, "scoped snipers must hide the reticle");
+  const hudSrc = fs.readFileSync(
+    path.join(ROOT, "packages", "client", "src", "hud", "hud.ts"),
+    "utf8",
+  );
+  assert.match(hudSrc, /setCrosshairWeapon/, "HUD binder must stamp the weapon skin");
+  assert.match(hudSrc, /flashKillMarker/, "kill events must fire the kill marker");
+  assert.match(hudSrc, /isSniperScoped/, "sniper scope must gate the lens overlay");
+});
+
+test("HUD reticles and lens stay baked-text-free CSS shapes (issue #349)", async () => {
+  const root = await get("/");
+  assert.equal(root.status, 200);
+  const crosshair = root.text.slice(
+    root.text.indexOf('<div id="crosshair"'),
+    root.text.indexOf('<div id="crosshair"') + 200,
+  );
+  assert.doesNotMatch(crosshair, /<img/, "the reticle must be CSS, never an image");
+  const scope = root.text.slice(
+    root.text.indexOf('<div id="scope"'),
+    root.text.indexOf('<div id="scope"') + 400,
+  );
+  assert.doesNotMatch(scope, /<img/, "the lens must be CSS, never an image");
+  const chrome = fs.readFileSync(
+    path.join(ROOT, "packages", "client", "public", "components", "chrome.css"),
+    "utf8",
+  );
+  assert.match(chrome, /#scope-ring/, "chrome.css must paint the lens ring");
+  assert.match(chrome, /#respawn-card/, "chrome.css must plate the respawn card");
+});
+
+test("name tags and pad labels ride team and pickup accents (issue #349)", async () => {
+  const root = await get("/");
+  assert.equal(root.status, 200);
+  const css = fs.readFileSync(HUD_CSS, "utf8");
+  const tag = ruleBody(css, ".nametag");
+  assert.match(tag, /border-left/, "name tags must carry the team rail");
+  const pads = fs.readFileSync(
+    path.join(ROOT, "packages", "client", "src", "ui", "padlabels.ts"),
+    "utf8",
+  );
+  assert.match(pads, /pickupPaintFor/, "pad labels must read the pickup accent");
+  assert.match(pads, /data-accent/, "pad labels must mirror the accent for probes");
+  const char = fs.readFileSync(
+    path.join(ROOT, "packages", "client", "src", "view", "character.ts"),
+    "utf8",
+  );
+  assert.match(char, /teamCss/, "name tags must source team colors");
+});

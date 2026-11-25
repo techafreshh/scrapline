@@ -396,11 +396,15 @@
         color: var(--color-cyan-pale);
         text-align: center;
       }
+      /* HU-01 status cluster (issue #349): hugs the top-left; the
+        score/timer chip centres itself absolutely and the killfeed
+        pins top-right, so the centre third stays clear for play. */
       #hud {
         position: absolute;
         top: var(--spacing-8);
         left: var(--spacing-8);
-        right: var(--spacing-8);
+        right: auto;
+        max-width: 48vw;
         display: flex;
         flex-wrap: wrap;
         gap: var(--spacing-8);
@@ -497,10 +501,13 @@
       #ammo-pips .pip.empty {
         background: transparent;
       }
+      /* HU-01 kill feed (issue #349): pins top-right above the ammo
+        module; the hud.css module override keeps bottom auto. */
       #killfeed {
         position: absolute;
+        top: var(--spacing-8);
         right: var(--spacing-8);
-        bottom: 110px;
+        bottom: auto;
         display: flex;
         flex-direction: column;
         gap: 2px;
@@ -560,6 +567,17 @@
       }
       #toast .toast-entry.fade {
         opacity: 0;
+      }
+      /* HU-15 pickup toasts (issue #349): the underline matches the
+        pad accent stamped as data-kind by showToast. */
+      #toast .toast-entry[data-kind="health"] {
+        box-shadow: inset 0 -3px 0 var(--color-success);
+      }
+      #toast .toast-entry[data-kind="grenades"] {
+        box-shadow: inset 0 -3px 0 var(--color-gold);
+      }
+      #toast .toast-entry[data-kind="weapon"] {
+        box-shadow: inset 0 -3px 0 var(--color-cyan);
       }
       #killfeed .kill-entry.flash {
         border-color: var(--color-cyan);
@@ -643,14 +661,123 @@
         width: 14px;
         height: 2px;
       }
+      /* HU-09 per-weapon reticles (issue #349): the data-weapon skin
+        stamped by updateCrosshairState. Ticks ride --xh (defaulting to
+        the text token on the reticle itself) so hit/kill states
+        re-tint every family without restating geometry. */
+      #crosshair {
+        --xh: var(--color-text);
+      }
+      #crosshair[data-weapon="smg"]::before {
+        top: 0;
+        height: 5px;
+        background: var(--xh);
+        box-shadow: 0 13px 0 var(--xh);
+      }
+      #crosshair[data-weapon="smg"]::after {
+        left: 0;
+        width: 5px;
+        background: var(--xh);
+        box-shadow: 13px 0 0 var(--xh);
+      }
+      #crosshair[data-weapon="rifle"]::before {
+        top: 1px;
+        height: 6px;
+        background: var(--xh);
+        box-shadow: 0 10px 0 var(--xh);
+      }
+      #crosshair[data-weapon="rifle"]::after {
+        left: 1px;
+        width: 6px;
+        background: var(--xh);
+        box-shadow: 10px 0 0 var(--xh);
+      }
+      #crosshair[data-weapon="shotgun"]::before {
+        left: 0;
+        top: 0;
+        width: 14px;
+        height: 5px;
+        background: transparent;
+        border: 2px solid var(--xh);
+        border-bottom: 0;
+      }
+      #crosshair[data-weapon="shotgun"]::after {
+        left: 0;
+        top: auto;
+        bottom: 0;
+        width: 14px;
+        height: 5px;
+        background: transparent;
+        border: 2px solid var(--xh);
+        border-top: 0;
+      }
+      #crosshair[data-weapon="sniper"]::before {
+        left: 8px;
+        top: 8px;
+        width: 2px;
+        height: 2px;
+        background: var(--xh);
+      }
+      #crosshair[data-weapon="sniper"]::after {
+        display: none;
+      }
+      #crosshair[data-weapon="rocket"] {
+        border: 2px solid var(--xh);
+      }
+      #crosshair[data-weapon="rocket"]::before {
+        left: 8px;
+        top: 8px;
+        width: 2px;
+        height: 2px;
+        background: var(--xh);
+      }
+      #crosshair[data-weapon="rocket"]::after {
+        display: none;
+      }
+      #crosshair.hit {
+        --xh: var(--color-danger);
+        transform: scale(1.4);
+        transition: transform 0.25s ease-out;
+      }
       #crosshair.hit::before,
       #crosshair.hit::after {
         background: var(--color-danger);
+        border-color: var(--color-danger);
         opacity: 1;
       }
-      #crosshair.hit {
+      /* HU-09 kill marker (issue #349): the reticle becomes a danger X
+        over the per-weapon skin while the feed entry lands. */
+      #crosshair.kill {
+        --xh: var(--color-danger);
         transform: scale(1.4);
         transition: transform 0.25s ease-out;
+      }
+      #crosshair.kill::before {
+        display: block;
+        left: 8px;
+        top: 1px;
+        width: 2px;
+        height: 16px;
+        background: var(--color-danger);
+        border: 0;
+        box-shadow: none;
+        transform: rotate(45deg);
+      }
+      #crosshair.kill::after {
+        display: block;
+        left: 1px;
+        top: 8px;
+        width: 16px;
+        height: 2px;
+        background: var(--color-danger);
+        border: 0;
+        box-shadow: none;
+        transform: rotate(45deg);
+      }
+      /* HU-11 scoped state: the lens overlay covers aim, so the
+        reticle hides behind it. */
+      #crosshair.scoped {
+        display: none;
       }
       #respawn {
         position: absolute;
@@ -1060,16 +1187,17 @@
       <div id="hud" style="display: none">
         <div id="hud-status" class="hud-module">
           <div>HP <span id="hud-health">100</span></div>
-          <div class="hud-bar hp-bar"><div id="hud-hp" class="hp-fill"></div></div>
+          <div class="hud-bar hp-bar"><div id="hud-hp" class="hp-fill hp-high"></div></div>
           <div class="hud-bar"><div id="hud-fuel"></div></div>
           <div id="hud-grenades"></div>
+          <span id="hud-grenade-pips"></span>
           <div id="hud-weapon"></div>
           <div id="hud-ammo"></div>
         </div>
-        <div id="hud-center" class="hud-module">
-          <div id="hud-score"></div>
-          <div id="hud-timer"></div>
-        </div>
+      </div>
+      <div id="hud-center" class="hud-module">
+        <div id="hud-score"></div>
+        <div id="hud-timer"></div>
       </div>
       <div id="ammo-module" class="hud-module" style="display: none">
         <img id="ammo-icon" src="./assets/weapon-hornet.svg" alt="Hornet SMG icon" />
@@ -1078,15 +1206,17 @@
           <div id="ammo-row">
             <span id="ammo-counts">32/96</span>
             <span id="ammo-pips"></span>
+            <span id="ammo-mags"></span>
           </div>
         </div>
       </div>
-      <div id="crosshair"></div>
+      <div id="crosshair" data-weapon="pistol"></div>
+      <div id="scope" style="display: none" aria-hidden="true"><div id="scope-ring"><i class="scope-tick scope-tick-n"></i><i class="scope-tick scope-tick-s"></i><i class="scope-tick scope-tick-e"></i><i class="scope-tick scope-tick-w"></i></div></div>
       <div id="killfeed" class="hud-module"></div>
       <div id="toast" aria-live="polite"></div>
       <div id="nametags"></div>
       <div id="padlabels"></div>
-      <div id="respawn" style="display: none"></div>
+      <div id="respawn" style="display: none"><div id="respawn-card"></div></div>
       <div id="end-screen" style="display: none">
         <div class="sl-panel">
         <h2>Match over</h2>

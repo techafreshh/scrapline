@@ -160,12 +160,14 @@ function later(container: unknown, ms: number, fn: () => void): void {
 /**
  * Show one toast entry: a `.toast-entry` div carrying the text,
  * appended to `#toast`; it fades at TOAST_HOLD_MS - TOAST_FADE_MS and
- * leaves the DOM at TOAST_HOLD_MS. Missing containers are no-ops;
- * hostile shims never throw.
+ * leaves the DOM at TOAST_HOLD_MS. The optional kind (HU-15 pickup
+ * kinds) lands as data-kind so the entry underline matches the pickup
+ * accent. Missing containers are no-ops; hostile shims never throw.
  */
 export function showToast(
   handles: ToastHandles | null | undefined,
   text: string = TOAST_TEXT,
+  kind?: string | null,
 ): void {
   if (handles === null || handles === undefined) {
     return;
@@ -191,6 +193,9 @@ export function showToast(
     return;
   }
   writeAttr(node, "class", TOAST_ENTRY_CLASS);
+  if (typeof kind === "string" && kind.trim() !== "") {
+    writeAttr(node, "data-kind", kind.trim().toLowerCase());
+  }
   writeText(node, text);
   if (!appendKid(container, node)) {
     return;

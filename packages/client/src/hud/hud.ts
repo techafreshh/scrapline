@@ -6,7 +6,13 @@
 
 import { HEALTH_MAX, JETPACK_FUEL_MAX, TICK_HZ } from "../../../core/src/constants";
 import { standingsFor } from "../../../core/src/match";
-import { updateAmmo } from "../ui/ammo";
+import {
+  grenadePipStates,
+  normalizeWeaponId,
+  pipClass,
+  syncPipClasses,
+  updateAmmo,
+} from "../ui/ammo";
 import { buildFeedEntry, pushFeed } from "../ui/feed";
 import { applyHudChrome } from "../ui/chrome";
 import { teamCss } from "../view/character";
@@ -341,6 +347,71 @@ export interface HudSnapshot {
   respawnTicks: number;
 }
 
+/** HP bar discrete state (HU-03): three bands driven by the live value. */
+export type HpState = "high" | "mid" | "low";
+
+/**
+ * HP state for a live reading: thirds of HEALTH_MAX, so full reads
+ * high, half reads mid, and a sliver reads low. Non-finite readings
+ * read low so half-built snapshots never fake a healthy bar. Pure.
+ */
+export function hpStateFor(hp: unknown): HpState {
+  const value = Number(hp);
+  const pct = Number.isFinite(value) ? value / HEALTH_MAX : 0;
+  if (pct >= 2 / 3) {
+    return "high";
+  }
+  if (pct >= 1 / 3) {
+    return "mid";
+  }
+  return "low";
+}
+
+/**
+ * True while jetpack fuel reads low (HU-04): under one quarter of
+ * JETPACK_FUEL_MAX, so the fuel bar blinks before it runs dry.
+ * Non-finite readings never flag. Pure.
+ */
+export function fuelLowFor(fuel: unknown): boolean {
+  const value = Number(fuel);
+  if (!Number.isFinite(value)) {
+    return false;
+  }
+  return value < JETPACK_FUEL_MAX / 4;
+}
+
+/**
+ * True while the sniper aims down its scope (HU-11): the sniper held
+ * from a crouched (steadied) pose. The overlay shows and the reticle
+ * hides in this state; every other weapon (or a standing sniper) keeps
+ * the per-weapon crosshair. Pure.
+ */
+export function isSniperScoped(weapon: unknown, crouching: unknown): boolean {
+  return normalizeWeaponId(weapon) === "sniper" && crouching === true;
+}
+
+/**
+ * Pickup toast text for a pad kind (HU-15): health and grenade pads
+ * read their short gains, weapon pads announce the pickup. Unknown
+ * kinds read null so no toast fires. Pure.
+ */
+export function pickupToastFor(kind: unknown): string | null {
+  if (typeof kind !== "string") {
+    return null;
+  }
+  const key = kind.trim().toLowerCase();
+  if (key === "health") {
+    return "+HP";
+  }
+  if (key === "grenades" || key === "grenade") {
+    return "+GREN";
+  }
+  if (key === "weapon") {
+    return "Weapon +";
+  }
+  return null;
+}
+
 /** Element handles owned by the overlay; nulls make updates no-op. */
 export interface HudHandles {
   hud: HTMLElement | null;
@@ -361,6 +432,14 @@ export interface HudHandles {
   ammoName: HTMLElement | null;
   ammoCounts: HTMLElement | null;
   ammoPips: HTMLElement | null;
+  /** Five magazine pips (HU-05); absent on older handle shapes. */
+  ammoMags?: HTMLElement | null;
+  /** Three grenade pips in the status cluster (HU-06). */
+  grenadePips?: HTMLElement | null;
+  /** Respawn card body (HU-10); text falls back to #respawn. */
+  respawnCard?: HTMLElement | null;
+  /** Top-centre score/timer chip (HU-07); toggled with the HUD. */
+  center?: HTMLElement | null;
 }
 
 function byId(doc: Document, id: string): HTMLElement | null {
@@ -389,6 +468,10 @@ export function buildHud(doc: Document): HudHandles {
     ammoName: byId(doc, "ammo-name"),
     ammoCounts: byId(doc, "ammo-counts"),
     ammoPips: byId(doc, "ammo-pips"),
+    ammoMags: byId(doc, "ammo-mags"),
+    grenadePips: byId(doc, "hud-grenade-pips"),
+    respawnCard: byId(doc, "respawn-card"),
+    center: byId(doc, "hud-center"),
   };
 }
 
@@ -414,9 +497,29 @@ export function updateHud(
   if (handles.hpFill !== null && handles.hpFill !== undefined) {
     const pct = Math.min(100, Math.max(0, (snapshot.hp / HEALTH_MAX) * 100));
     handles.hpFill.style.width = `${pct}%`;
+    // HU-03 three-state bar: the fill swaps its state token (high/mid/low)
+    // so the bar reads green/amber/red without re-reading widths.
+    setStateClass(handles.hpFill, `hp-${hpStateFor(snapshot.hp)}`, [
+      "hp-high",
+      "hp-mid",
+      "hp-low",
+    ]);
+  }
+  if (handles.fuel !== null && handles.fuel !== undefined) {
+    // HU-04 low-fuel flag: the cyan bar blinks once under a quarter tank.
+    setFlagClass(handles.fuel, "fuel-low", fuelLowFor(snapshot.fuel));
   }
   if (handles.grenades !== null) {
     setBitmapText(handles.grenades, String(snapshot.grenades));
+  }
+  const grenadePipsEl = handles.grenadePips ?? null;
+  if (grenadePipsEl !== null && grenadePipsEl !== undefined) {
+    // HU-06 status pips: the same three grenade states the ammo module
+    // mirrors, reconciled through the shared pip row helper.
+    syncPipClasses(
+      grenadePipsEl,
+      grenadePipStates(snapshot.grenades).map((filled) => pipClass(filled)),
+    );
   }
   if (handles.weapon !== null) {
     handles.weapon.textContent = snapshot.weaponName;
@@ -425,8 +528,9 @@ export function updateHud(
     handles.ammo.textContent = `${snapshot.weaponName} ${snapshot.magAmmo}`;
   }
   // Bottom-right weapon module (issue #152): plain vector text plus
-  // icon and grenade pips. The legacy #hud-ammo line above keeps its
-  // exact shape so reserve-free snapshots still read `Pistol 7`.
+  // icon, grenade pips, and the five magazine pips (HU-05). The legacy
+  // #hud-ammo line above keeps its exact shape so reserve-free
+  // snapshots still read `Pistol 7`.
   updateAmmo(
     {
       module: handles.ammoModule ?? null,
@@ -434,6 +538,7 @@ export function updateHud(
       name: handles.ammoName ?? null,
       counts: handles.ammoCounts ?? null,
       pips: handles.ammoPips ?? null,
+      mags: handles.ammoMags ?? null,
     },
     {
       magAmmo: snapshot.magAmmo,
@@ -462,11 +567,105 @@ export function updateHud(
     } else {
       handles.respawn.style.display = "";
       const secs = Math.max(1, Math.ceil(snapshot.respawnTicks / TICK_HZ));
-      handles.respawn.textContent =
-        snapshot.killedBy === null || snapshot.killedBy === ""
-          ? `Respawning in ${secs}s`
-          : `eliminated by ${snapshot.killedBy} \u2014 Respawning in ${secs}s`;
+      // HU-10 respawn card: the countdown reads inside #respawn-card
+      // when mounted (its textContent still rolls up into #respawn),
+      // else directly on the overlay like before.
+      const card = handles.respawnCard ?? null;
+      const target = card ?? handles.respawn;
+      if (target !== null && target !== undefined) {
+        target.textContent =
+          snapshot.killedBy === null || snapshot.killedBy === ""
+            ? `Respawning in ${secs}s`
+            : `eliminated by ${snapshot.killedBy} \u2014 Respawning in ${secs}s`;
+      }
     }
+  }
+}
+
+/**
+ * Swap one state token on an element: remove every token in the group,
+ * add the wanted one, and mirror it as data-state for probes. Missing
+ * classList builders and hostile shims are no-ops; never throws.
+ */
+function setStateClass(
+  el: unknown,
+  want: string,
+  group: readonly string[],
+): void {
+  try {
+    const list = (el as { classList?: unknown }).classList as
+      | { add?: unknown; remove?: unknown; contains?: unknown }
+      | undefined;
+    if (list !== undefined && list !== null) {
+      if (typeof list.remove === "function") {
+        for (const token of group) {
+          if (token !== want) {
+            (list.remove as (c: string) => void).call(list, token);
+          }
+        }
+      }
+      if (typeof list.add === "function") {
+        let present = false;
+        if (typeof list.contains === "function") {
+          try {
+            present =
+              (list.contains as (c: string) => unknown).call(list, want) === true;
+          } catch {
+            present = false;
+          }
+        }
+        if (!present) {
+          (list.add as (c: string) => void).call(list, want);
+        }
+      }
+    }
+  } catch {
+    // Class-list-less fakes: the data-state mirror below still lands.
+  }
+  try {
+    const target = el as { setAttribute?: unknown };
+    if (typeof target.setAttribute === "function") {
+      (target.setAttribute as (name: string, value: string) => void).call(
+        target,
+        "data-state",
+        want,
+      );
+    }
+  } catch {
+    // Attribute-less fakes: the classList above may already have it.
+  }
+}
+
+/**
+ * Toggle one flag token (plus its data-flag mirror) on an element.
+ * Missing builders and hostile shims are no-ops; never throws.
+ */
+function setFlagClass(el: unknown, token: string, on: boolean): void {
+  try {
+    const list = (el as { classList?: unknown }).classList as
+      | { add?: unknown; remove?: unknown }
+      | undefined;
+    if (list !== undefined && list !== null) {
+      if (on && typeof list.add === "function") {
+        (list.add as (c: string) => void).call(list, token);
+      } else if (!on && typeof list.remove === "function") {
+        (list.remove as (c: string) => void).call(list, token);
+      }
+    }
+  } catch {
+    // Class-list-less fakes: the data-flag mirror below still lands.
+  }
+  try {
+    const target = el as { setAttribute?: unknown };
+    if (typeof target.setAttribute === "function") {
+      (target.setAttribute as (name: string, value: string) => void).call(
+        target,
+        `data-${token}`,
+        on ? "true" : "false",
+      );
+    }
+  } catch {
+    // Attribute-less fakes: the classList above may already have it.
   }
 }
 
@@ -557,6 +756,135 @@ export function flashCrosshair(doc: Document, ms: number = CROSSHAIR_HIT_MS): vo
     }, ms);
   } catch {
     // Missing timers in fake docs: the hit class simply stays.
+  }
+}
+
+/** Kill-confirm marker hold in ms: the reticle X lingers past the flash. */
+export const CROSSHAIR_KILL_MS = 600;
+
+/**
+ * Swap the crosshair skin to the held weapon (HU-09): stamps the
+ * normalized weapon id as data-weapon so the per-weapon reticle CSS
+ * (ticks per family, dot-only sniper, bracket rocket) follows swaps.
+ * Change-guarded so the every-frame mirror stays cheap; null-safe and
+ * never throws. Unknown readings fall back to the pistol skin.
+ */
+export function setCrosshairWeapon(doc: Document, weapon: unknown): void {
+  try {
+    const el = doc.getElementById("crosshair") as unknown as {
+      getAttribute?: unknown;
+      setAttribute?: unknown;
+    } | null;
+    if (el === null || el === undefined) {
+      return;
+    }
+    const want = normalizeWeaponId(weapon);
+    let current: string | null = null;
+    try {
+      if (typeof el.getAttribute === "function") {
+        const seen = (el.getAttribute as (name: string) => unknown).call(
+          el,
+          "data-weapon",
+        );
+        current = typeof seen === "string" ? seen : null;
+      }
+    } catch {
+      current = null;
+    }
+    if (current !== want && typeof el.setAttribute === "function") {
+      (el.setAttribute as (name: string, value: string) => void).call(
+        el,
+        "data-weapon",
+        want,
+      );
+    }
+  } catch {
+    // Hostile shims: the previous skin stands.
+  }
+}
+
+/**
+ * Flash the crosshair kill marker for ms milliseconds (default the
+ * 600ms kill window): the reticle becomes the kill X while the entry
+ * lands in the feed. Null-safe; missing timers keep the class.
+ */
+export function flashKillMarker(doc: Document, ms: number = CROSSHAIR_KILL_MS): void {
+  let target: { classList: { add(c: string): void; remove(c: string): void } } | null =
+    null;
+  try {
+    const el = doc.getElementById("crosshair") as unknown as {
+      classList?: { add(c: string): void; remove(c: string): void };
+    } | null;
+    if (
+      el !== null &&
+      el !== undefined &&
+      el.classList !== undefined &&
+      typeof el.classList.add === "function" &&
+      typeof el.classList.remove === "function"
+    ) {
+      target = el as {
+        classList: { add(c: string): void; remove(c: string): void };
+      };
+    }
+  } catch {
+    return;
+  }
+  if (target === null) {
+    return;
+  }
+  target.classList.add("kill");
+  try {
+    const timer = doc.defaultView?.setTimeout;
+    if (typeof timer !== "function") {
+      return;
+    }
+    timer.call(doc.defaultView, () => {
+      target.classList.remove("kill");
+    }, ms);
+  } catch {
+    // Missing timers in fake docs: the kill class simply stays.
+  }
+}
+
+/**
+ * Mirror one crosshair frame (HU-09/HU-11): stamp the held-weapon skin,
+ * show the scope overlay while the sniper steadies crouched, and hide
+ * the reticle behind the lens (unscoped snipers keep the 2px dot via
+ * CSS). Change-guarded element lookups; null-safe, never throws.
+ */
+export function updateCrosshairState(
+  doc: Document,
+  weapon: unknown,
+  scoped: boolean,
+): void {
+  setCrosshairWeapon(doc, weapon);
+  try {
+    const scope = doc.getElementById("scope") as unknown as {
+      style?: { display?: unknown };
+    } | null;
+    if (scope !== null && scope !== undefined && scope.style !== undefined) {
+      const display = scoped ? "" : "none";
+      if ((scope.style as { display?: unknown }).display !== display) {
+        (scope.style as { display?: unknown }).display = display;
+      }
+    }
+  } catch {
+    // Missing scope overlay: the reticle swap above still lands.
+  }
+  try {
+    const el = doc.getElementById("crosshair") as unknown as {
+      classList?: { add?: unknown; remove?: unknown };
+    } | null;
+    const list = el?.classList;
+    if (list !== undefined && list !== null) {
+      if (scoped && typeof list.add === "function") {
+        (list.add as (c: string) => void).call(list, "scoped");
+      } else if (!scoped && typeof list.remove === "function") {
+        (list.remove as (c: string) => void).call(list, "scoped");
+      }
+    }
+  } catch {
+    // Class-list-less fakes: the overlay display above still hides it.
   }
 }
 

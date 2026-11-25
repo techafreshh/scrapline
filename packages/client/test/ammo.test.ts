@@ -361,6 +361,7 @@ describe("buildAmmo", () => {
       name: null,
       counts: null,
       pips: null,
+      mags: null,
     });
   });
 
@@ -371,6 +372,7 @@ describe("buildAmmo", () => {
       name: null,
       counts: null,
       pips: null,
+      mags: null,
     });
     expect(buildAmmo(null as unknown as Document)).toEqual({
       module: null,
@@ -378,6 +380,7 @@ describe("buildAmmo", () => {
       name: null,
       counts: null,
       pips: null,
+      mags: null,
     });
   });
 });

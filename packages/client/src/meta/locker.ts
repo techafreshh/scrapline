@@ -26,6 +26,41 @@ export const LOCKER_TITLE_ID = "locker-title";
 export const LOCKER_STATUS_ID = "locker-status";
 /** Row marker attribute: each row carries `data-locker="<id>"`. */
 export const LOCKER_ITEM_ATTR = "data-locker";
+/** Locker tab filter buttons: all rows, unlocked rows, locked rows. */
+export const LOCKER_TABS_ID = "locker-tabs";
+/** Tab marker attribute: each tab carries `data-locker-tab`. */
+export const LOCKER_TAB_ATTR = "data-locker-tab";
+/** Explicit equip button id (equips the previewed pick). */
+export const LOCKER_EQUIP_ID = "locker-equip";
+/** Overlay preview canvas id (mirrors `#locker-preview`). */
+export const LOCKER_PREVIEW_FULL_ID = "locker-preview-full";
+/** Overlay status line id (mirrors `#locker-status`). */
+export const LOCKER_STATUS_FULL_ID = "locker-status-full";
+
+/** Active locker tab filter (`all` shows every row). */
+export type LockerTab = "all" | "unlocked" | "locked";
+
+/**
+ * Tolerantly normalize an unknown value into a locker tab: only the
+ * `locked`/`unlocked` names (any case, trimmed) select a filter,
+ * everything else reads `all`. Never throws.
+ */
+export function parseLockerTab(value: unknown): LockerTab {
+  try {
+    if (typeof value === "string") {
+      const key = value.trim().toLowerCase();
+      if (key === "locked") {
+        return "locked";
+      }
+      if (key === "unlocked") {
+        return "unlocked";
+      }
+    }
+  } catch {
+    // Shorn value: the `all` fallback below still lands.
+  }
+  return "all";
+}
 
 /** One locker combo: helmet/visor/palette gated by level/challenge. */
 export interface LockerItem {
@@ -646,6 +681,18 @@ function buildRow(doc: Document, item: LockerItem): unknown {
   } catch {
     // Class best-effort: the attribute marker still selects the row.
   }
+  const swatch = makeEl(doc, "span");
+  if (swatch !== null) {
+    try {
+      (swatch as { className?: unknown }).className = "locker-swatch";
+    } catch {
+      // Class best-effort only.
+    }
+    setAttr(swatch, "data-palette", item.palette);
+    setAttr(swatch, "aria-hidden", "true");
+    setStyle(swatch, "background", item.palette);
+    appendKid(row, swatch);
+  }
   const label = makeEl(doc, "span");
   if (label !== null) {
     try {
@@ -806,6 +853,57 @@ export function updateLockerPreview(doc: Document, id: unknown): string {
     if (status !== null && typeof status === "object") {
       setText(status, `Equipped ${item.label} ${item.palette}`);
       setAttr(status, "data-equipped", item.id);
+    }
+    // Overlay mirror pass (SC-06 two-column body): every extra
+    // `.locker-preview` canvas and `.locker-status` line follows the
+    // equipped pick. Query-less fakes skip this; never throws.
+    try {
+      const query = (doc as unknown as { querySelectorAll?: unknown })
+        .querySelectorAll;
+      if (typeof query === "function") {
+        const previews = (query as (sel: string) => unknown).call(
+          doc,
+          "canvas.locker-preview",
+        ) as ArrayLike<unknown> | null;
+        const count =
+          previews !== null &&
+          typeof previews === "object" &&
+          typeof (previews as ArrayLike<unknown>).length === "number"
+            ? (previews as ArrayLike<unknown>).length
+            : 0;
+        for (let i = 0; i < count; i += 1) {
+          const extra = (previews as ArrayLike<unknown>)[i];
+          if (extra === null || typeof extra !== "object" || extra === preview) {
+            continue;
+          }
+          setAttr(extra, "data-helmet", item.helmet);
+          setAttr(extra, "data-visor", item.visor);
+          setAttr(extra, "data-palette", item.palette);
+          setAttr(extra, "data-equipped", item.id);
+          setStyle(extra, "background", item.palette);
+          paintPreviewCanvas(extra, item);
+        }
+        const statuses = (query as (sel: string) => unknown).call(
+          doc,
+          ".locker-status",
+        ) as ArrayLike<unknown> | null;
+        const total =
+          statuses !== null &&
+          typeof statuses === "object" &&
+          typeof (statuses as ArrayLike<unknown>).length === "number"
+            ? (statuses as ArrayLike<unknown>).length
+            : 0;
+        for (let i = 0; i < total; i += 1) {
+          const extra = (statuses as ArrayLike<unknown>)[i];
+          if (extra === null || typeof extra !== "object" || extra === status) {
+            continue;
+          }
+          setText(extra, `Equipped ${item.label} ${item.palette}`);
+          setAttr(extra, "data-equipped", item.id);
+        }
+      }
+    } catch {
+      // Mirror best-effort: the primary nodes above already landed.
     }
     return item.id;
   } catch {
@@ -1124,10 +1222,59 @@ export function ensureLockerOpen(doc: Document): unknown {
 }
 
 /**
+ * Apply one locker tab filter: tabs read `aria-pressed` for the
+ * active filter while rows outside it read `display: none`. Query-less
+ * fakes are no-ops. Returns the applied tab. Never throws.
+ */
+export function applyLockerTab(doc: Document, tab: unknown): LockerTab {
+  const active = parseLockerTab(tab);
+  try {
+    const panel = ensureLockerPanel(doc);
+    const query = (doc as unknown as { querySelectorAll?: unknown })
+      .querySelectorAll;
+    if (typeof query !== "function") {
+      return active;
+    }
+    const tabs = (query as (sel: string) => unknown).call(
+      doc,
+      `[${LOCKER_TAB_ATTR}]`,
+    ) as ArrayLike<unknown> | null;
+    const tabCount =
+      tabs !== null &&
+      typeof tabs === "object" &&
+      typeof (tabs as ArrayLike<unknown>).length === "number"
+        ? (tabs as ArrayLike<unknown>).length
+        : 0;
+    for (let i = 0; i < tabCount; i += 1) {
+      const node = (tabs as ArrayLike<unknown>)[i];
+      if (node === null || typeof node !== "object") {
+        continue;
+      }
+      const name = parseLockerTab(getAttr(node, LOCKER_TAB_ATTR));
+      setAttr(node, "aria-pressed", name === active ? "true" : "false");
+    }
+    for (const row of panelRows(doc, panel)) {
+      try {
+        const locked = getAttr(row, "data-locked") === "true";
+        const show =
+          active === "all" || (active === "locked" ? locked : !locked);
+        setStyle(row, "display", show ? "" : "none");
+      } catch {
+        // One stuck row never blocks the rest.
+      }
+    }
+  } catch {
+    // Filter best-effort: the rows still render unfiltered.
+  }
+  return active;
+}
+
+/**
  * Wire the cosmetics locker: ensure the opener plus panel DOM, paint
  * from storage (profile level + challenge state + equipped id),
  * mirror `window.__locker`, repaint the setup-reused preview on every
- * equip, and persist equips to LOCKER_KEY (plain id). Locked rows are
+ * equip, filter rows from the tab bar, confirm picks from the equip
+ * button, and persist equips to LOCKER_KEY (plain id). Locked rows are
  * not equippable; missing elements are no-ops; listeners attach once.
  * Never throws.
  */
@@ -1323,6 +1470,88 @@ export function bindLocker(
     }
   } catch {
     // Opener optional: the panel still paints underneath.
+  }
+  // Tab bar: one filter listener per tab (All / Unlocked / Locked).
+  // Missing tabs are no-ops; listeners attach once per id.
+  try {
+    const query = (doc as unknown as { querySelectorAll?: unknown })
+      .querySelectorAll;
+    if (typeof query === "function") {
+      const tabs = (query as (sel: string) => unknown).call(
+        doc,
+        `[${LOCKER_TAB_ATTR}]`,
+      ) as ArrayLike<unknown> | null;
+      const count =
+        tabs !== null &&
+        typeof tabs === "object" &&
+        typeof (tabs as ArrayLike<unknown>).length === "number"
+          ? (tabs as ArrayLike<unknown>).length
+          : 0;
+      for (let i = 0; i < count; i += 1) {
+        try {
+          const tab = (tabs as ArrayLike<unknown>)[i];
+          if (tab === null || typeof tab !== "object") {
+            continue;
+          }
+          if (getAttr(tab, "data-locker-tab-bound") === "true") {
+            continue;
+          }
+          setAttr(tab, "data-locker-tab-bound", "true");
+          const listen = (tab as { addEventListener?: unknown })
+            .addEventListener;
+          if (typeof listen === "function") {
+            (listen as (type: string, fn: () => void) => void).call(
+              tab,
+              "click",
+              () => {
+                try {
+                  applyLockerTab(doc, getAttr(tab, LOCKER_TAB_ATTR));
+                } catch {
+                  // Filter best-effort only.
+                }
+              },
+            );
+          }
+        } catch {
+          // One bad tab never blocks the rest.
+        }
+      }
+    }
+  } catch {
+    // Tabs optional: the grid still renders unfiltered.
+  }
+  // Equip button: confirm the previewed pick (idempotent when the
+  // preview already follows the equipped row). Missing button is a
+  // no-op; the listener attaches once.
+  try {
+    const equip = byId(doc, LOCKER_EQUIP_ID);
+    if (equip !== null && typeof equip === "object") {
+      if (getAttr(equip, "data-locker-bound") !== "true") {
+        setAttr(equip, "data-locker-bound", "true");
+        const listen = (equip as { addEventListener?: unknown })
+          .addEventListener;
+        if (typeof listen === "function") {
+          (listen as (type: string, fn: () => void) => void).call(
+            equip,
+            "click",
+            () => {
+              try {
+                const preview = byId(doc, LOCKER_PREVIEW_FULL_ID);
+                const id =
+                  preview !== null && typeof preview === "object"
+                    ? getAttr(preview, "data-equipped")
+                    : "";
+                binder.select(id !== "" ? id : binder.selected);
+              } catch {
+                // Equip best-effort only.
+              }
+            },
+          );
+        }
+      }
+    }
+  } catch {
+    // Equip optional: row clicks still equip directly.
   }
   return binder;
 }

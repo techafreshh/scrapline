@@ -337,6 +337,7 @@ const MENU_PANEL_IDS: readonly string[] = [
   "challenges",
   "locker",
   "end-screen",
+  "net-status",
 ];
 
 /** Known menu/setup buttons for docs without querySelectorAll. */
@@ -357,8 +358,16 @@ const MENU_BUTTON_IDS: readonly string[] = [
   "btn-nametags",
   "restart",
   "end-menu",
+  "end-close",
   "bots-minus",
   "bots-plus",
+  "settings-done",
+  "settings-reset",
+  "howto-done",
+  "challenges-done",
+  "locker-equip",
+  "net-cancel",
+  "net-retry",
 ];
 
 /** Minimal listener surface (the setup.ts asClickable idiom). */

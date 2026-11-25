@@ -485,6 +485,7 @@ describe("updateHud pixel chrome snapshot (issue #270)", () => {
   function chromeHandles(): {
     handles: HudHandles;
     hud: { attrs: Map<string, string>; style: Record<string, string> };
+    status: { attrs: Map<string, string>; style: Record<string, string> };
     health: { textContent: string | null };
     ammo: { textContent: string | null };
   } {
@@ -494,12 +495,27 @@ describe("updateHud pixel chrome snapshot (issue #270)", () => {
         hud.attrs.set(k, v);
       },
       getAttribute: (k: string): string | null => hud.attrs.get(k) ?? null,
+      removeAttribute: (k: string): void => {
+        hud.attrs.delete(k);
+      },
       style: hud.style,
+    };
+    const statusBag = { attrs: new Map<string, string>(), style: {} as Record<string, string> };
+    const statusEl = {
+      setAttribute: (k: string, v: string): void => {
+        statusBag.attrs.set(k, v);
+      },
+      getAttribute: (k: string): string | null => statusBag.attrs.get(k) ?? null,
+      removeAttribute: (k: string): void => {
+        statusBag.attrs.delete(k);
+      },
+      style: statusBag.style,
     };
     const health = { textContent: "" as string | null };
     const ammo = { textContent: "" as string | null };
     const handles = {
       hud: hudEl,
+      status: statusEl,
       health,
       fuel: null,
       grenades: null,
@@ -517,11 +533,11 @@ describe("updateHud pixel chrome snapshot (issue #270)", () => {
       ammoCounts: null,
       ammoPips: null,
     } as unknown as HudHandles;
-    return { handles, hud, health, ammo };
+    return { handles, hud, status: statusBag, health, ammo };
   }
 
   it("mirrors 75 HP / 12 mag digits with the `ui.` HUD frame key", () => {
-    const { handles, hud, health, ammo } = chromeHandles();
+    const { handles, hud, status, health, ammo } = chromeHandles();
     updateHud(handles, {
       hp: 75,
       fuel: 100,
@@ -538,7 +554,10 @@ describe("updateHud pixel chrome snapshot (issue #270)", () => {
     } as HudSnapshot);
     expect(health.textContent).toBe("75");
     expect(ammo.textContent).toContain("12");
-    expect(hud.attrs.get("data-frame")).toContain("ui.");
+    // Issue #359: the wide container stays clear while the status
+    // cluster carries its single plate.
+    expect(hud.attrs.get("data-frame") ?? null).toBe(null);
+    expect(status.attrs.get("data-frame")).toContain("ui.");
   });
 });
 

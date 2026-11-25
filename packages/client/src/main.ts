@@ -2161,6 +2161,22 @@ function hideOverlay(id: string): void {
   }
 }
 
+/**
+ * Reset the menu column scroll (issue #359): returning to the menu
+ * re-shows the title at the top even after opening a low button
+ * scrolled it out of view. Null-safe; never throws.
+ */
+function resetMenuScroll(): void {
+  try {
+    const column = document.querySelector(".menu-column");
+    if (column instanceof HTMLElement) {
+      column.scrollTop = 0;
+    }
+  } catch {
+    // Scroll reset best-effort: the menu still shows.
+  }
+}
+
 const quickPlayButton = document.getElementById("quick-play");
 if (quickPlayButton instanceof HTMLButtonElement) {
   quickPlayButton.addEventListener("click", () => {
@@ -2202,6 +2218,7 @@ function dismissSettings(): void {
   if (menu instanceof HTMLElement) {
     menu.style.display = "";
   }
+  resetMenuScroll();
 }
 if (settingsClose instanceof HTMLButtonElement) {
   settingsClose.addEventListener("click", () => {
@@ -2252,6 +2269,7 @@ function dismissHowto(): void {
   if (menu instanceof HTMLElement) {
     menu.style.display = "";
   }
+  resetMenuScroll();
 }
 if (howtoClose instanceof HTMLButtonElement) {
   howtoClose.addEventListener("click", () => {
@@ -2277,6 +2295,7 @@ function closePanelToMenu(id: string): void {
   if (menu instanceof HTMLElement) {
     menu.style.display = "";
   }
+  resetMenuScroll();
   try {
     window.history.replaceState(
       null,
@@ -2396,6 +2415,7 @@ try {
       if (menu instanceof HTMLElement) {
         menu.style.display = "";
       }
+      resetMenuScroll();
     },
     hideMenu: () => {
       if (menu instanceof HTMLElement) {
@@ -2514,6 +2534,7 @@ function returnToMenuFromEnd(): void {
   if (menu instanceof HTMLElement) {
     menu.style.display = "";
   }
+  resetMenuScroll();
   // Back on the menu: the calm loop resumes behind the overlay.
   try {
     startMenuMusic();

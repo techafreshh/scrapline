@@ -393,7 +393,9 @@ export function isSniperScoped(weapon: unknown, crouching: unknown): boolean {
 /**
  * Pickup toast text for a pad kind (HU-15): health and grenade pads
  * read their short gains, weapon pads announce the pickup. Unknown
- * kinds read null so no toast fires. Pure.
+ * kinds read null so no toast fires. The singular "grenade" spelling
+ * is intentionally tolerated because showToast stamps kinds verbatim.
+ * Pure.
  */
 export function pickupToastFor(kind: unknown): string | null {
   if (typeof kind !== "string") {

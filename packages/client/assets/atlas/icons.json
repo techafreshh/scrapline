@@ -1,0 +1,408 @@
+{
+  "meta": {
+    "app": "scrapline",
+    "version": 1,
+    "family": "icons"
+  },
+  "frames": {
+    "icon.weapon.pistol": {
+      "file": "icons/weapon-pistol.png",
+      "x": 0,
+      "y": 0,
+      "w": 36,
+      "h": 28
+    },
+    "icon.weapon.pistol.small": {
+      "file": "icons/weapon-pistol-small.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "icon.weapon.smg": {
+      "file": "icons/weapon-smg.png",
+      "x": 0,
+      "y": 0,
+      "w": 52,
+      "h": 40
+    },
+    "icon.weapon.smg.small": {
+      "file": "icons/weapon-smg-small.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "icon.weapon.rifle": {
+      "file": "icons/weapon-rifle.png",
+      "x": 0,
+      "y": 0,
+      "w": 84,
+      "h": 36
+    },
+    "icon.weapon.rifle.small": {
+      "file": "icons/weapon-rifle-small.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "icon.weapon.shotgun": {
+      "file": "icons/weapon-shotgun.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 28
+    },
+    "icon.weapon.shotgun.small": {
+      "file": "icons/weapon-shotgun-small.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "icon.weapon.sniper": {
+      "file": "icons/weapon-sniper.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 40
+    },
+    "icon.weapon.sniper.small": {
+      "file": "icons/weapon-sniper-small.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "icon.weapon.rocket": {
+      "file": "icons/weapon-rocket.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 32
+    },
+    "icon.weapon.rocket.small": {
+      "file": "icons/weapon-rocket-small.png",
+      "x": 0,
+      "y": 0,
+      "w": 16,
+      "h": 16
+    },
+    "icon.pickup.health": {
+      "file": "icons/pickup-health.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 64
+    },
+    "icon.pickup.grenade": {
+      "file": "icons/pickup-grenade.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 64
+    },
+    "icon.pickup.shield": {
+      "file": "icons/pickup-shield.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 64
+    },
+    "icon.pickup.ammo": {
+      "file": "icons/pickup-ammo.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 64
+    },
+    "icon.glyph.close": {
+      "file": "icons/glyph-close.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.chev-left": {
+      "file": "icons/glyph-chev-left.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.chev-right": {
+      "file": "icons/glyph-chev-right.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.chev-up": {
+      "file": "icons/glyph-chev-up.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.chev-down": {
+      "file": "icons/glyph-chev-down.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.check": {
+      "file": "icons/glyph-check.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.lock": {
+      "file": "icons/glyph-lock.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.speaker": {
+      "file": "icons/glyph-speaker.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.note": {
+      "file": "icons/glyph-note.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.expand": {
+      "file": "icons/glyph-expand.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.contract": {
+      "file": "icons/glyph-contract.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.monitor": {
+      "file": "icons/glyph-monitor.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.rank-tag": {
+      "file": "icons/glyph-rank-tag.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.magnifier": {
+      "file": "icons/glyph-magnifier.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.menu": {
+      "file": "icons/glyph-menu.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.gamepad": {
+      "file": "icons/glyph-gamepad.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.refresh": {
+      "file": "icons/glyph-refresh.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.clipboard": {
+      "file": "icons/glyph-clipboard.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.star": {
+      "file": "icons/glyph-star.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.glyph.info": {
+      "file": "icons/glyph-info.png",
+      "x": 0,
+      "y": 0,
+      "w": 44,
+      "h": 44
+    },
+    "icon.challenge.headshot": {
+      "file": "icons/challenge-headshot.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 56
+    },
+    "icon.challenge.streak": {
+      "file": "icons/challenge-streak.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 56
+    },
+    "icon.challenge.jetpack": {
+      "file": "icons/challenge-jetpack.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 56
+    },
+    "icon.challenge.trophy": {
+      "file": "icons/challenge-trophy.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 56
+    },
+    "icon.challenge.grenade-arc": {
+      "file": "icons/challenge-grenade-arc.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 56
+    },
+    "icon.challenge.damage": {
+      "file": "icons/challenge-damage.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 56
+    },
+    "icon.challenge.target": {
+      "file": "icons/challenge-target.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 56
+    },
+    "icon.challenge.stopwatch": {
+      "file": "icons/challenge-stopwatch.png",
+      "x": 0,
+      "y": 0,
+      "w": 60,
+      "h": 56
+    },
+    "icon.cosmetic.helmet": {
+      "file": "icons/cosmetic-helmet.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 100
+    },
+    "icon.cosmetic.visor": {
+      "file": "icons/cosmetic-visor.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 100
+    },
+    "icon.cosmetic.palette": {
+      "file": "icons/cosmetic-palette.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 100
+    },
+    "icon.rank.badge": {
+      "file": "icons/rank-badge.png",
+      "x": 0,
+      "y": 0,
+      "w": 228,
+      "h": 244
+    },
+    "icon.rank.star-filled": {
+      "file": "icons/rank-star-filled.png",
+      "x": 0,
+      "y": 0,
+      "w": 8,
+      "h": 8
+    },
+    "icon.rank.star-outline": {
+      "file": "icons/rank-star-outline.png",
+      "x": 0,
+      "y": 0,
+      "w": 8,
+      "h": 8
+    },
+    "icon.rank.star-cracked": {
+      "file": "icons/rank-star-cracked.png",
+      "x": 0,
+      "y": 0,
+      "w": 8,
+      "h": 8
+    },
+    "icon.status.skull": {
+      "file": "icons/status-skull.png",
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 40
+    },
+    "icon.status.shield-check": {
+      "file": "icons/status-shield-check.png",
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 40
+    },
+    "icon.status.bolt": {
+      "file": "icons/status-bolt.png",
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 40
+    },
+    "icon.status.shield-broken": {
+      "file": "icons/status-shield-broken.png",
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 40
+    },
+    "icon.status.crown": {
+      "file": "icons/status-crown.png",
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 40
+    },
+    "icon.status.crosshair": {
+      "file": "icons/status-crosshair.png",
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 40
+    }
+  }
+}

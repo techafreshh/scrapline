@@ -205,11 +205,16 @@ test("repo ships zero *.png/*.jpg images (benchmark/capture refs excepted)", () 
     rel.startsWith(menuKitRoot) || menuKitDistRoots.some((root) => rel.startsWith(root));
   const capturesRoot = path.join("docs", "captures") + path.sep;
   const atlasSeg = `${path.sep}atlas${path.sep}`;
+  // UI v8 regression exception (#349): the chrome-regression captures
+  // live under docs/benchmark/ui-v8/ as benchmark evidence alongside
+  // the themes/ captures.
+  const uiV8Root = path.join("docs", "benchmark", "ui-v8") + path.sep;
   const isBenchmarkRef = (rel) =>
     rel.toLowerCase().endsWith(".png") &&
     (rel === path.join("docs", "benchmark", path.basename(rel)) ||
       rel ===
-        path.join("docs", "benchmark", "themes", path.basename(rel)));
+        path.join("docs", "benchmark", "themes", path.basename(rel)) ||
+      rel.startsWith(uiV8Root));
   const isSpriteCapture = (rel) =>
     rel.toLowerCase().endsWith(".png") && rel.startsWith(capturesRoot);
   const isSliceInput = (rel) =>

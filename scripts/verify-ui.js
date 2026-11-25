@@ -780,8 +780,9 @@ async function run() {
     // ME-01-menu-v1.jpg) with the coarse structural score from
     // verify/art-gate (32x18 luminance grid + 3x2 regions, threshold 60).
     // Mockups decode once up front; any decode failure names the file,
-    // never skips. A tiled or title-clipped view drifts past the
-    // threshold and fails the lap alongside the tiling/title asserts.
+    // never skips. A tiled or blanked view drifts past the threshold;
+    // title clipping is caught by the title asserts, which this
+    // comparison reinforces.
     const mockupBufs = new Map();
     for (const [view, mockup] of Object.entries(artGate.VIEW_MOCKUPS)) {
       const full = path.join(artGate.RESULTS_DIR, mockup);

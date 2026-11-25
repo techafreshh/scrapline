@@ -154,16 +154,6 @@ function padGroup(cells) {
   return cells.map((c) => pad4(c, w, h));
 }
 
-// Centre crop of w/h out of an image (the knob/thumb extractions).
-function centerCrop(img, w, h, source) {
-  if (w > img.w || h > img.h) {
-    fail("crop", `${source} ${img.w}x${img.h} cannot yield a ${w}x${h} crop.`);
-  }
-  const x = Math.floor((img.w - w) / 2);
-  const y = Math.floor((img.h - h) / 2);
-  return slicer.cropImage(img, { x, y, w, h });
-}
-
 // One slice plan entry: source file plus a splitter returning labelled
 // quantised cells in manifest order.
 function single(source) {
@@ -245,17 +235,70 @@ const PLAN = [
       ];
     },
   },
-  // Slider groove plus thumb (CH-09 assembled slider; the thumb is the
-  // centred knob crop of the same plate, so both share one palette).
+  // Slider groove plus thumb (CH-09 assembled slider). The groove is a
+  // pure left segment of the middle band (the centred knob would
+  // otherwise ghost under the live thumb); the thumb is the centred
+  // cap crop of the same plate, so both share one palette.
   {
     id: "slider",
     source: "CH-09-v1.jpg",
     run: () => {
       const { quant, box } = loadQuant("CH-09-v1.jpg");
       const full = slicer.cropImage(quant, box);
+      // Middle band rows that span the full width (the groove).
+      const bandRows = [];
+      for (let cy = 0; cy < box.h; cy += 1) {
+        let opaque = 0;
+        for (let cx = 0; cx < box.w; cx += 1) {
+          if (quant.rgba[((box.y + cy) * quant.w + box.x + cx) * 4 + 3] !== 0) {
+            opaque += 1;
+          }
+        }
+        if (opaque >= box.w - 2) {
+          bandRows.push(cy);
+        }
+      }
+      if (bandRows.length < 30) {
+        fail("crop", `CH-09-v1.jpg groove band is ${bandRows.length} rows, expected >= 30.`);
+      }
+      const grooveY = bandRows[8];
+      const grooveH = 30;
+      // Left and right groove segments, clear of the centred knob
+      // (the knob sits near the middle; both flanks are pure groove).
+      // Stitched into one 184px groove: the flat centre is tile-safe,
+      // so the seam is invisible by construction.
+      const left = slicer.cropImage(full, { x: 4, y: grooveY, w: 92, h: grooveH });
+      const right = slicer.cropImage(full, {
+        x: box.w - 96,
+        y: grooveY,
+        w: 92,
+        h: grooveH,
+      });
+      const stitched = {
+        w: left.w + right.w,
+        h: grooveH,
+        rgba: Buffer.alloc((left.w + right.w) * grooveH * 4, 0),
+      };
+      for (let row = 0; row < grooveH; row += 1) {
+        left.rgba.copy(stitched.rgba, (row * stitched.w) * 4, row * left.w * 4, (row + 1) * left.w * 4);
+        right.rgba.copy(
+          stitched.rgba,
+          (row * stitched.w + left.w) * 4,
+          row * right.w * 4,
+          (row + 1) * right.w * 4,
+        );
+      }
+      const groove = stitched;
+      // Knob cap: centred 48px of the narrow rows above the band.
+      const cap = slicer.cropImage(full, {
+        x: Math.floor((box.w - 48) / 2),
+        y: 0,
+        w: 48,
+        h: Math.min(32, bandRows[0]),
+      });
       return [
-        { suffix: "track", img: pad4(full, box.w, box.h) },
-        { suffix: "thumb", img: centerCrop(full, 48, 48, "CH-09-v1.jpg") },
+        { suffix: "track", img: pad4(groove, groove.w, groove.h) },
+        { suffix: "thumb", img: pad4(cap, cap.w, cap.h) },
       ];
     },
   },

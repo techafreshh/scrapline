@@ -271,7 +271,7 @@ describe("chrome files", () => {
   });
 
   it("no mapped file falls back to the stretched 16x16 tiles", () => {
-    for (const [key, file] of Object.entries(CHROME_FILES)) {
+    for (const file of Object.values(CHROME_FILES)) {
       expect(file.startsWith("ui/tile_")).toBe(false);
     }
   });

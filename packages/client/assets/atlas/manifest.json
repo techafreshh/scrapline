@@ -848,14 +848,14 @@
   "ui.slider.track": {
     "file": "ui/slider.track.png",
     "atlas": "ui.json",
-    "w": 244,
-    "h": 116
+    "w": 184,
+    "h": 32
   },
   "ui.slider.thumb": {
     "file": "ui/slider.thumb.png",
     "atlas": "ui.json",
     "w": 48,
-    "h": 48
+    "h": 24
   },
   "ui.toggle.off": {
     "file": "ui/toggle.off.png",

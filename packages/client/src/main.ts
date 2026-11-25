@@ -96,6 +96,7 @@ import {
 } from "./overlays/router";
 import { bindOnline } from "./net/online";
 import { bindCarousel, recordBestScore } from "./menu/carousel";
+import { bindMenuArt } from "./menu/art";
 import { bindMenuTips } from "./menu/tips";
 import {
   ensureAudioOnGesture,
@@ -1817,12 +1818,21 @@ try {
 // Map carousel with live headless thumbnails (issue #156): builds one
 // card per arena inside #menu, paints each thumbnail synchronously
 // from core map data, and persists card clicks as the setup default so
-// Quick Play loads the selected map. Never gates boot: a shorn DOM or
+// Quick Play loads the selected map. Arrows, dots, and arrow keys cycle
+// the same selection (issue #348). Never gates boot: a shorn DOM or
 // missing 2d context degrades to unpainted cards.
 try {
   void bindCarousel(document, storage);
 } catch {
   // Carousel optional: Quick Play still loads the stored setup.
+}
+// Menu art readiness gate (issue #348): preload the sliced ME-* plates
+// and stamp menu-art-ready on #menu so the fallbacks swap to art.
+// Never gates boot: missing art keeps the text treatments.
+try {
+  void bindMenuArt(document);
+} catch {
+  // Art optional: the menu still binds above.
 }
 // Rotating menu tips (issue #157): one small mechanics line under the
 // menu buttons, advancing every 10s with a fade while the menu is

@@ -15,7 +15,6 @@ import {
   TICK_HZ,
 } from "../../../core/src/constants";
 import { backdropPaletteFor } from "../view/backdrop";
-import { MENU_PANEL_KEY, stampChrome } from "../ui/chrome";
 import { soldierAccentFor } from "../view/soldier";
 import {
   MAP_LIST,
@@ -413,9 +412,9 @@ export function ensureMenuScene(doc: Document, map?: unknown): unknown {
     const make = api.createElement as (tag: string) => unknown;
     const existing = get.call(doc, MENU_SCENE_ID);
     if (existing !== null && typeof existing === "object") {
-      // Pixel-pack panel tile (issue #270): re-stamp idempotently so
-      // late boot order never leaves the scene on flat CSS.
-      stampChrome(existing, MENU_PANEL_KEY);
+      // The scene stays transparent over the live match canvas (the
+      // menu backdrop): no panel stamp, so the tiled plate can never
+      // repeat across the stage (issue #348).
       return existing;
     }
     const menu = get.call(doc, "menu");
@@ -486,9 +485,9 @@ export function ensureMenuScene(doc: Document, map?: unknown): unknown {
     try {
       const palette = backdropPaletteFor(map ?? "kilima");
       setStyle(scene, "color", palette.hazeCss);
-      // Pixel-pack panel tile (issue #270): the scene rides above
-      // the match canvas, so it owns the menu `ui.panel` background.
-      stampChrome(scene, MENU_PANEL_KEY);
+      // The scene stays transparent over the live match canvas (the
+      // menu backdrop): no panel stamp, so the tiled plate can never
+      // repeat across the stage (issue #348).
       const setAttr = (
         scene as { setAttribute?: (name: string, value: string) => void }
       ).setAttribute;

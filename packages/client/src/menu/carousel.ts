@@ -4,7 +4,10 @@
 // tiny dedicated tile painter (sky fill from skyGradeFor plus scaled
 // tile rects colored by themeFor/tileKindAt). Card selection persists
 // via saveSetup so the untouched Quick Play path
-// (startMatch(loadSetup(storage))) loads the selected map. Pure
+// (startMatch(loadSetup(storage))) loads the selected map. Arrow
+// buttons, page dots, and Left/Right keys cycle the same selection
+// while the menu is visible (issue #348); the menu theme follows the
+// selection for the per-theme scrim veil. Pure
 // helpers stay DOM-free for node tests; the binder mirrors the
 // scene.ts idiom (null-safe lookups, missing parents are no-ops,
 // listeners attach once).
@@ -23,6 +26,7 @@ import {
   type SetupMap,
   type SetupStorage,
 } from "../setup";
+import { isMenuVisible } from "./scene";
 
 /** Carousel container element id (child of #menu). */
 export const CAROUSEL_ID = "map-carousel";
@@ -34,6 +38,14 @@ export const THUMB_H = 96;
 export const CAROUSEL_MAPS: readonly SetupMap[] = MAP_LIST;
 /** Card selector attribute (never `data-map`: setup.ts keeps owning that). */
 export const CARD_ATTR = "data-map-card";
+/** Previous-arena button id (flanks #map-carousel). */
+export const CAROUSEL_PREV_ID = "carousel-prev";
+/** Next-arena button id (flanks #map-carousel). */
+export const CAROUSEL_NEXT_ID = "carousel-next";
+/** Page-dots container id (beneath #map-carousel). */
+export const CAROUSEL_DOTS_ID = "carousel-dots";
+/** Page-dot selector attribute (one per arena, mirrors CARD_ATTR). */
+export const DOT_ATTR = "data-carousel-dot";
 
 /** Minimal 2D-context surface the thumbnail painter needs. */
 export interface ThumbnailContext {
@@ -965,6 +977,259 @@ export function paintAllThumbnails(doc: Document): void {
 }
 
 /**
+ * Read one page dot per arena in setup menu order (possibly empty).
+ * Uses per-map querySelector lookups (the readTier idiom) so shorn
+ * documents without querySelectorAll still converge. Never throws.
+ */
+function carouselDots(doc: Document): unknown[] {
+  const out: unknown[] = [];
+  try {
+    const query = (doc as unknown as { querySelector?: unknown }).querySelector;
+    if (typeof query !== "function") {
+      return out;
+    }
+    const q = query as (sel: string) => unknown;
+    for (const map of CAROUSEL_MAPS) {
+      try {
+        const node = q.call(doc, `[${DOT_ATTR}="${map}"]`);
+        if (node !== null && typeof node === "object") {
+          out.push(node);
+        }
+      } catch {
+        // One unreadable dot never blocks the rest.
+      }
+    }
+  } catch {
+    // Shorn document: no dots.
+  }
+  return out;
+}
+
+/** Read a dot's map name from its data attribute (null when unreadable). */
+function dotMap(dot: unknown): SetupMap | null {
+  try {
+    const attr = asAttr(dot);
+    if (attr === null) {
+      return null;
+    }
+    const raw = attr.getAttribute(DOT_ATTR);
+    if (typeof raw !== "string") {
+      return null;
+    }
+    const key = raw.trim().toLowerCase();
+    if ((MAP_LIST as readonly string[]).includes(key)) {
+      return key as SetupMap;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sync every page dot to the selection: the active dot reads
+ * aria-selected true (the chrome.css on-pip), the rest false.
+ * Best-effort; never throws.
+ */
+export function syncCarouselDots(doc: Document, map: unknown): SetupMap {
+  const normalized = parseCarouselMap(map);
+  try {
+    for (const dot of carouselDots(doc)) {
+      try {
+        if (dotMap(dot) === null) {
+          continue;
+        }
+        const attr = asAttr(dot);
+        if (attr === null) {
+          continue;
+        }
+        attr.setAttribute(
+          "aria-selected",
+          dotMap(dot) === normalized ? "true" : "false",
+        );
+      } catch {
+        // One unreadable dot never blocks the rest.
+      }
+    }
+  } catch {
+    // Dot sync best-effort only.
+  }
+  return normalized;
+}
+
+/**
+ * Mirror the selection onto the menu theme (the per-theme scrim veil
+ * in menu.css follows `menu[data-theme]`). Unknown maps fall back to
+ * the kilima veil. Best-effort; never throws.
+ */
+export function syncMenuTheme(doc: Document, map: unknown): SetupMap {
+  const normalized = parseCarouselMap(map);
+  try {
+    const byId = (doc as unknown as { getElementById?: unknown }).getElementById;
+    if (typeof byId !== "function") {
+      return normalized;
+    }
+    const attr = asAttr((byId as (id: string) => unknown).call(doc, "menu"));
+    if (attr === null) {
+      return normalized;
+    }
+    attr.setAttribute("data-theme", normalized);
+  } catch {
+    // Theme mirror best-effort only.
+  }
+  return normalized;
+}
+
+/**
+ * Step the selection one arena forward (+1) or back (-1), wrapping
+ * around the map list. Unknown directions step forward. Persists via
+ * selectCarouselMap (dots and theme follow). Never throws.
+ */
+export function cycleCarouselMap(
+  doc: Document,
+  storage: SetupStorage | null | undefined,
+  direction: unknown,
+): SetupMap {
+  try {
+    const step =
+      direction === -1 ||
+      direction === "-1" ||
+      direction === "prev" ||
+      direction === "previous" ||
+      direction === "left"
+        ? -1
+        : 1;
+    const current = carouselConfigFor(doc, storage).map;
+    const at = CAROUSEL_MAPS.indexOf(current);
+    const base = at < 0 ? 0 : at;
+    const next =
+      CAROUSEL_MAPS[
+        ((base + step) % CAROUSEL_MAPS.length + CAROUSEL_MAPS.length) %
+          CAROUSEL_MAPS.length
+      ] ?? DEFAULT_SETUP.map;
+    return selectCarouselMap(doc, storage, next);
+  } catch {
+    return DEFAULT_SETUP.map;
+  }
+}
+
+/**
+ * Ensure the carousel nav affordances exist: previous/next arrow
+ * buttons flanking the cards plus one page dot per arena. Static
+ * skeletons ship them; this backstops dynamic documents by appending
+ * text-glyph buttons to #menu. Idempotent; never throws.
+ */
+export function ensureCarouselNav(doc: Document): void {
+  try {
+    const api = doc as unknown as {
+      getElementById?: unknown;
+      createElement?: unknown;
+    };
+    if (
+      typeof api.getElementById !== "function" ||
+      typeof api.createElement !== "function"
+    ) {
+      return;
+    }
+    const get = api.getElementById as (id: string) => unknown;
+    const make = api.createElement as (tag: string) => unknown;
+    const menu = get.call(doc, "menu");
+    if (menu === null || typeof menu !== "object") {
+      return;
+    }
+    const appender = (menu as { appendChild?: unknown }).appendChild;
+    if (typeof appender !== "function") {
+      return;
+    }
+    const ensureButton = (
+      id: string,
+      cls: string,
+      label: string,
+      glyph: string,
+      attrName: string | null,
+      attrValue: string | null,
+    ): void => {
+      try {
+        const existing = get.call(doc, id);
+        if (existing !== null && typeof existing === "object") {
+          return;
+        }
+        const made = make.call(doc, "button");
+        if (made === null || typeof made !== "object") {
+          return;
+        }
+        try {
+          const setAttr = (
+            made as { setAttribute?: (name: string, value: string) => void }
+          ).setAttribute;
+          if (typeof setAttr === "function") {
+            setAttr.call(made, "id", id);
+            setAttr.call(made, "class", cls);
+            setAttr.call(made, "type", "button");
+            setAttr.call(made, "aria-label", label);
+            if (attrName !== null && attrValue !== null) {
+              setAttr.call(made, attrName, attrValue);
+            }
+          }
+          (made as { id?: unknown }).id = id;
+        } catch {
+          // Attrs best-effort only.
+        }
+        try {
+          const span = make.call(doc, "span");
+          if (span !== null && typeof span === "object") {
+            if ("textContent" in span) {
+              (span as { textContent?: unknown }).textContent = glyph;
+            }
+            const kid = (made as { appendChild?: unknown }).appendChild;
+            if (typeof kid === "function") {
+              (kid as (child: unknown) => void).call(made, span);
+            }
+          }
+        } catch {
+          // Glyph best-effort only.
+        }
+        (appender as (kid: unknown) => void).call(menu, made);
+      } catch {
+        // One missing affordance never blocks the rest.
+      }
+    };
+    ensureButton(CAROUSEL_PREV_ID, "carousel-arrow", "Previous arena", "‹", null, null);
+    ensureButton(CAROUSEL_NEXT_ID, "carousel-arrow", "Next arena", "›", null, null);
+    const query = (doc as unknown as { querySelector?: unknown }).querySelector;
+    for (const map of CAROUSEL_MAPS) {
+      let dotExists = false;
+      try {
+        if (typeof query === "function") {
+          const found = (query as (sel: string) => unknown).call(
+            doc,
+            `[${DOT_ATTR}="${map}"]`,
+          );
+          dotExists = found !== null && typeof found === "object";
+        }
+      } catch {
+        dotExists = false;
+      }
+      // Static skeletons ship the dots (id-less, found by attribute);
+      // only the dynamic backstop mints id'd spares.
+      if (dotExists) {
+        continue;
+      }
+      ensureButton(
+        `carousel-dot-${map}`,
+        "carousel-dot",
+        map,
+        "●",
+        DOT_ATTR,
+        map,
+      );
+    }
+  } catch {
+    // Nav backstop best-effort only.
+  }
+}
+
+/**
  * Persist a carousel selection and sync every pressed state: the
  * carousel cards plus the legacy `#setup [data-map]` buttons (which
  * keep owning the `data-map` attribute). Mirrors the choice onto
@@ -1034,6 +1299,16 @@ export function selectCarouselMap(
     // Legacy sync best-effort only.
   }
   try {
+    syncCarouselDots(doc, normalized);
+  } catch {
+    // Dot sync best-effort only.
+  }
+  try {
+    syncMenuTheme(doc, normalized);
+  } catch {
+    // Theme mirror best-effort only.
+  }
+  try {
     if (typeof window !== "undefined") {
       const surface: Record<string, unknown> = {
         map: normalized,
@@ -1062,14 +1337,48 @@ export interface CarouselBinder {
   refresh(): SetupConfig;
   /** Persist a selection and sync pressed states. */
   select(map: unknown): SetupMap;
-  /** Tear down (no timers: idempotent no-op for shape parity). */
+  /** Step the selection one arena forward (+1) or back (-1). */
+  cycle(direction: unknown): SetupMap;
+  /** Tear down the arrow-key listener (idempotent). */
   stop(): void;
+}
+
+/**
+ * True while keyboard carousel nav may run: the menu is visible and
+ * the key target is not an editable control (typing a pilot name or
+ * picking a palette must never reselect the arena).
+ */
+export function carouselKeyAllowed(doc: Document, target: unknown): boolean {
+  try {
+    if (!isMenuVisible(doc)) {
+      return false;
+    }
+    if (typeof target === "object" && target !== null) {
+      const tag = (target as { tagName?: unknown }).tagName;
+      if (typeof tag === "string") {
+        const upper = tag.toUpperCase();
+        if (upper === "INPUT" || upper === "SELECT" || upper === "TEXTAREA") {
+          return false;
+        }
+      }
+      const editable = (target as { isContentEditable?: unknown }).isContentEditable;
+      if (editable === true) {
+        return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
  * Wire the map carousel: ensure the DOM, paint the thumbnails, apply
  * the stored selection, and attach one click listener per card.
- * Missing elements are no-ops; listeners attach once. Never touches
+ * The arrow buttons and page dots cycle the same selection (click plus
+ * Left/Right keys while the menu is visible); the menu theme follows
+ * the selection for the per-theme scrim veil. Missing elements are
+ * no-ops; listeners attach once. Never touches
  * the sim, the match renderer, or the Quick Play handler (which keeps
  * reading the persisted setup verbatim).
  */
@@ -1077,6 +1386,7 @@ export function bindCarousel(
   doc: Document,
   storage: SetupStorage | null | undefined,
 ): CarouselBinder {
+  let keyHandler: ((event: KeyboardEvent) => void) | null = null;
   const binder: CarouselBinder = {
     config: loadSetup(storage),
     refresh: (): SetupConfig => binder.config,
@@ -1085,12 +1395,40 @@ export function bindCarousel(
       binder.config = parseSetup({ ...binder.config, map: normalized });
       return normalized;
     },
-    stop: (): void => {},
+    cycle: (direction: unknown): SetupMap => {
+      const normalized = cycleCarouselMap(doc, storage, direction);
+      binder.config = parseSetup({ ...binder.config, map: normalized });
+      return normalized;
+    },
+    stop: (): void => {
+      try {
+        if (keyHandler !== null && typeof window !== "undefined") {
+          const remove = (
+            window as unknown as { removeEventListener?: unknown }
+          ).removeEventListener;
+          if (typeof remove === "function") {
+            (remove as (type: string, listener: (event: KeyboardEvent) => void) => void).call(
+              window,
+              "keydown",
+              keyHandler,
+            );
+          }
+        }
+      } catch {
+        // Listener teardown best-effort only.
+      }
+      keyHandler = null;
+    },
   };
   try {
     ensureCarousel(doc);
   } catch {
     // Scene optional: painting still proceeds on static skeletons.
+  }
+  try {
+    ensureCarouselNav(doc);
+  } catch {
+    // Nav optional: cards still select.
   }
   try {
     paintAllThumbnails(doc);
@@ -1167,5 +1505,154 @@ export function bindCarousel(
   } catch {
     // Listener wiring best-effort only.
   }
+  // Arrow buttons plus page dots cycle the same persisted selection;
+  // one listener each, guarded by the bound marker like the cards.
+  try {
+    const byId = (doc as unknown as { getElementById?: unknown }).getElementById;
+    const get = typeof byId === "function" ? (byId as (id: string) => unknown) : null;
+    const wireNav = (id: string, direction: 1 | -1): void => {
+      try {
+        if (get === null) {
+          return;
+        }
+        const node = get.call(doc, id) as {
+          addEventListener?: unknown;
+          getAttribute?: (name: string) => string | null;
+          setAttribute?: (name: string, value: string) => void;
+        } | null;
+        if (node === null || typeof node !== "object") {
+          return;
+        }
+        if (typeof node.addEventListener !== "function") {
+          return;
+        }
+        try {
+          if (
+            typeof node.getAttribute === "function" &&
+            node.getAttribute.call(node, "data-carousel-bound") === "true"
+          ) {
+            return;
+          }
+        } catch {
+          // Unreadable marker: bind anyway.
+        }
+        (node.addEventListener as (type: string, listener: () => void) => void).call(
+          node,
+          "click",
+          () => {
+            binder.cycle(direction);
+          },
+        );
+        try {
+          node.setAttribute?.call(node, "data-carousel-bound", "true");
+        } catch {
+          // Marker best-effort: double binding only duplicates a save.
+        }
+      } catch {
+        // One bad affordance never blocks the rest.
+      }
+    };
+    wireNav(CAROUSEL_PREV_ID, -1);
+    wireNav(CAROUSEL_NEXT_ID, 1);
+    for (const dot of carouselDots(doc)) {
+      try {
+        const name = dotMap(dot);
+        if (name === null) {
+          continue;
+        }
+        const clickable = dot as { addEventListener?: unknown };
+        if (typeof clickable.addEventListener !== "function") {
+          continue;
+        }
+        const attr = asAttr(dot);
+        try {
+          if (
+            attr !== null &&
+            attr.getAttribute("data-carousel-bound") === "true"
+          ) {
+            continue;
+          }
+        } catch {
+          // Unreadable marker: bind anyway.
+        }
+        (clickable.addEventListener as (type: string, listener: () => void) => void).call(
+          clickable,
+          "click",
+          () => {
+            binder.select(name);
+          },
+        );
+        try {
+          attr?.setAttribute("data-carousel-bound", "true");
+        } catch {
+          // Marker best-effort: double binding only duplicates a save.
+        }
+      } catch {
+        // One bad dot never blocks the rest.
+      }
+    }
+  } catch {
+    // Nav wiring best-effort only.
+  }
+  // Arrow-key nav: Left/Right cycle while the menu is visible and the
+  // focus is not in an editable control. Registered once per window;
+  // stop() removes it. Never prevents default: the match input layer
+  // keeps its own key handling untouched.
+  try {
+    if (typeof window !== "undefined") {
+      const surface = window as unknown as Record<string, unknown>;
+      if (surface["__carouselKeys"] !== true) {
+        const add = (window as unknown as { addEventListener?: unknown }).addEventListener;
+        if (typeof add === "function") {
+          keyHandler = (event: KeyboardEvent): void => {
+            try {
+              if (event.repeat) {
+                return;
+              }
+              const key = (event as { key?: unknown }).key;
+              if (key !== "ArrowLeft" && key !== "ArrowRight") {
+                return;
+              }
+              if (!carouselKeyAllowed(doc, (event as { target?: unknown }).target ?? null)) {
+                return;
+              }
+              binder.cycle(key === "ArrowLeft" ? -1 : 1);
+            } catch {
+              // Key nav best-effort: the buttons still work.
+            }
+          };
+          (add as (type: string, listener: (event: KeyboardEvent) => void) => void).call(
+            window,
+            "keydown",
+            keyHandler,
+          );
+          surface["__carouselKeys"] = true;
+        }
+      }
+    }
+  } catch {
+    // Key nav best-effort: the buttons still work.
+  }
+  const baseStop = binder.stop;
+  binder.stop = (): void => {
+    // Only the binder that registered the window handler releases the
+    // once-per-window flag; a binder that never registered keeps it.
+    const owned = keyHandler !== null;
+    try {
+      baseStop();
+    } catch {
+      // Base teardown best-effort only.
+    }
+    try {
+      if (owned && typeof window !== "undefined") {
+        const surface = window as unknown as Record<string, unknown>;
+        if (surface["__carouselKeys"] === true) {
+          delete surface["__carouselKeys"];
+        }
+      }
+    } catch {
+      // Flag teardown best-effort only.
+    }
+  };
   return binder;
 }

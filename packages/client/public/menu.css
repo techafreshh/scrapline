@@ -107,6 +107,84 @@
   max-width: 100%;
   overflow-x: auto;
 }
+/* Carousel shell (issue #348): ME-01 places the arena cards between
+  arrow affordances with page dots beneath; boxes and rhythm only —
+  the ME-05 art skins live in chrome.css. Token variables only. */
+#stage #menu .carousel-shell,
+.carousel-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  min-width: 0;
+  min-height: 0;
+}
+#stage #menu .carousel-row,
+.carousel-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-width: 0;
+}
+#stage #menu .carousel-arrow,
+.carousel-arrow {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-h2);
+  line-height: 1;
+  color: var(--color-cyan);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  cursor: pointer;
+}
+#stage #menu .carousel-arrow:hover,
+.carousel-arrow:hover {
+  color: var(--color-cyan-pale);
+  border-color: var(--color-cyan);
+}
+#stage #menu #carousel-dots,
+#menu #carousel-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+}
+#stage #menu .carousel-dot,
+.carousel-dot {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-label);
+  line-height: 1;
+  color: var(--color-muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+#stage #menu .carousel-dot[aria-selected="true"],
+.carousel-dot[aria-selected="true"] {
+  color: var(--color-cyan);
+}
+/* Profile avatar plate (issue #348): the ME-07 bust crop rides behind
+  the name row; the box reserves the art size so boot never shifts. */
+#stage #menu #profile-avatar,
+#menu #profile-avatar {
+  flex: 0 0 auto;
+  width: 75px;
+  height: 82px;
+  box-sizing: border-box;
+  background-color: var(--color-bg);
+  background-repeat: no-repeat;
+}
 /* Map carousel cards (issue #316): fixed-size boxes side by side with a
   synchronous `selected`-class state (accent border plus slight scale on
   the selected card, dimmed unselected cards, `Best: N` line per card),
@@ -145,4 +223,17 @@
   bottom: var(--spacing-16);
   max-width: calc(100% - var(--spacing-24) - var(--spacing-24));
   margin: 0;
+  padding: var(--spacing-4) var(--spacing-12);
+}
+/* Per-theme menu veils (issue #348): the live match canvas behind the
+  menu already paints the selected theme (view/backdrop.ts), so the
+  scrim tints per theme from the carousel selection (menu data-theme).
+  kilima keeps the default scrim; dune warms it, frostbite cools it. */
+#stage #menu[data-theme="dune"] .menu-scrim,
+.menu[data-theme="dune"] .menu-scrim {
+  background: var(--color-scrim-dune);
+}
+#stage #menu[data-theme="frostbite"] .menu-scrim,
+.menu[data-theme="frostbite"] .menu-scrim {
+  background: var(--color-scrim-frostbite);
 }

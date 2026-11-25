@@ -191,6 +191,18 @@ test("repo ships zero *.png/*.jpg images (benchmark/capture refs excepted)", () 
   // not shipped assets); they stay committed until sliced to PNG-8.
   const resultsRoot = path.join("docs", "ui-prompts", "results") + path.sep;
   const vendorRoot = path.join("packages", "client", "assets", "vendor") + path.sep;
+  // Menu-kit exception (#348): the sliced ME-* plates ship committed PNGs
+  // under packages/client/assets/ui/ plus staged dist copies; the 6 MB
+  // asset-weight gate owns that weight instead of this test.
+  const menuKitRoot = path.join("packages", "client", "assets", "ui") + path.sep;
+  // Staged dist copies of the same kit (build-atlas stages ui/ into
+  // dist/assets/ui/; `npm run build` mirrors it to the root dist/).
+  const menuKitDistRoots = [
+    path.join("packages", "client", "dist", "assets", "ui") + path.sep,
+    path.join("dist", "assets", "ui") + path.sep,
+  ];
+  const isMenuKit = (rel) =>
+    rel.startsWith(menuKitRoot) || menuKitDistRoots.some((root) => rel.startsWith(root));
   const capturesRoot = path.join("docs", "captures") + path.sep;
   const atlasSeg = `${path.sep}atlas${path.sep}`;
   const isBenchmarkRef = (rel) =>
@@ -214,7 +226,7 @@ test("repo ships zero *.png/*.jpg images (benchmark/capture refs excepted)", () 
         const lower = entry.name.toLowerCase();
         if (lower.endsWith(".png") || lower.endsWith(".jpg")) {
           const rel = path.relative(root, full);
-          if (!isBenchmarkRef(rel) && !isSpriteCapture(rel) && !isSliceInput(rel) && !rel.startsWith(vendorRoot) && !rel.includes(atlasSeg)) {
+          if (!isBenchmarkRef(rel) && !isSpriteCapture(rel) && !isSliceInput(rel) && !rel.startsWith(vendorRoot) && !isMenuKit(rel) && !rel.includes(atlasSeg)) {
             hits.push(rel);
           }
         }

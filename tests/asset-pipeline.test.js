@@ -100,7 +100,10 @@ test("packages/client/assets holds only CC0 SVG sources", () => {
     // packages/client/assets/LICENSES.md manifest (PRD v6 sprite milestone).
     // The committed vendor atlas output lives under atlas/ (issue #261):
     // generated PNG/JSON build output, validated by the atlas-weight gate.
-    if (name === "fonts" || name === "vendor" || name === "atlas" || name === "LICENSES.md") {
+    // The sliced menu kit lives under ui/ (issue #348): generated PNG
+    // build output from the ME-* sheets, staged into the bundle by
+    // build-atlas and validated by the weight gate like the atlas.
+    if (name === "fonts" || name === "vendor" || name === "atlas" || name === "ui" || name === "LICENSES.md") {
       continue;
     }
     assert.match(name, /\.svg$/, `${name} must be an SVG source`);

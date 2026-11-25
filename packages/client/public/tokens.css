@@ -27,6 +27,8 @@
   --color-flame-mid: #fb923c;
   --color-flame-lo: #f97316;
   --color-scrim: rgba(5, 7, 15, 0.62);
+  --color-scrim-dune: rgba(46, 24, 10, 0.62);
+  --color-scrim-frostbite: rgba(10, 26, 40, 0.62);
   --color-veil: rgba(5, 7, 15, 0.85);
   --color-chip: rgba(8, 20, 36, 0.85);
   --color-chip-border: rgba(125, 249, 255, 0.45);

@@ -417,6 +417,65 @@ function markBound(el: unknown): void {
 }
 
 /**
+ * True for menu-art-owned controls (issue #348): carousel cards,
+ * arrows, and page dots ride their own chrome.css plates (ME-04/ME-05),
+ * never the shared button tile. Skipped by bindButton so the inline
+ * resting-tile stamp cannot cover the art. Reads attributes first
+ * (fake-doc friendly), then the live classList. Never throws.
+ */
+export function isMenuArtButton(el: unknown): boolean {
+  try {
+    if (typeof el !== "object" || el === null) {
+      return false;
+    }
+    const get = (el as { getAttribute?: unknown }).getAttribute;
+    if (typeof get === "function") {
+      const call = (name: string): string | null => {
+        try {
+          const value = (get as (n: string) => unknown).call(el, name);
+          return typeof value === "string" ? value : null;
+        } catch {
+          return null;
+        }
+      };
+      if (call("data-map-card") !== null) {
+        return true;
+      }
+      if (call("data-carousel-dot") !== null) {
+        return true;
+      }
+      if (call("id") === "carousel-prev" || call("id") === "carousel-next") {
+        return true;
+      }
+      const cls = call("class");
+      if (
+        typeof cls === "string" &&
+        /(^|\s)(map-card|carousel-arrow|carousel-dot)(\s|$)/.test(cls)
+      ) {
+        return true;
+      }
+    }
+    const list = (el as { classList?: unknown }).classList as
+      | { contains?: unknown }
+      | undefined;
+    if (list !== undefined && list !== null && typeof list.contains === "function") {
+      for (const name of ["map-card", "carousel-arrow", "carousel-dot"]) {
+        try {
+          if ((list.contains as (n: string) => unknown).call(list, name) === true) {
+            return true;
+          }
+        } catch {
+          // Unreadable token: keep scanning.
+        }
+      }
+    }
+  } catch {
+    // Shorn handle: not menu art.
+  }
+  return false;
+}
+
+/**
  * Wire one menu button: resting tile now, hover tile on
  * `mouseenter`/`focus`, resting tile back on `mouseleave`/`blur`.
  * Synchronous swaps land far inside the 200ms probe budget. The
@@ -425,6 +484,9 @@ function markBound(el: unknown): void {
  */
 function bindButton(button: unknown): void {
   if (button === null || button === undefined) {
+    return;
+  }
+  if (isMenuArtButton(button)) {
     return;
   }
   try {

@@ -134,6 +134,11 @@ test("static script pins both resolutions and all 8 views", () => {
   }
   assert.match(source, /VIEWS/);
   assert.match(source, /VIEWPORTS/);
+  // Art gate (issue #352): one mockup per view in the header table
+  // (after-menu-return reuses the menu mockup).
+  for (const mockup of ["ME-01-menu-v1.jpg", "SC-02-v1.jpg", "SC-04-v1.jpg", "SC-05-v1.jpg", "SC-06-v1.jpg", "HU-01-hud-v1.jpg", "SC-07-end-screen-v1.jpg"]) {
+    assert.ok(source.includes(mockup), `expected mockup ${mockup} in verify-ui.js`);
+  }
 });
 
 test("static script enforces the 16-file census with a 10KB floor", () => {
@@ -158,9 +163,22 @@ test("static script asserts the title, bleed, fps, and budget guardrails", () =>
 
 test("static script emits every required verify.log token", () => {
   const source = fs.readFileSync(SCRIPT, "utf8");
-  for (const token of ["hover:ok", "tiling:ok", "fps:ok", "budget:ok", "probes:green"]) {
+  for (const token of ["hover:ok", "tiling:ok", "fps:ok", "budget:ok", "probes:green", "art:ok"]) {
     assert.ok(source.includes(token), `expected log token ${token} in verify-ui.js`);
   }
+});
+
+test("static art gate bans legacy tiles and decodes without new deps", () => {
+  const source = fs.readFileSync(SCRIPT, "utf8");
+  assert.match(source, /ui\/tile_/);
+  assert.match(source, /verify\/art-gate/);
+  assert.match(source, /slice-sheet/);
+  assert.match(source, /decodePng/);
+  assert.doesNotMatch(source, /pngjs|sharp|jimp/);
+  const helper = fs.readFileSync(path.join(ROOT, "scripts", "verify", "art-gate.js"), "utf8");
+  assert.match(helper, /slice-sheet/);
+  assert.match(helper, /decodePng/);
+  assert.doesNotMatch(helper, /pngjs|sharp|jimp/);
 });
 
 test("GET / serves the menu plus every overlay mount the lap captures", async () => {

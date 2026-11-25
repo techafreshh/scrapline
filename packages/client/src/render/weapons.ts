@@ -44,18 +44,18 @@ export const WEAPON_SPRITE_KEYS: Record<WeaponId, string> = {
 };
 
 /**
- * Co-located SVG card per weapon id, relative to the client root (like
- * the iconFor asset URL) so file:// and subpath hosts resolve. The SMG
- * reuses the Hornet card exactly like the HUD `iconFor` mapping;
+ * Sliced IC-01 weapon well per weapon id, relative to the client root
+ * (like the iconFor asset URL) so file:// and subpath hosts resolve.
+ * The SMG owns its own well now that the set ships one per weapon;
  * `hornet` readings normalize to smg and never form their own id.
  */
 export const WEAPON_SPRITE_FILES: Record<WeaponId, string> = {
-  pistol: "./assets/weapon-pistol.svg",
-  smg: "./assets/weapon-hornet.svg",
-  rifle: "./assets/weapon-rifle.svg",
-  shotgun: "./assets/weapon-shotgun.svg",
-  sniper: "./assets/weapon-sniper.svg",
-  rocket: "./assets/weapon-rocket.svg",
+  pistol: "./assets/atlas/icons/weapon-pistol.png",
+  smg: "./assets/atlas/icons/weapon-smg.png",
+  rifle: "./assets/atlas/icons/weapon-rifle.png",
+  shotgun: "./assets/atlas/icons/weapon-shotgun.png",
+  sniper: "./assets/atlas/icons/weapon-sniper.png",
+  rocket: "./assets/atlas/icons/weapon-rocket.png",
 };
 
 /** Pivot-relative muzzle offset in world px at rest aim (+x). */

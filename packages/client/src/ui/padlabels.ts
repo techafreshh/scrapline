@@ -8,6 +8,23 @@
 
 import { projectCamera, type Camera } from "../renderer/camera";
 import { pickupPaintFor, weaponPlaqueFor } from "../view/props";
+import { pickupIconSrcFor, weaponIconSmallSrcFor } from "./icons";
+
+/**
+ * Pad icon src for a pickup: weapon pads read the held-weapon 16px well
+ * (specific silhouette per gun), every other kind reads its IC-02 well.
+ * Pure.
+ */
+export function padIconSrcFor(kind: unknown, weapon: unknown): string {
+  if (typeof kind === "string" && kind.trim().toLowerCase() === "weapon") {
+    try {
+      return weaponIconSmallSrcFor(weapon);
+    } catch {
+      return pickupIconSrcFor(kind);
+    }
+  }
+  return pickupIconSrcFor(kind);
+}
 
 /** World px above the pad center where the label anchor sits. */
 export const PADLABEL_LIFT_PX = 8;
@@ -263,6 +280,124 @@ function clearLabels(container: unknown): void {
   setDisplay(container, "none");
 }
 
+/**
+ * Ensure a pad label carries its icon <img>: first
+ * `.padlabel-icon` child with the pad icon src (weapon pads read the
+ * held-weapon small well, others their IC-02 well). Change-guarded so
+ * the every-frame reconciler stays cheap; missing builders are no-ops
+ * and never throw.
+ */
+function syncPadIcon(node: unknown, kind: unknown, weapon: unknown): void {
+  let want: string;
+  try {
+    want = padIconSrcFor(kind, weapon);
+  } catch {
+    return;
+  }
+  if (want === "") {
+    return;
+  }
+  try {
+    const box = node as {
+      children?: { length?: unknown; [index: number]: unknown } | null;
+      ownerDocument?: { createElement?: unknown } | null;
+      appendChild?: unknown;
+    };
+    const list = box.children;
+    const length = typeof list?.length === "number" ? list.length : 0;
+    for (let i = 0; i < length; i += 1) {
+      const kid = (list as { [index: number]: unknown })[i];
+      try {
+        const cls = (kid as { getAttribute?: unknown }).getAttribute;
+        let isIcon = false;
+        if (typeof cls === "function") {
+          const got = (cls as (n: string) => unknown).call(kid, "class");
+          if (typeof got === "string" && got.split(" ").includes("padlabel-icon")) {
+            isIcon = true;
+          }
+        } else {
+          const cn = (kid as { className?: unknown }).className;
+          if (typeof cn === "string" && cn.split(" ").includes("padlabel-icon")) {
+            isIcon = true;
+          }
+        }
+        if (!isIcon) {
+          continue;
+        }
+        let cur: string | null = null;
+        const getter = (kid as { getAttribute?: unknown }).getAttribute;
+        if (typeof getter === "function") {
+          const got = (getter as (n: string) => unknown).call(kid, "src");
+          if (typeof got === "string") {
+            cur = got;
+          }
+        }
+        if (cur === null) {
+          const direct = (kid as { src?: unknown }).src;
+          if (typeof direct === "string") {
+            cur = direct;
+          }
+        }
+        if (cur !== want) {
+          const setter = (kid as { setAttribute?: unknown }).setAttribute;
+          if (typeof setter === "function") {
+            (setter as (n: string, v: string) => void).call(kid, "src", want);
+          }
+          try {
+            (kid as Record<string, unknown>)["src"] = want;
+          } catch {
+            // Attribute above already landed.
+          }
+        }
+        return;
+      } catch {
+        continue;
+      }
+    }
+    const ownerDoc = box.ownerDocument ?? null;
+    const create =
+      ownerDoc !== null &&
+      typeof (ownerDoc as { createElement?: unknown }).createElement === "function"
+        ? (
+          ownerDoc as unknown as {
+            createElement(tag: string): unknown;
+          }
+        ).createElement.bind(ownerDoc)
+        : null;
+    const append =
+      typeof box.appendChild === "function"
+        ? (box.appendChild as (kid: unknown) => void).bind(box)
+        : null;
+    if (create === null || append === null) {
+      return;
+    }
+    const icon = create("img");
+    try {
+      const setter = (icon as { setAttribute?: unknown }).setAttribute;
+      if (typeof setter === "function") {
+        (setter as (n: string, v: string) => void).call(icon, "class", "padlabel-icon");
+        (setter as (n: string, v: string) => void).call(icon, "src", want);
+        (setter as (n: string, v: string) => void).call(icon, "alt", "pickup icon");
+      }
+    } catch {
+      // Attribute-less fakes: direct props below still carry it.
+    }
+    try {
+      (icon as Record<string, unknown>)["className"] = "padlabel-icon";
+      (icon as Record<string, unknown>)["src"] = want;
+    } catch {
+      // Read-only shims: attributes above already landed.
+    }
+    try {
+      append(icon);
+    } catch {
+      // Half-built docs: the text label still reads.
+    }
+  } catch {
+    // Hostile shims: the text label still reads.
+  }
+}
+
 /** Attr-safe string of a pickup field for data-kind/data-weapon. */
 function attrText(value: unknown): string {
   if (typeof value === "string") {
@@ -407,6 +542,7 @@ export function updatePadlabels(
     if (readText(node) !== wantText) {
       writeText(node, wantText);
     }
+    syncPadIcon(node, pickup.kind, pickup.weapon);
     paintLabelAccent(node, pickup.kind);
     placeLabel(node, point.x, point.y);
     setDisplay(node, "");

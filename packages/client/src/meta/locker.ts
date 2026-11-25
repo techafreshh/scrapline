@@ -7,6 +7,7 @@
 // palette at match start, and forwards it to the soldier accent source.
 
 import { CHALLENGE_TEMPLATES, loadChallenges } from "./challenges";
+import { cosmeticIconSrcFor } from "../ui/icons";
 import { levelForXp, loadProfile } from "./profile";
 
 /** localStorage key holding the equipped locker id (plain id string). */
@@ -692,6 +693,23 @@ function buildRow(doc: Document, item: LockerItem): unknown {
     setAttr(swatch, "aria-hidden", "true");
     setStyle(swatch, "background", item.palette);
     appendKid(row, swatch);
+  }
+  // Sliced IC-05 cosmetic well per row helmet family.
+  try {
+    const img = makeEl(doc, "img");
+    if (img !== null) {
+      try {
+        (img as { className?: unknown }).className = "locker-icon";
+      } catch {
+        // Class best-effort only.
+      }
+      setAttr(img, "src", cosmeticIconSrcFor(item.helmet));
+      setAttr(img, "alt", "cosmetic icon");
+      setAttr(img, "data-cosmetic", item.helmet);
+      appendKid(row, img);
+    }
+  } catch {
+    // Builder-less fakes: the swatch + label still land.
   }
   const label = makeEl(doc, "span");
   if (label !== null) {

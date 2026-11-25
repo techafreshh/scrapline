@@ -30,6 +30,8 @@ const CSS_ROUTES = [
   "/hud.css",
   "/components/button.css",
   "/components/panel.css",
+  "/components/chrome.css",
+  "/components/icons.css",
   "/overlays/setup.css",
   "/overlays/settings.css",
   "/overlays/howto.css",

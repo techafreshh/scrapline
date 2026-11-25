@@ -1,5 +1,5 @@
 // In-hand weapon sprites with manifest muzzle points (issue #264):
-// sprite-key distinctness/normalization, on-disk SVG cards, muzzle
+// sprite-key distinctness/normalization, on-disk PNG-8 wells, muzzle
 // numerics, three-way sync (WEAPON_MUZZLES == WEAPON_DEFS.length ==
 // soldierWeaponLength), and the committed manifest muzzle section.
 import { describe, expect, it } from "vitest";
@@ -33,11 +33,6 @@ function readManifest(): Record<string, unknown> {
   return JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8")) as Record<string, unknown>;
 }
 
-function svgWidthAttr(body: string): number {
-  const match = /width\s*=\s*"([\d.]+)"/.exec(body);
-  return match !== null ? Number(match[1]) : NaN;
-}
-
 describe("weapon sprite keys", () => {
   it("covers every stat-table weapon id with a distinct key containing its id", () => {
     expect([...WEAPON_IDS].sort()).toEqual(
@@ -62,35 +57,40 @@ describe("weapon sprite keys", () => {
     expect(normalizeWeaponId(undefined)).toBe("pistol");
     expect(weaponSpriteKey("Hornet")).toBe("weapon.smg");
     expect(weaponSpriteKey("railgun")).toBe("weapon.pistol");
-    expect(weaponSpriteFile("Hornet")).toBe("./assets/weapon-hornet.svg");
-    expect(weaponSpriteFile("railgun")).toBe("./assets/weapon-pistol.svg");
+    expect(weaponSpriteFile("Hornet")).toBe("./assets/atlas/icons/weapon-smg.png");
+    expect(weaponSpriteFile("railgun")).toBe("./assets/atlas/icons/weapon-pistol.png");
   });
 });
 
 describe("weapon sprite files", () => {
   it("names the SMG card after the Hornet art like the HUD iconFor mapping", () => {
-    expect(WEAPON_SPRITE_FILES["smg"]).toBe("./assets/weapon-hornet.svg");
+    expect(WEAPON_SPRITE_FILES["smg"]).toBe("./assets/atlas/icons/weapon-smg.png");
     for (const id of WEAPON_IDS) {
       if (id === "smg") {
         continue;
       }
-      expect(WEAPON_SPRITE_FILES[id]).toBe(`./assets/weapon-${id}.svg`);
+      expect(WEAPON_SPRITE_FILES[id]).toBe(`./assets/atlas/icons/weapon-${id}.png`);
     }
   });
 
-  it("every card exists on disk with a distinct viewBox width", () => {
-    const widths = new Set<number>();
+  it("every card exists on disk as a PNG-8 with a distinct pixel box", () => {
+    const boxes = new Set<string>();
     for (const id of WEAPON_IDS) {
       const file = WEAPON_SPRITE_FILES[id] as string;
-      const disk = path.join(ASSETS, path.basename(file));
+      // Client-root-relative atlas path (./assets/atlas/...) resolves
+      // under packages/client/assets/atlas/.
+      const rel = file.replace(/^\.\/assets\/atlas\//, "");
+      const disk = path.join(ASSETS, "atlas", rel);
       expect(fs.existsSync(disk), `${file} exists on disk`).toBe(true);
-      const body = fs.readFileSync(disk, "utf8");
-      expect(body).toMatch(/<svg[\s>]/);
-      const width = svgWidthAttr(body);
-      expect(Number.isFinite(width), `${file} has a numeric width`).toBe(true);
-      widths.add(width);
+      const buf = fs.readFileSync(disk);
+      expect(Array.from(buf.subarray(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      expect(buf[25]).toBe(3);
+      const w = buf.readUInt32BE(16);
+      const h = buf.readUInt32BE(20);
+      expect(w > 0 && h > 0, `${file} has a pixel box`).toBe(true);
+      boxes.add(`${w}x${h}`);
     }
-    expect(widths.size).toBe(WEAPON_IDS.length);
+    expect(boxes.size).toBeGreaterThanOrEqual(4);
   });
 });
 

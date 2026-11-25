@@ -15,6 +15,27 @@ export const TOAST_HOLD_MS = 4000;
 /** Toast fade in ms: fade-to-transparent window before DOM removal. */
 export const TOAST_FADE_MS = 500;
 
+import { pickupIconSrcFor } from "./icons";
+
+/**
+ * Pickup icon src for a toast kind: health/grenade(s)/weapon/shield/
+ * ammo kinds read their IC-02 well, anything else reads null so the
+ * controller toast stays text-only. Pure.
+ */
+export function toastIconSrcFor(kind: unknown): string | null {
+  if (typeof kind !== "string") {
+    return null;
+  }
+  const key = kind.trim().toLowerCase();
+  if (key === "") {
+    return null;
+  }
+  if (key === "health" || key === "grenades" || key === "grenade" || key === "weapon" || key === "shield" || key === "ammo") {
+    return pickupIconSrcFor(key === "grenades" ? "grenade" : key);
+  }
+  return null;
+}
+
 /** Live toast handles; idempotent and safe before any toast shows. */
 export interface ToastHandles {
   toast: HTMLElement | null;
@@ -67,6 +88,10 @@ function writeAttr(el: unknown, name: string, value: string): void {
     const bag = el as { [key: string]: unknown };
     if (name === "class" && typeof bag.className === "string") {
       bag.className = value;
+    } else if (name === "src" && "src" in (bag as object)) {
+      (bag as Record<string, unknown>)["src"] = value;
+    } else if (name === "alt" && "alt" in (bag as object)) {
+      (bag as Record<string, unknown>)["alt"] = value;
     }
   } catch {
     // Shape-less fakes: nothing more to mirror.
@@ -197,6 +222,24 @@ export function showToast(
     writeAttr(node, "data-kind", kind.trim().toLowerCase());
   }
   writeText(node, text);
+  // Pickup toasts carry their IC-02 well as a leading <img> so the pad
+  // and the toast share one icon (the controller toast stays text-only
+  // because toastIconSrcFor reads null without a pickup kind).
+  try {
+    const iconSrc = toastIconSrcFor(kind ?? null);
+    if (iconSrc !== null) {
+      const owner = (container as { ownerDocument?: unknown }).ownerDocument as {
+        createElement(tag: string): unknown;
+      };
+      const icon = owner.createElement("img");
+      writeAttr(icon, "class", "toast-icon");
+      writeAttr(icon, "src", iconSrc);
+      writeAttr(icon, "alt", "pickup icon");
+      appendKid(node, icon);
+    }
+  } catch {
+    // Builder-less fakes: the text entry still lands without an icon.
+  }
   if (!appendKid(container, node)) {
     return;
   }

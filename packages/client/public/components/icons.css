@@ -1,0 +1,128 @@
+/* Sliced icon kit (issue #351, act A6): pixel sizing for the IC-*
+ * wells. Every <img> rides image-rendering: pixelated so the 1x
+ * pixel art stays crisp at any camera/browser zoom; wells use
+ * object-fit: contain so variable-width weapon plates never stretch.
+ * Token fills only (no raw hex: the tokens.css guardrail scans this
+ * file). */
+
+/* Weapon wells: ammo module (full 32px-class) + kill feed (16px). */
+#ammo-icon {
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+
+#killfeed .kill-weapon {
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+
+/* Challenge rows: 60x56 wells read at 28px, checks at 14px. */
+.challenge-icon-img {
+  width: 28px;
+  height: 26px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  flex: 0 0 auto;
+}
+
+.challenge-check-img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  flex: 0 0 auto;
+}
+
+/* Carousel arrows (IC-03 2px-stroke glyphs, one row, one weight). */
+.carousel-glyph-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+/* Carousel page dots (menu-dot plates, selected vs plain). */
+.carousel-dot-img {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+/* Locker cosmetic wells (80x100 plates read at 32px). */
+.locker-icon {
+  width: 32px;
+  height: 40px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  flex: 0 0 auto;
+}
+
+/* End-screen trophy + loading chevrons (set glyphs, one weight). */
+.winner-trophy-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.net-chevron-img {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+/* Pickup pads + toasts (IC-02 wells, 60x64 read small). */
+.padlabel-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  vertical-align: -3px;
+  margin-right: 4px;
+}
+
+.toast-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  vertical-align: -4px;
+  margin-right: 6px;
+}
+
+#toast .toast-entry {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Rank badge (IC-06 plate behind the Lv N text). The chip
+ * border-image from chrome.css is neutralized here (the 2-ID selector
+ * ties its specificity and wins by later order) so the sliced chip
+ * plate never paints over the badge; the palette tint rides the
+ * background-color longhand from updateProfileBadge, never the
+ * `background` shorthand, so runtime repaints keep this plate. */
+#stage #profile-badge,
+#profile-badge {
+  background-color: var(--color-chip);
+  background-image: url("../assets/atlas/icons/rank-badge.png");
+  background-size: 56px 28px;
+  background-repeat: no-repeat;
+  background-position: center;
+  border: 0;
+  border-image-source: none;
+  image-rendering: pixelated;
+  min-width: 56px;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Icon-button glyphs share one 2px stroke family per row. */
+.icon-glyph-img,
+.glyph-img {
+  image-rendering: pixelated;
+  object-fit: contain;
+}

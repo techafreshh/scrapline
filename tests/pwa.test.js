@@ -78,7 +78,10 @@ test("GET /manifest.webmanifest returns 200 manifest JSON with name and icons", 
   assert.match(manifest.contentType, /manifest\+json|application\/json/);
   const parsed = JSON.parse(manifest.text);
   assert.equal(parsed.name, "Scrapline");
-  assert.ok(Array.isArray(parsed.icons) && parsed.icons.length >= 1);
+  assert.ok(Array.isArray(parsed.icons) && parsed.icons.length >= 2);
+  for (const icon of parsed.icons) {
+    assert.match(String(icon.src), /\.png$/);
+  }
 });
 
 test("GET / wires the manifest link and the safe worker registration", async () => {
@@ -90,11 +93,23 @@ test("GET / wires the manifest link and the safe worker registration", async () 
   assert.match(root.text, /continuing online-only/);
 });
 
-test("GET /icons/icon.svg returns 200 SVG for the manifest icon", async () => {
-  const icon = await get("/icons/icon.svg");
-  assert.equal(icon.status, 200);
-  assert.match(icon.contentType, /image\/svg\+xml/);
-  assert.match(icon.text, /<svg/);
+test("GET /icons/icon-512.png returns 200 PNG for the manifest icon", async () => {
+  const res = await fetch(base + "/icons/icon-512.png");
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") || "", /image\/png/);
+  const buf = Buffer.from(await res.arrayBuffer());
+  assert.deepEqual(Array.from(buf.subarray(0, 8)), [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  assert.equal(buf.readUInt32BE(16), 512);
+  assert.equal(buf.readUInt32BE(20), 512);
+});
+
+test("GET /icons/icon-192-maskable.png returns 200 maskable PNG", async () => {
+  const res = await fetch(base + "/icons/icon-192-maskable.png");
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") || "", /image\/png/);
+  const buf = Buffer.from(await res.arrayBuffer());
+  assert.equal(buf.readUInt32BE(16), 192);
+  assert.equal(buf.readUInt32BE(20), 192);
 });
 
 test("HEAD /sw.js returns 200 with a JavaScript content-type", async () => {

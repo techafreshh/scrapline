@@ -159,6 +159,7 @@ import {
   type GamepadState,
 } from "./gamepad";
 import { buildToast, showToast, type ToastHandles } from "./ui/toast";
+import { retrofitStaticIcons } from "./ui/iconWells";
 import { createRenderer, type Renderer } from "./renderer/index";
 import {
   activeSoldierTexture,
@@ -1973,6 +1974,15 @@ try {
   void bindMenuTips(document);
 } catch {
   // Tips optional: the static skeleton already names a mechanic.
+}
+// Sliced icon wells (issue #351): populate every static `<img data-src>`
+// well so live DOM carries the atlas PNG while the source HTML stays
+// bundler-invisible (Vite would otherwise flatten them to dist/assets).
+// Never gates boot.
+try {
+  void retrofitStaticIcons(document);
+} catch {
+  // Static wells optional: dynamic builders still paint their icons.
 }
 // Daily challenges panel (issue #211, five rows since issue #350):
 // fixed local-day set progressed from sim kill/match-end edges with

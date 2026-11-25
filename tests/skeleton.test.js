@@ -134,17 +134,18 @@ test("GET /healthz returns 200 JSON containing ok true", async () => {
   assert.match(health.text, /"ok":true/);
 });
 
-test("GET /favicon.ico returns 200 SVG icon", async () => {
-  const icon = await get("/favicon.ico");
-  assert.equal(icon.status, 200);
-  assert.match(icon.contentType, /image\/svg\+xml/);
-  assert.match(icon.text, /<svg/);
+test("GET /favicon.ico returns 200 PNG app icon", async () => {
+  const res = await fetch(base + "/favicon.ico");
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") || "", /image\/png/);
+  const buf = Buffer.from(await res.arrayBuffer());
+  assert.deepEqual(Array.from(buf.subarray(0, 8)), [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 });
 
-test("HEAD /favicon.ico returns 200 SVG content-type", async () => {
+test("HEAD /favicon.ico returns 200 PNG content-type", async () => {
   const res = await fetch(base + "/favicon.ico", { method: "HEAD" });
   assert.equal(res.status, 200);
-  assert.match(res.headers.get("content-type") || "", /image\/svg\+xml/);
+  assert.match(res.headers.get("content-type") || "", /image\/png/);
 });
 
 test("GET / includes the literal canvas tag", async () => {
@@ -203,6 +204,15 @@ test("repo ships zero *.png/*.jpg images (benchmark/capture refs excepted)", () 
   ];
   const isMenuKit = (rel) =>
     rel.startsWith(menuKitRoot) || menuKitDistRoots.some((root) => rel.startsWith(root));
+  // App-icon exception (#351): the sliced IC-08 PWA icons ship committed
+  // PNGs under packages/client/public/icons/ plus staged dist copies;
+  // the 6 MB asset-weight gate owns that weight instead of this test.
+  const appIconRoots = [
+    path.join("packages", "client", "public", "icons") + path.sep,
+    path.join("packages", "client", "dist", "icons") + path.sep,
+    path.join("dist", "icons") + path.sep,
+  ];
+  const isAppIcon = (rel) => appIconRoots.some((root) => rel.startsWith(root));
   const capturesRoot = path.join("docs", "captures") + path.sep;
   const atlasSeg = `${path.sep}atlas${path.sep}`;
   // UI v8 regression exception (#349): the chrome-regression captures
@@ -231,7 +241,7 @@ test("repo ships zero *.png/*.jpg images (benchmark/capture refs excepted)", () 
         const lower = entry.name.toLowerCase();
         if (lower.endsWith(".png") || lower.endsWith(".jpg")) {
           const rel = path.relative(root, full);
-          if (!isBenchmarkRef(rel) && !isSpriteCapture(rel) && !isSliceInput(rel) && !rel.startsWith(vendorRoot) && !isMenuKit(rel) && !rel.includes(atlasSeg)) {
+          if (!isBenchmarkRef(rel) && !isSpriteCapture(rel) && !isSliceInput(rel) && !rel.startsWith(vendorRoot) && !isMenuKit(rel) && !isAppIcon(rel) && !rel.includes(atlasSeg)) {
             hits.push(rel);
           }
         }

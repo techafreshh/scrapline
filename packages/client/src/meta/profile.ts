@@ -448,8 +448,10 @@ export function ensureProfileBadge(doc: Document): unknown {
 
 /**
  * Repaint the menu badge from a profile: text reads `Lv N` and the
- * background tints to the avatar palette. Returns the rendered text
- * (empty when the badge is absent). Never throws.
+ * background-color tints to the avatar palette. The tint rides the
+ * `backgroundColor` longhand (never the `background` shorthand) so the
+ * IC-06 rank-badge plate from icons.css survives every repaint.
+ * Returns the rendered text (empty when the badge is absent). Never throws.
  */
 export function updateProfileBadge(
   doc: Document,
@@ -463,7 +465,7 @@ export function updateProfileBadge(
     }
     const text = formatLevelBadge(levelForXp(parsed.xp));
     setText(badge, text);
-    setStyle(badge, "background", parsed.palette);
+    setStyle(badge, "backgroundColor", parsed.palette);
     mirrorProfile(parsed, text);
     return text;
   } catch {

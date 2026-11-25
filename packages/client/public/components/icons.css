@@ -97,13 +97,21 @@
   align-items: center;
 }
 
-/* Rank badge (IC-06 plate behind the Lv N text). */
+/* Rank badge (IC-06 plate behind the Lv N text). The chip
+ * border-image from chrome.css is neutralized here (the 2-ID selector
+ * ties its specificity and wins by later order) so the sliced chip
+ * plate never paints over the badge; the palette tint rides the
+ * background-color longhand from updateProfileBadge, never the
+ * `background` shorthand, so runtime repaints keep this plate. */
+#stage #profile-badge,
 #profile-badge {
   background-color: var(--color-chip);
   background-image: url("../assets/atlas/icons/rank-badge.png");
   background-size: 56px 28px;
   background-repeat: no-repeat;
   background-position: center;
+  border: 0;
+  border-image-source: none;
   image-rendering: pixelated;
   min-width: 56px;
   min-height: 28px;

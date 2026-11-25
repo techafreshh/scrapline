@@ -113,6 +113,32 @@ test("index.html keeps the Lv N text inside the rank badge visual", () => {
   assert.doesNotMatch(css, /#[0-9a-fA-F]{6}/, "icons.css must consume tokens, not raw hex");
 });
 
+test("rank badge plate survives runtime repaints (no shorthand wipe, no chip overpaint)", () => {
+  // The badge repaint must tint via the backgroundColor longhand: the
+  // `background` shorthand would reset background-image to none and
+  // erase the IC-06 plate on every profile refresh.
+  const profile = fs.readFileSync(
+    path.join(ROOT, "packages", "client", "src", "meta", "profile.ts"),
+    "utf8",
+  );
+  assert.doesNotMatch(
+    profile,
+    /setStyle\(badge,\s*"background"/,
+    "badge tint must not use the background shorthand",
+  );
+  assert.match(
+    profile,
+    /setStyle\(badge,\s*"backgroundColor"/,
+    "badge tint must ride the backgroundColor longhand",
+  );
+  // The sliced chip plate (border-image with fill) paints above
+  // backgrounds, so icons.css must neutralize it on the badge with a
+  // selector that ties #stage #profile-badge and wins by later order.
+  const css = fs.readFileSync(path.join(PUBLIC_DIR, "components", "icons.css"), "utf8");
+  assert.match(css, /#stage #profile-badge/, "badge override must beat the chrome chip selector");
+  assert.match(css, /border-image-source\s*:\s*none/, "badge must drop the chip border-image");
+});
+
 test("sw.js warms the new PNG icons, never the SVG", () => {
   const source = fs.readFileSync(path.join(PUBLIC_DIR, "sw.js"), "utf8");
   assert.match(source, /icons\/icon-512\.png/);

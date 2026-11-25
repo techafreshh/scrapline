@@ -259,7 +259,7 @@ describe("profile badge binder", () => {
     });
     expect(text).toBe("Lv 3");
     expect(badge.textContent).toBe("Lv 3");
-    expect(badge.style["background"]).toBe("#FF6B35");
+    expect(badge.style["backgroundColor"]).toBe("#FF6B35");
   });
 
   it("reads Lv 3 from a seeded level-only profile", () => {

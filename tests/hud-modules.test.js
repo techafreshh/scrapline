@@ -417,3 +417,22 @@ test("name tags and pad labels ride team and pickup accents (issue #349)", async
   );
   assert.match(char, /teamCss/, "name tags must source team colors");
 });
+
+test("static toast accent covers both grenade spellings with the gold token (issue #361)", () => {
+  const html = fs.readFileSync(SRC_HTML, "utf8");
+  assert.match(
+    html,
+    /data-kind="grenades"/,
+    "index.html must carry the plural grenades toast accent",
+  );
+  assert.match(
+    html,
+    /data-kind="grenade"/,
+    "index.html must carry the singular grenade toast accent",
+  );
+  const accent = html.slice(
+    html.indexOf('data-kind="grenade"'),
+    html.indexOf('data-kind="grenade"') + 200,
+  );
+  assert.match(accent, /var\(--color-gold\)/, "grenade accents must read the gold token");
+});

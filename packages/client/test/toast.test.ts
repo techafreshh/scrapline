@@ -145,4 +145,14 @@ describe("showToast binder", () => {
     expect(() => showToast(undefined)).not.toThrow();
     expect(() => buildToast(null)).not.toThrow();
   });
+
+  it("stamps the grenade spellings verbatim as data-kind", () => {
+    const doc = makeDoc();
+    const { handles, box } = makeToast(doc);
+    showToast(handles, "+GREN", "grenade");
+    showToast(handles, "+GREN", "grenades");
+    expect(box.children).toHaveLength(2);
+    expect(box.children[0]?.getAttribute("data-kind")).toBe("grenade");
+    expect(box.children[1]?.getAttribute("data-kind")).toBe("grenades");
+  });
 });

@@ -1,0 +1,96 @@
+/* Connecting / error card (issue #350, SC-10): the small centred card
+  behind the online handshake, room join, and reconnect states. The root
+  stays transparent with no veil so a failed join leaves the menu
+  usable; only the inner card plates. Consumes token variables only, no
+  raw colors, no tiling. The `#stage`-qualified selectors outrank the
+  legacy inline style block (the layers.css idiom) while the bare
+  selectors keep static scans literal. */
+#stage #net-status,
+#net-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+#stage #net-status .net-card,
+#net-status .net-card {
+  width: min(420px, calc(100vw - 48px));
+  pointer-events: auto;
+}
+#stage #net-status .panel-head,
+#net-status .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  width: 100%;
+}
+#stage #net-status .panel-head h2,
+#net-status .panel-head h2 {
+  margin: 0;
+  font-size: var(--font-h2);
+  letter-spacing: 1px;
+  color: var(--color-text);
+}
+#stage #net-status .panel-close,
+#net-status .panel-close {
+  min-height: 44px;
+  padding: var(--spacing-8) var(--spacing-12);
+}
+#stage #net-status .panel-rows,
+#net-status .panel-rows {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+}
+#stage #net-status .net-well,
+#net-status .net-well {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+}
+#stage #net-status .net-chevron,
+#net-status .net-chevron {
+  font-size: var(--font-h2);
+  color: var(--color-cyan);
+}
+#stage #net-status #net-hint,
+#net-status #net-hint {
+  margin: 0;
+  font-size: var(--font-body);
+  color: var(--color-text);
+  text-align: center;
+}
+#stage #net-status .net-track,
+#net-status .net-track {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  height: 8px;
+}
+#stage #net-status .net-fill,
+#net-status .net-fill {
+  display: block;
+  height: 100%;
+  width: 40%;
+}
+#stage #net-status .panel-actions,
+#net-status .panel-actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+#stage #net-status #net-retry,
+#net-status #net-retry {
+  min-width: 160px;
+  min-height: 44px;
+}

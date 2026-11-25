@@ -1,5 +1,6 @@
-/* Setup overlay on the Panel primitive (issue #319): constrained card
-  with a shared header row and token row rhythm. Consumes token
+/* Setup overlay on the Panel primitive (issue #319, SC-02 restyle in
+  #350): constrained card with a shared header row, five decision rows
+  with generous gaps, and one primary Start action. Consumes token
   variables only, no raw colors, no tiling. The `#stage`-qualified
   selectors outrank the legacy inline style block (the layers.css idiom)
   while the bare selectors keep static scans literal. */
@@ -13,6 +14,7 @@
   gap: var(--spacing-12);
   padding: var(--spacing-24);
   background: var(--color-panel);
+  width: min(640px, calc(100vw - 48px));
 }
 #stage #setup .panel-head,
 #setup .panel-head {
@@ -34,15 +36,76 @@
   min-height: 44px;
   padding: var(--spacing-8) var(--spacing-12);
 }
-#stage #setup .setup-row,
-#setup .setup-row {
-  gap: var(--spacing-8);
-  padding: var(--spacing-4) var(--spacing-8);
-}
 #stage #setup .panel-rows,
 #setup .panel-rows {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-8);
+  gap: var(--spacing-16);
   width: 100%;
+}
+#stage #setup .setup-row,
+#setup .setup-row {
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-12);
+}
+#stage #setup .row-label,
+#setup .row-label {
+  min-width: 52px;
+  font-size: var(--font-label);
+  letter-spacing: 0.6px;
+  color: var(--color-cyan-pale);
+}
+#stage #setup .bots-row #bots-value,
+#setup .bots-row #bots-value {
+  min-width: 2ch;
+  text-align: center;
+  font-size: var(--font-body);
+  color: var(--color-text);
+}
+#stage #setup .tier-row [data-tier][aria-pressed="true"],
+#setup .tier-row [data-tier][aria-pressed="true"] {
+  color: var(--color-cyan);
+}
+#stage #setup .map-row [data-map],
+#setup .map-row [data-map] {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+#stage #setup .map-pick-name,
+#setup .map-pick-name {
+  font-size: var(--font-label);
+  letter-spacing: 0.6px;
+}
+#stage #setup .setup-thumb,
+#setup .setup-thumb {
+  width: 120px;
+  height: 60px;
+  display: block;
+  border-radius: var(--radius-8);
+}
+#stage #setup #cosmetics-preview,
+#setup #cosmetics-preview {
+  min-width: 96px;
+  min-height: 48px;
+  border-radius: var(--radius-8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-label);
+  color: var(--color-cyan-pale);
+}
+#stage #setup .panel-actions,
+#setup .panel-actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+#stage #setup #btn-start,
+#setup #btn-start {
+  min-width: 220px;
+  min-height: 52px;
+  font-size: var(--font-body);
+  font-weight: bold;
 }

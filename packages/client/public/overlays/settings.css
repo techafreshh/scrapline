@@ -1,6 +1,8 @@
-/* Settings overlay on the Panel primitive (issue #319): constrained
-  card with a shared header row and token row rhythm. Consumes token
-  variables only, no raw colors, no tiling. The `#stage`-qualified
+/* Settings overlay on the Panel primitive (issue #319, SC-03 restyle
+  in #350): constrained card with a shared header row, eight token-
+  spaced rows, and a Reset/Done footer. Every control occupies the same
+  right-hand column width so the values scan in one column. Consumes
+  token variables only, no raw colors, no tiling. The `#stage`-qualified
   selectors outrank the legacy inline style block (the layers.css idiom)
   while the bare selectors keep static scans literal. */
 #stage #settings,
@@ -34,15 +36,75 @@
   min-height: 44px;
   padding: var(--spacing-8) var(--spacing-12);
 }
-#stage #settings .setup-row,
-#settings .setup-row {
-  gap: var(--spacing-8);
-  padding: var(--spacing-4) var(--spacing-8);
-}
 #stage #settings .panel-rows,
 #settings .panel-rows {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-8);
   width: 100%;
+}
+#stage #settings .setting-row,
+#settings .setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  padding: var(--spacing-4) var(--spacing-8);
+  width: 100%;
+  box-sizing: border-box;
+}
+#stage #settings .setting-row label,
+#settings .setting-row label,
+#stage #settings .setting-row .row-label,
+#settings .setting-row .row-label {
+  flex: 1 1 auto;
+  font-size: var(--font-body);
+  color: var(--color-text);
+}
+#stage #settings .setting-row input[type="range"],
+#settings .setting-row input[type="range"] {
+  flex: 0 0 auto;
+  width: 200px;
+  margin: 0;
+}
+#stage #settings .sl-toggle-btn,
+#settings .sl-toggle-btn {
+  flex: 0 0 auto;
+  width: 200px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--spacing-8);
+  min-height: 44px;
+}
+#stage #settings .sl-toggle-btn .toggle-text,
+#settings .sl-toggle-btn .toggle-text {
+  font-size: var(--font-label);
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+#stage #settings #zoom-hint,
+#settings #zoom-hint {
+  margin: 0;
+  font-size: var(--font-label);
+  font-style: italic;
+  color: var(--color-muted);
+}
+#stage #settings .panel-actions,
+#settings .panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  width: 100%;
+}
+#stage #settings #settings-done,
+#settings #settings-done {
+  min-width: 200px;
+  min-height: 48px;
+  font-weight: bold;
+}
+#stage #settings #settings-reset,
+#settings #settings-reset {
+  min-height: 44px;
 }

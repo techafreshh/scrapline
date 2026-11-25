@@ -1,8 +1,10 @@
-/* Locker overlay on the Panel primitive (issue #319): constrained card
-  with a shared header row and token row rhythm. Consumes token
-  variables only, no raw colors, no tiling. The `#stage`-qualified
-  selectors outrank the legacy inline style block (the layers.css idiom)
-  while the bare selectors keep static scans literal. */
+/* Locker overlay on the Panel primitive (issue #319, SC-06 restyle in
+  #350): wide card with a shared header row, a tab bar, a scrollable
+  grid beside a preview plate with an Equip action, and a status line.
+  Consumes token variables only, no raw colors, no tiling. The
+  `#stage`-qualified selectors outrank the legacy inline style block
+  (the layers.css idiom) while the bare selectors keep static scans
+  literal. */
 #stage #locker,
 #locker {
   background: var(--color-veil);
@@ -13,6 +15,7 @@
   gap: var(--spacing-12);
   padding: var(--spacing-24);
   background: var(--color-panel);
+  width: min(760px, calc(100vw - 48px));
 }
 #stage #locker .panel-head,
 #locker .panel-head {
@@ -41,8 +44,104 @@
   gap: var(--spacing-8);
   width: 100%;
 }
+#stage #locker #locker-tabs,
+#locker #locker-tabs {
+  display: flex;
+  gap: var(--spacing-8);
+  width: 100%;
+}
+#stage #locker #locker-tabs button,
+#locker #locker-tabs button {
+  min-height: 40px;
+  padding: var(--spacing-4) var(--spacing-12);
+  font-size: var(--font-label);
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+#stage #locker #locker-tabs button[aria-pressed="true"],
+#locker #locker-tabs button[aria-pressed="true"] {
+  color: var(--color-cyan);
+}
+#stage #locker .locker-cols,
+#locker .locker-cols {
+  display: flex;
+  gap: var(--spacing-16);
+  width: 100%;
+  min-height: 0;
+}
+#stage #locker .locker-grid,
+#locker .locker-grid {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--spacing-8);
+  min-width: 0;
+  min-height: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: var(--spacing-4);
+}
 #stage #locker .locker-item,
 #locker .locker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-4);
+  padding: var(--spacing-8);
+  min-height: 44px;
+  cursor: pointer;
+}
+#stage #locker .locker-swatch,
+#locker .locker-swatch {
+  display: block;
+  width: 100%;
+  height: 24px;
+  border-radius: var(--radius-8);
+}
+#stage #locker .locker-label,
+#locker .locker-label {
+  font-weight: bold;
+  letter-spacing: 0.4px;
+  font-size: var(--font-label);
+}
+#stage #locker .locker-combo,
+#locker .locker-combo {
+  font-size: var(--font-label);
+  color: var(--color-cyan-pale);
+}
+#stage #locker .locker-lock,
+#locker .locker-lock {
+  font-weight: bold;
+  letter-spacing: 0.4px;
+  font-size: var(--font-label);
+}
+#stage #locker .locker-side,
+#locker .locker-side {
+  flex: 0 0 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--spacing-8);
-  padding: var(--spacing-4) var(--spacing-12);
+}
+#stage #locker .locker-preview-wrap,
+#locker .locker-preview-wrap {
+  display: flex;
+  justify-content: center;
+}
+#stage #locker #locker-preview-full,
+#locker #locker-preview-full {
+  width: 96px;
+  height: 96px;
+}
+#stage #locker .locker-status,
+#locker .locker-status {
+  font-size: var(--font-label);
+  letter-spacing: 0.4px;
+  color: var(--color-cyan-pale);
+  text-align: center;
+}
+#stage #locker #locker-equip,
+#locker #locker-equip {
+  min-height: 48px;
+  font-weight: bold;
 }

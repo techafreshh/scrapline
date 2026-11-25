@@ -57,11 +57,24 @@ body .menu-root {
 }
 #toast,
 #loading,
+#net-status,
 #stage #toast,
-#stage #loading {
+#stage #loading,
+#stage #net-status {
   position: absolute;
   z-index: 40;
   background-repeat: no-repeat;
+}
+/* SC-10 connecting card (issue #350): the transient card floats above
+  the overlays with no veil fill so a failed join leaves the menu
+  usable; only the inner card plates. */
+#net-status,
+#stage #net-status {
+  pointer-events: none;
+}
+#net-status .net-card,
+#stage #net-status .net-card {
+  pointer-events: auto;
 }
 #loading,
 #stage #loading {

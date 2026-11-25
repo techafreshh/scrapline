@@ -1,0 +1,11 @@
+Three pixel art game UI panel frames in a single row, each 96 by 96 logical pixels, 20-pixel
+bevelled borders, identical construction. Left: elevated panel, slightly lighter surface
+#16213a with a thin 1-pixel #00E5FF line inset 4 pixels around the outer edge. Centre: inset
+recessed well — the border bevel inverted so light sits on the bottom-right, interior one step
+darker than the frame, no accent line. Right: hazard panel — the top and bottom border bands
+carry diagonal 45-degree orange #FF6B35 and near-black #0b0f1a stripes 4 pixels wide, the rest
+matching the base panel. Flat empty interiors, no text, no icons. Chunky 32-bit pixel art at
+8x pixel pitch, orthographic front view.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

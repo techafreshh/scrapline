@@ -1,0 +1,12 @@
+Pixel art game scoreboard row in four states stacked vertically, each 800 by 80 logical pixels,
+10-pixel gaps, viewed straight on. Same geometry in all four: a flat band with a 1-pixel #2a3550
+bottom rule, a 56-pixel rank plate on the left with a bevelled #2a3550 frame, a 4-pixel team
+rail on the far left, and three 64-pixel numeric slots right-aligned. State 1, normal: team rail
+cyan, rank plate plain. State 2, local player: 1-pixel #00E5FF outline around the whole row, the
+rank plate filled with a dithered cyan wash, a 4-pixel cyan marker bar at the left end. State 3,
+leader: rank plate carries a #eab308 12-pixel crown notch instead of a digit. State 4, dead:
+row dithered 50 percent toward #0b0f1a and the team rail drops to #2a3550. No text, no numbers.
+Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

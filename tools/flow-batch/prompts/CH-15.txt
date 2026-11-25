@@ -1,0 +1,7 @@
+Pixel art game UI keycap, empty, 24 by 24 logical pixels, viewed straight on. A bevelled
+square cap of #2a3550 with a #4a5a7f highlight on the top and left, a 4-pixel #0a0e18 shadow
+along the bottom giving it thickness, a 1-pixel #0b0f1a outer stroke, and a flat #16213a top
+face. No text, no letter. Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

@@ -1,0 +1,9 @@
+Pixel art game app icon, 512 by 512 pixels, square. A dark #0b0f1a rounded-corner plate with a
+4-pixel #2a3550 inner frame. Centred, a bold salvage-soldier helmet in profile facing right,
+built from #2a3550 and #4a5a7f plates with a glowing #00E5FF visor slit and a #FF6B35
+hazard-stripe plate on the jaw. Behind the helmet, a subtle 45-degree dither of #16213a. The
+composition reads clearly at 32 pixels. No text, no letter, no badge. Chunky 32-bit era pixel
+art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

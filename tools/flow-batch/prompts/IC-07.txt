@@ -1,0 +1,8 @@
+Pixel art game status icon set, six icons in one row, each 24 by 24 logical pixels in a 64 by
+64 cell with 12-pixel gutters, 2-pixel stroke, all viewed straight on. Left to right: a skull in
+#e8ecf4 with #2a3550 eye sockets; a shield with a check in #a3e635; a lightning bolt in
+#00E5FF; a broken shield in #ef4444; a crown in #eab308; a crosshair-in-square in #8a94a8. No
+text, no numbers. Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

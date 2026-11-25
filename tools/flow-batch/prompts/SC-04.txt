@@ -1,0 +1,10 @@
+Pixel art game how-to-play panel mockup, 1280 by 960 pixels, viewed straight on over a dimmed
+arena. A wide translucent navy panel with a bevelled steel frame and a header strip with a cyan
+rail plus close button. The body is split: on the left, a two-column controls table of eleven
+rows, each row a 24-pixel keycap plate on the left and an action placeholder bar on the right,
+with 1-pixel #2a3550 rules between rows; on the right, a narrow column with three stacked tip
+cards, each a small plate with a 3-pixel cyan rail on its left edge and two placeholder text
+lines. No readable text — placeholder bars only. Chunky 32-bit era pixel art at a consistent 4x
+pixel pitch.
+16:9 game UI mockup, no readable words, no browser chrome, no watermark, palette #0b0f1a #16213a
+#2a3550 #4a5a7f #00E5FF #a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

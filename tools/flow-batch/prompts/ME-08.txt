@@ -1,0 +1,10 @@
+Pixel art game character hero art, 256 by 512 logical pixels, viewed side-on. A rugged
+salvage soldier in a patched exosuit, standing three-quarter view facing right, helmet with a
+slit visor glowing #00E5FF, shoulder pauldron with a welded #FF6B35 stripe, a compact jetpack on
+the back venting a short hard-edged #FF6B35 flame downward, one hand resting on a slung rifle.
+Heavy 1-pixel #0b0f1a outline around the whole silhouette, two-tone shading with 1-bit dither
+on the metal, no soft gradients, no glow bleed. Chunky 32-bit era pixel art at 8x pixel pitch,
+orthographic side view.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

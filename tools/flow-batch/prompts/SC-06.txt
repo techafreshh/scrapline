@@ -1,0 +1,11 @@
+Pixel art game cosmetics locker mockup, 1280 by 960 pixels, viewed straight on over a dimmed
+arena. A wide translucent navy panel with a bevelled steel frame, header strip with cyan rail
+and close button. The body is two columns: on the left a scrolling grid of 16 cosmetic
+thumbnails in four columns, each a square plate with a recessed well; the equipped item is
+outlined in cyan with a small check chip, locked items are desaturated with a padlock
+silhouette, and one item is hovered with a lighter frame. On the right a large preview plate
+holding a soldier bust, three category tabs above it, and an equip button plus a status line
+beneath. No readable text — placeholder bars only. Chunky 32-bit era pixel art at a consistent
+4x pixel pitch.
+16:9 game UI mockup, no readable words, no browser chrome, no watermark, palette #0b0f1a #16213a
+#2a3550 #4a5a7f #00E5FF #a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

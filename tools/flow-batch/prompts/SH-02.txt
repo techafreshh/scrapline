@@ -1,0 +1,20 @@
+Generate a specimen sheet, not a scene. Arrange every object in a strict grid on a flat solid
+#FF00FF background. Each object is centred in its own cell, fully inside the cell with at least
+20 pixels of margin on every side, and never touches a neighbour. No overlaps, no drop shadows
+on the background, no glow spilling onto the background, no labels, no dividers.
+
+Pixel art game HUD modules, four columns by three rows, 300-pixel cells with 24-pixel gutters.
+Every piece shares one construction: 1-pixel #0b0f1a outer stroke, 2-pixel #2a3550 frame, 50
+percent checkerboard dither of #0b0f1a over #16213a interior, 3-pixel #00E5FF accent rail, empty
+interiors. Row one: a status cluster plate with slots for two bars; a health bar track; a fuel
+bar track with a hatched empty portion; a score-and-timer chip with a centre divider. Row two: a
+weapon module plate with a square icon well and five pip sockets; a kill-feed row plate with a
+36-pixel icon well; a compact name tag plate with a caret; a pickup label plate. Row three: a
+respawn card with hazard bands and a circular countdown well; a scope overlay mask with a hard
+circular lens cut-out and cyan ranging ticks; a damage vignette frame — a rectangular border
+that fades to transparent toward the centre in a hard 1-bit dither; a pickup toast plate with an
+icon well. All empty, no text, no icons, no numbers, no crosshairs.
+Chunky 32-bit era pixel art at 8x pixel pitch, orthographic front view.
+No text or lettering, strict pixel grid with hard edges, no anti-aliasing, no blur, no
+gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF #a5f3fc #FF6B35 #eab308 #a3e635
+#ef4444 #e8ecf4 #8a94a8 only.

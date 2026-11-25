@@ -1,0 +1,10 @@
+Pixel art game menu background scene, 16:9 widescreen, a derelict industrial-jungle arena at
+dusk, viewed side-on with three parallax depth layers: a dark silhouette skyline of cranes and
+pipes at the back, mid-ground scaffolding with hanging cables and a broken gantry, foreground
+crates and foliage framing the bottom corners. Deep navy #0b0f1a sky with a dithered #16213a
+horizon glow, a few 2-pixel #00E5FF indicator lights on the machinery, warm #FF6B35 rim light
+from an off-screen source at the right. The whole scene is 40 percent darker than a gameplay
+frame and has no characters, so UI can sit on top. Chunky 32-bit era pixel art at a consistent
+4x pixel pitch.
+No readable text, no logo, no watermark, no UI elements, palette #0b0f1a #16213a #2a3550
+#4a5a7f #00E5FF #a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

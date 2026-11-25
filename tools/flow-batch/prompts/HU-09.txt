@@ -1,0 +1,7 @@
+Pixel art game crosshair, 32 by 32 logical pixels, centred, viewed straight on. A minimalist
+cyan #00E5FF reticle: four 6-pixel tick marks with a 4-pixel gap at the centre, 2 pixels thick,
+each tick capped with a 1-pixel #a5f3fc highlight, plus a single 2-by-2 centre dot. No circle,
+no outline, no glow. Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

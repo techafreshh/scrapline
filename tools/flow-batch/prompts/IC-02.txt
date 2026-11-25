@@ -1,0 +1,11 @@
+Pixel art game pickup icon set, four icons in a single row, each 32 by 32 logical pixels
+centred in a 64 by 64 cell with 16-pixel gutters, viewed straight on, all sharing a 1-pixel
+#0b0f1a outline and the same two-tone shading. Left to right: a health cross — a chunky
+plus sign in #a3e635 with a #e8ecf4 highlight on its top and left arms; a fragmentation
+grenade — a rounded #2a3550 body with a #FF6B35 band and a 2-pixel pin; a shield — a heater
+shield in #00E5FF with a 1-pixel #a5f3fc rim and a 3-pixel centre boss; an ammunition box — a
+square #eab308 crate with a 1-pixel #2a3550 band and two 4-pixel bullet tips visible on top. No
+text, no numbers. Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

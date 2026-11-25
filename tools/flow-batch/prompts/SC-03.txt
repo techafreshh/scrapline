@@ -1,0 +1,10 @@
+Pixel art game settings panel mockup, 960 by 1280 pixels, viewed straight on over a dimmed
+arena. A tall translucent navy panel with a bevelled steel frame. Header strip with a cyan rail
+and a close button. The body lists eight settings rows separated by 1-pixel #2a3550 rules: two
+rows with a label on the left and a wide slider on the right; three rows with a label and a
+toggle switch on the right; one read-only row with a label and small italic hint placeholder;
+and at the bottom a reset button and a wide done button. Every control is the same pixel-art
+kit — same bevel, same keyline, same cyan accent. No readable text — placeholder bars only.
+Chunky 32-bit era pixel art at a consistent 4x pixel pitch.
+16:9 game UI mockup, no readable words, no browser chrome, no watermark, palette #0b0f1a #16213a
+#2a3550 #4a5a7f #00E5FF #a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

@@ -1,0 +1,9 @@
+Pixel art game HUD respawn card, empty, 320 by 160 logical pixels, viewed straight on. A
+heavy hazard-striped plate: 1-pixel #0b0f1a stroke, 4-pixel #2a3550 frame, diagonal 45-degree
+stripes of #FF6B35 and #0b0f1a 6 pixels wide across the top and bottom border bands only, the
+interior a 50 percent checkerboard dither of #0b0f1a over #16213a, and a large 24-pixel
+inset well in the centre framed by a 1-pixel #2a3550 line for the countdown digit. Four 8-pixel
+#FF6B35 corner brackets. No text, no numbers. Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

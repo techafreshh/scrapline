@@ -1,0 +1,10 @@
+Pixel art game challenges panel mockup, 1280 by 960 pixels, viewed straight on over a dimmed
+arena. A translucent navy panel with a bevelled steel frame, header strip with cyan rail and a
+close button, and a right-aligned reset-countdown chip in the header. The body holds five
+challenge rows with 12-pixel gaps. Each row: a 40-pixel square icon well on the left, a title
+placeholder bar and a thin progress bar beneath it in the middle, and a reward chip on the
+right showing a small gold glyph. The third row is completed — its icon well is outlined in
+lime, the progress bar is full lime, and a lime check chip sits at the right. No readable text.
+Chunky 32-bit era pixel art at a consistent 4x pixel pitch.
+16:9 game UI mockup, no readable words, no browser chrome, no watermark, palette #0b0f1a #16213a
+#2a3550 #4a5a7f #00E5FF #a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

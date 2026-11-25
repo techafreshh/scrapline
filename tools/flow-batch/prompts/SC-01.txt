@@ -1,0 +1,11 @@
+Pixel art game loading screen, 16:9 widescreen. A near-black #0b0f1a field with a faint
+dithered #16213a vignette in the corners and a horizontal band of scattered 2-pixel cyan
+#00E5FF indicator lights along the bottom third, like idle machinery. Dead centre, the
+Scrapline wordmark area left as an empty dark plate 640 by 128 pixels framed by a 1-pixel
+#2a3550 line, and beneath it a horizontal progress track 640 by 12 pixels with a 3-pixel
+#00E5FF fill on the left and a 1-pixel #a5f3fc top highlight. A small 24-pixel square scanning
+indicator sits at the fill's leading edge. No text, no percentage. Chunky 32-bit era pixel art
+at a consistent 4x pixel pitch.
+16:9 game UI mockup, no readable words, no browser chrome, no device frame, no watermark,
+palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF #a5f3fc #FF6B35 #eab308 #a3e635 #ef4444
+#e8ecf4 #8a94a8 only.

@@ -1,0 +1,12 @@
+Pixel art game UI icon set, twenty glyphs in a grid of five columns by four rows, each glyph 24
+by 24 logical pixels centred in its own 64 by 64 cell with 12-pixel gutters, all drawn with a
+consistent 2-pixel stroke weight in #e8ecf4 on no background, all geometric and square-cornered
+with 2-pixel chamfers. Row one: a close X, a left chevron, a right chevron, an up chevron, a
+down chevron. Row two: a check mark, a padlock, a speaker with one sound wave, a musical note,
+a four-corner expand icon. Row three: a four-corner contract icon, a monitor with a scanline, a
+rank tag, a magnifying glass, a three-line menu glyph. Row four: a gamepad, a circular refresh
+arrow, a clipboard, a star, an information circle. No text, no numbers, no letters. Chunky
+32-bit era pixel art at 8x pixel pitch, orthographic front view.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

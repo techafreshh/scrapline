@@ -1,0 +1,9 @@
+Pixel art game UI player profile row mockup, 768 by 192 logical pixels, viewed straight on.
+Left to right: a 64-pixel square avatar plate with a bevelled #2a3550 frame and a recessed
+#0b0f1a well holding a simple pixel-art soldier bust silhouette in cyan; a 256-by-32 text field
+plate; a 160-by-32 dropdown plate with a chevron cavity; and a 96-by-32 level chip with a
+3-pixel cyan nub and two 8-pixel star pips. All pieces share the same bevel grammar and sit on
+one flat row with 16-pixel gaps over the menu background. No text, no numbers. Chunky 32-bit
+era pixel art at 8x pixel pitch.
+16:9 game UI mockup, no readable words, no watermark, no device frame, palette #0b0f1a #16213a
+#2a3550 #4a5a7f #00E5FF #a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

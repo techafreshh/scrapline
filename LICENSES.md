@@ -76,3 +76,17 @@ Parallax backdrop sets for kilima (dusk savanna), dune (golden-hour
   - packages/client/assets/pickup-grenade.svg
   - packages/client/assets/pickup-pad.svg
   - packages/client/assets/weapon-hornet.svg
+
+## Pack: Scrapline generated menu art (issue #348)
+
+Wordmark lockup, arena card frame, carousel arrows/dots, tip strip
+plate, and profile row plates sliced in-house from the ME-* reference
+renders (docs/ui-prompts/results/ME-02..ME-07) through the
+dependency-free tools/slice-menu.js pipeline (chroma key, pitch-4
+detect, quantise to the 12-colour palette, PNG-8 encode); the staged
+bundle weight stays under the 6 MB gate like the atlas output.
+
+- Author: Scrapline contributors
+- License: CC0-1.0 (public domain dedication; no attribution required)
+- Files:
+  - packages/client/assets/ui/

@@ -30,6 +30,10 @@ const VENDOR = path.join(SRC, "vendor");
 const ATLAS_SRC = path.join(SRC, "atlas");
 const ATLAS_DEST = path.join(DEST, "atlas");
 const ATLAS_MANIFEST = path.join(ATLAS_SRC, "manifest.json");
+// Committed generated menu art (issue #348): sliced ME-* sheets staged
+// verbatim so /assets/ui/* serves the wordmark and menu plates.
+const MENU_SRC = path.join(SRC, "ui");
+const MENU_DEST = path.join(DEST, "ui");
 
 // Total built assets must stay at or under 6 MB (the presentation-v2
 // bundle-risk cap); the check sums every byte under dist/assets.
@@ -702,6 +706,20 @@ function main() {
     fail(err && err.message ? err.message : String(err));
   }
 
+  // Menu art phase (issue #348): slice the ME-* sheets into the
+  // committed packages/client/assets/ui/ kit (wordmark, card frame,
+  // carousel arrows/dots, tip and profile plates) and stage it into
+  // dist/assets/ui/ so /assets/ui/* serves with no server change.
+  // Runs after the chrome phase; deterministic, so committed bytes
+  // equal rebuilt bytes; failures name slice-menu, never this.
+  try {
+    const { sliceMenu } = require("./slice-menu.js");
+    const menuWritten = sliceMenu(MENU_SRC);
+    console.log(`build-atlas: menu kit -> ${menuWritten.length} ui files`);
+  } catch (err) {
+    fail(err && err.message ? err.message : String(err));
+  }
+
   // Renderer-reference validation: every quoted
   // soldier./adventurer./zombie./female./player./tile./fx. token in
   // runtime sources must resolve to a manifest key, so later sprite
@@ -727,6 +745,10 @@ function main() {
   }
   fs.rmSync(ATLAS_DEST, { recursive: true, force: true });
   copyTree(ATLAS_SRC, ATLAS_DEST);
+  // Menu kit staging (issue #348): the sliced ui/ kit rides next to
+  // the atlas so the chrome.css url() targets resolve at runtime.
+  fs.rmSync(MENU_DEST, { recursive: true, force: true });
+  copyTree(MENU_SRC, MENU_DEST);
   const stagedBytes = sizeBytes(DEST);
   console.log(
     `build-atlas: staged -> ${ATLAS_DEST} (${(stagedBytes / 1048576).toFixed(2)} MB)`,

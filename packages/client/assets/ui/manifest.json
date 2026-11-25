@@ -1,0 +1,47 @@
+{
+  "wordmark": {
+    "file": "ui/wordmark.png",
+    "w": 237,
+    "h": 50
+  },
+  "menu-card": {
+    "file": "ui/menu-card.png",
+    "w": 239,
+    "h": 129
+  },
+  "menu-arrow-left": {
+    "file": "ui/menu-arrow-left.png",
+    "w": 76,
+    "h": 76
+  },
+  "menu-arrow-right": {
+    "file": "ui/menu-arrow-right.png",
+    "w": 76,
+    "h": 76
+  },
+  "menu-dot-on": {
+    "file": "ui/menu-dot-on.png",
+    "w": 24,
+    "h": 24
+  },
+  "menu-dot-off": {
+    "file": "ui/menu-dot-off.png",
+    "w": 24,
+    "h": 24
+  },
+  "menu-tip": {
+    "file": "ui/menu-tip.png",
+    "w": 48,
+    "h": 48
+  },
+  "menu-avatar": {
+    "file": "ui/menu-avatar.png",
+    "w": 150,
+    "h": 164
+  },
+  "menu-field": {
+    "file": "ui/menu-field.png",
+    "w": 280,
+    "h": 64
+  }
+}

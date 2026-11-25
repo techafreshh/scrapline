@@ -62,6 +62,7 @@ const CSS_ROUTES = [
   "/overlays/challenges.css",
   "/overlays/locker.css",
   "/overlays/endscreen.css",
+  "/overlays/connecting.css",
 ];
 
 function log(message) {

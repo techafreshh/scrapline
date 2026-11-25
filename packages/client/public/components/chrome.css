@@ -1,0 +1,477 @@
+/* Chrome control library (issue #347): every control on top of the
+  sliced SH-01a/CH kit. Stretchable surfaces ride 9-slice art whose
+  slice is a multiple of 4px with stretch repeat; fixed bits ride
+  whole-pixel backgrounds with no-repeat and pixelated rendering.
+  Boxes stay identical across idle and hover (lighting and bevel only),
+  so no state swap shifts layout. The per-sheet stylesheets stay
+  authoritative for fills and rhythm; this sheet only adds frames.
+  Consumes token variables plus atlas art only. */
+#stage .sl-btn.menu-cta,
+.sl-btn.menu-cta {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.cta.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage .sl-btn.menu-cta:hover,
+.sl-btn.menu-cta:hover {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.cta.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  box-shadow: 0 0 24px rgba(0, 229, 255, 0.75);
+}
+#stage .sl-btn.menu-cta:active,
+.sl-btn.menu-cta:active {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.cta.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.45);
+  filter: brightness(0.92);
+}
+#stage .sl-btn.menu-cta:focus-visible,
+.sl-btn.menu-cta:focus-visible {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.cta.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  outline: 2px solid var(--color-cyan);
+  outline-offset: 2px;
+}
+#stage .sl-btn.menu-secondary,
+.sl-btn.menu-secondary,
+#stage #end-screen #end-menu,
+#end-screen #end-menu {
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.secondary.png");
+  border-image-slice: 8 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage .sl-btn.menu-secondary:hover,
+.sl-btn.menu-secondary:hover,
+#stage #end-screen #end-menu:hover,
+#end-screen #end-menu:hover {
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.secondary.png");
+  border-image-slice: 8 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
+  filter: brightness(1.15);
+}
+#stage .sl-btn.menu-secondary:active,
+.sl-btn.menu-secondary:active,
+#stage #end-screen #end-menu:active,
+#end-screen #end-menu:active {
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.secondary.png");
+  border-image-slice: 8 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
+  filter: brightness(0.85);
+}
+#stage #end-screen #restart,
+#end-screen #restart {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.cta.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage #end-screen #restart:hover,
+#end-screen #restart:hover {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.cta.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  box-shadow: 0 0 24px rgba(0, 229, 255, 0.75);
+}
+#stage #locker-preview,
+#locker-preview {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.icon.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+/* Chips and badges: the pill plate with the accent nub. */
+#stage #profile-badge,
+#profile-badge,
+#stage #quick-play-chip,
+#quick-play-chip,
+#stage .sl-chip,
+.sl-chip {
+  border: 4px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/chip.png");
+  border-image-slice: 8 fill;
+  border-image-width: 4px;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  image-rendering: pixelated;
+}
+/* Bars: the sliced groove houses the housing, the painted fill the
+  fuel block; the HP fill stays token-flat so the hurt flash keeps
+  reading through the hurt class. */
+#stage .hud-bar,
+.hud-bar {
+  background-color: var(--color-track);
+  background-image: url("../assets/atlas/ui/bar.track.png");
+  background-size: 240px 60px;
+  background-position: left top;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+#stage #hud-fuel,
+#hud-fuel {
+  background-color: var(--color-cyan);
+  background-image: url("../assets/atlas/ui/bar.fill.png");
+  background-size: 240px 60px;
+  background-position: left top;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+/* Sliders: the stitched groove segment at 1x with a token bed, the
+  centred knob cap riding the native thumb box. */
+#stage #volume,
+#volume,
+#stage #music-volume,
+#music-volume {
+  box-sizing: border-box;
+  min-width: 184px;
+  height: 32px;
+  appearance: none;
+  background-color: var(--color-track);
+  background-image: url("../assets/atlas/ui/slider.track.png");
+  background-size: 184px 32px;
+  background-position: left center;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+#stage #volume::-webkit-slider-thumb,
+#volume::-webkit-slider-thumb,
+#stage #music-volume::-webkit-slider-thumb,
+#music-volume::-webkit-slider-thumb {
+  appearance: none;
+  box-sizing: border-box;
+  width: 48px;
+  height: 24px;
+  background-color: transparent;
+  background-image: url("../assets/atlas/ui/slider.thumb.png");
+  background-size: 48px 24px;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 0;
+  image-rendering: pixelated;
+}
+#stage #volume::-moz-range-thumb,
+#volume::-moz-range-thumb,
+#stage #music-volume::-moz-range-thumb,
+#music-volume::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 48px;
+  height: 24px;
+  background-color: transparent;
+  background-image: url("../assets/atlas/ui/slider.thumb.png");
+  background-size: 48px 24px;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 0;
+  border-radius: 0;
+  image-rendering: pixelated;
+}
+/* Toggle and checkbox plates for settings rows (class hooks; the
+  1x art scales to whole-pixel boxes). */
+#stage .sl-toggle,
+.sl-toggle {
+  box-sizing: border-box;
+  width: 58px;
+  height: 28px;
+  background-image: url("../assets/atlas/ui/toggle.off.png");
+  background-size: 58px 28px;
+  background-position: center;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+#stage .sl-toggle.on,
+.sl-toggle.on {
+  background-image: url("../assets/atlas/ui/toggle.on.png");
+}
+#stage .sl-checkbox,
+.sl-checkbox {
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  background-image: url("../assets/atlas/ui/checkbox.png");
+  background-size: 20px 20px;
+  background-position: center;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+#stage .sl-checkbox.checked,
+.sl-checkbox.checked {
+  background-image: url("../assets/atlas/ui/checkbox.checked.png");
+}
+/* Text fields and selects: the recessed plate with an 8px slice. */
+#stage #profile-name,
+#profile-name,
+#stage #profile-palette,
+#profile-palette,
+#stage #cos-helmet,
+#cos-helmet,
+#stage #cos-visor,
+#cos-visor,
+#stage #cos-palette,
+#cos-palette {
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/field.png");
+  border-image-slice: 8 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage #profile-palette,
+#profile-palette,
+#stage #cos-helmet,
+#cos-helmet,
+#stage #cos-visor,
+#cos-visor,
+#stage #cos-palette,
+#cos-palette {
+  appearance: none;
+}
+#stage select.sl-select,
+select.sl-select {
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/field.select.png");
+  border-image-slice: 8 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+  appearance: none;
+}
+/* List rows: default, hover, and selected share one 4px frame box. */
+#stage .locker-item,
+.locker-item,
+#stage .challenge-row,
+.challenge-row,
+#stage .setup-row,
+.setup-row,
+#stage button[data-tier],
+button[data-tier],
+#stage button[data-map],
+button[data-map] {
+  border: 4px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/row.png");
+  border-image-slice: 4 fill;
+  border-image-width: 4px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage .locker-item:hover,
+.locker-item:hover,
+#stage .challenge-row:hover,
+.challenge-row:hover,
+#stage button[data-tier]:hover,
+button[data-tier]:hover,
+#stage button[data-map]:hover,
+button[data-map]:hover {
+  border: 4px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/row.hover.png");
+  border-image-slice: 4 fill;
+  border-image-width: 4px;
+  border-image-repeat: stretch;
+}
+#stage .locker-item[data-selected="true"],
+.locker-item[data-selected="true"],
+#stage button[data-tier][aria-pressed="true"],
+button[data-tier][aria-pressed="true"],
+#stage button[data-map][aria-pressed="true"],
+button[data-map][aria-pressed="true"] {
+  border: 4px solid var(--color-cyan);
+  border-image-source: url("../assets/atlas/ui/row.selected.png");
+  border-image-slice: 4 fill;
+  border-image-width: 4px;
+  border-image-repeat: stretch;
+}
+/* Standings and control tables paint per cell: collapsed table
+  internals ignore 9-slice frames, so the tables ride separate
+  borders with zero spacing and the cells carry the row art. */
+#stage #end-screen #end-standings table,
+#end-screen #end-standings table,
+#stage #howto table,
+#howto table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+#stage #end-screen #end-standings td,
+#end-screen #end-standings td,
+#stage #howto table td,
+#howto table td {
+  border: 4px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/row.png");
+  border-image-slice: 4 fill;
+  border-image-width: 4px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage #end-screen #end-standings tr.winner td,
+#end-screen #end-standings tr.winner td {
+  border: 4px solid var(--color-cyan);
+  border-image-source: url("../assets/atlas/ui/row.selected.png");
+  border-image-slice: 4 fill;
+  border-image-width: 4px;
+  border-image-repeat: stretch;
+}
+/* Scrollbars: thin overlay groove in the edge token over the track
+  token; the painted plate ships for overlay scrollbars while the
+  native thumb stays a token block so it never ghosts. */
+#stage .sl-panel::-webkit-scrollbar,
+.sl-panel::-webkit-scrollbar,
+#stage .menu-column::-webkit-scrollbar,
+.menu-column::-webkit-scrollbar {
+  width: 12px;
+}
+#stage .sl-panel::-webkit-scrollbar-track,
+.sl-panel::-webkit-scrollbar-track,
+#stage .menu-column::-webkit-scrollbar-track,
+.menu-column::-webkit-scrollbar-track {
+  background-color: var(--color-track);
+}
+#stage .sl-panel::-webkit-scrollbar-thumb,
+.sl-panel::-webkit-scrollbar-thumb,
+#stage .menu-column::-webkit-scrollbar-thumb,
+.menu-column::-webkit-scrollbar-thumb {
+  background-color: var(--color-edge);
+}
+#stage .sl-panel,
+.sl-panel {
+  scrollbar-color: var(--color-edge) var(--color-track);
+  scrollbar-width: thin;
+}
+/* Tooltip and toast plates. */
+#stage .sl-tooltip,
+.sl-tooltip {
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/tooltip.png");
+  border-image-slice: 8 8 20 8 fill;
+  border-image-width: 8px 8px 20px 8px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage #toast .toast-entry,
+#toast .toast-entry {
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/toast.png");
+  border-image-slice: 8 fill;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+/* Keycap plate for control labels. */
+#stage .sl-keycap,
+.sl-keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 28px;
+  height: 28px;
+  background-image: url("../assets/atlas/ui/keycap.png");
+  background-size: 28px 28px;
+  background-position: center;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+/* Divider rule, corner brackets, and the header rail. */
+#stage .panel-rows::after,
+.panel-rows::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 20px;
+  background-image: url("../assets/atlas/ui/divider.png");
+  background-size: 224px 20px;
+  background-position: center;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+#stage .sl-panel::before,
+.sl-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 22px;
+  background-image: url("../assets/atlas/ui/bracket.png");
+  background-size: 20px 22px;
+  background-position: left top;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+#stage .panel-head,
+.panel-head {
+  border-bottom: 4px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/header.png");
+  border-image-slice: 4 fill;
+  border-image-width: 0 0 4px 0;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+/* Panel variants on mount: hazard behind the end-screen card, the
+  inset well behind standings and the locker grid, elevated on the
+  settings and setup modals. */
+#stage #end-screen .sl-panel,
+#end-screen .sl-panel {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/panel.hazard.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+}
+#stage #end-standings,
+#end-standings,
+#stage .locker-grid,
+.locker-grid {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/panel.inset.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage #settings .sl-panel,
+#settings .sl-panel,
+#stage #setup .sl-panel,
+#setup .sl-panel {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/panel.elevated.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+}
+#stage #end-screen #end-winner,
+#end-screen #end-winner {
+  background-image: url("../assets/atlas/ui/panel.banner.png");
+  background-size: 224px 132px;
+  background-position: center;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+/* Stamped HUD chrome stays crisp at any zoom. */
+#stage .hud-module,
+.hud-module {
+  image-rendering: pixelated;
+}

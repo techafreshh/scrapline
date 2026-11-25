@@ -1,4 +1,4 @@
-// UI pixel-pack chrome tests (issue #270): `ui.*` key prefixes, pure
+// Sliced chrome tests (issues #270, #347): `ui.*` key prefixes, pure
 // selectors, snapshot shapes, the manifest file-map sync, and the
 // fake-doc binders (panel/button stamping, hover swaps, tolerance).
 // Fake elements only (no jsdom), mirroring feed.test.ts style.
@@ -9,21 +9,54 @@ import { fileURLToPath } from "node:url";
 import {
   AMMO_MODULE_KEY,
   applyHudChrome,
+  BAR_FILL_KEY,
+  BAR_TRACK_KEY,
   bindMenuChrome,
+  BRACKET_KEY,
   buildHudSnapshot,
   buildMenuSnapshot,
+  BUTTON_CTA_KEY,
+  BUTTON_DANGER_KEY,
+  BUTTON_DISABLED_KEY,
+  BUTTON_FOCUS_KEY,
+  BUTTON_ICON_KEY,
+  BUTTON_PRESSED_KEY,
+  BUTTON_SECONDARY_KEY,
+  CHECKBOX_CHECKED_KEY,
+  CHECKBOX_HOVER_KEY,
+  CHECKBOX_KEY,
+  CHIP_KEY,
   CHROME_FILES,
   chromeBackgroundFor,
   chromeFileFor,
+  DIVIDER_KEY,
+  FIELD_KEY,
+  FIELD_SELECT_KEY,
+  HEADER_KEY,
   HUD_BAR_KEY,
   HUD_FRAME_KEY,
   hudFrameKeyFor,
+  KEYCAP_KEY,
   MENU_BUTTON_HOVER_KEY,
   MENU_BUTTON_KEY,
   MENU_PANEL_KEY,
   menuButtonKeyFor,
+  PANEL_BANNER_KEY,
+  PANEL_ELEVATED_KEY,
+  PANEL_HAZARD_KEY,
+  PANEL_INSET_KEY,
   resetChromeHover,
+  ROW_HOVER_KEY,
+  ROW_KEY,
+  ROW_SELECTED_KEY,
+  SCROLLBAR_KEY,
+  SLIDER_THUMB_KEY,
+  SLIDER_TRACK_KEY,
   stampChrome,
+  TOAST_KEY,
+  TOGGLE_OFF_KEY,
+  TOGGLE_ON_KEY,
+  TOOLTIP_KEY,
   UI_PREFIX,
 } from "../src/ui/chrome";
 
@@ -143,6 +176,12 @@ describe("chrome keys", () => {
     }
   });
 
+  it("every mapped chrome key carries the `ui.` prefix", () => {
+    for (const key of Object.keys(CHROME_FILES)) {
+      expect(key.startsWith("ui.")).toBe(true);
+    }
+  });
+
   it("the HUD frame and menu panel share the panel tile", () => {
     expect(HUD_FRAME_KEY).toBe("ui.panel");
     expect(MENU_PANEL_KEY).toBe("ui.panel");
@@ -185,19 +224,77 @@ describe("buildHudSnapshot", () => {
 });
 
 describe("chrome files", () => {
-  it("maps each key to its committed tile file", () => {
-    expect(chromeFileFor(HUD_FRAME_KEY)).toBe("ui/tile_0000.png");
-    expect(chromeFileFor(MENU_BUTTON_KEY)).toBe("ui/tile_0001.png");
-    expect(chromeFileFor(MENU_BUTTON_HOVER_KEY)).toBe("ui/tile_0002.png");
-    expect(chromeFileFor(AMMO_MODULE_KEY)).toBe("ui/tile_0003.png");
-    expect(chromeFileFor(HUD_BAR_KEY)).toBe("ui/tile_0004.png");
+  it("maps each legacy key to its sliced chrome file", () => {
+    expect(chromeFileFor(HUD_FRAME_KEY)).toBe("ui/panel.png");
+    expect(chromeFileFor(MENU_BUTTON_KEY)).toBe("ui/button.png");
+    expect(chromeFileFor(MENU_BUTTON_HOVER_KEY)).toBe("ui/button.hover.png");
+    expect(chromeFileFor(AMMO_MODULE_KEY)).toBe("ui/panel.inset.png");
+    expect(chromeFileFor(HUD_BAR_KEY)).toBe("ui/bar.fill.png");
     expect(chromeFileFor("ui.nope")).toBe(null);
     expect(chromeFileFor(null)).toBe(null);
   });
 
+  it("maps every required control piece to its sliced file", () => {
+    expect(chromeFileFor(PANEL_ELEVATED_KEY)).toBe("ui/panel.elevated.png");
+    expect(chromeFileFor(PANEL_INSET_KEY)).toBe("ui/panel.inset.png");
+    expect(chromeFileFor(PANEL_HAZARD_KEY)).toBe("ui/panel.hazard.png");
+    expect(chromeFileFor(PANEL_BANNER_KEY)).toBe("ui/panel.banner.png");
+    expect(chromeFileFor(BUTTON_PRESSED_KEY)).toBe("ui/button.pressed.png");
+    expect(chromeFileFor(BUTTON_DISABLED_KEY)).toBe("ui/button.disabled.png");
+    expect(chromeFileFor(BUTTON_FOCUS_KEY)).toBe("ui/button.focus.png");
+    expect(chromeFileFor(BUTTON_DANGER_KEY)).toBe("ui/button.danger.png");
+    expect(chromeFileFor(BUTTON_CTA_KEY)).toBe("ui/button.cta.png");
+    expect(chromeFileFor(BUTTON_SECONDARY_KEY)).toBe("ui/button.secondary.png");
+    expect(chromeFileFor(BUTTON_ICON_KEY)).toBe("ui/button.icon.png");
+    expect(chromeFileFor(CHIP_KEY)).toBe("ui/chip.png");
+    expect(chromeFileFor(BAR_TRACK_KEY)).toBe("ui/bar.track.png");
+    expect(chromeFileFor(BAR_FILL_KEY)).toBe("ui/bar.fill.png");
+    expect(chromeFileFor(SLIDER_TRACK_KEY)).toBe("ui/slider.track.png");
+    expect(chromeFileFor(SLIDER_THUMB_KEY)).toBe("ui/slider.thumb.png");
+    expect(chromeFileFor(TOGGLE_OFF_KEY)).toBe("ui/toggle.off.png");
+    expect(chromeFileFor(TOGGLE_ON_KEY)).toBe("ui/toggle.on.png");
+    expect(chromeFileFor(CHECKBOX_KEY)).toBe("ui/checkbox.png");
+    expect(chromeFileFor(CHECKBOX_HOVER_KEY)).toBe("ui/checkbox.hover.png");
+    expect(chromeFileFor(CHECKBOX_CHECKED_KEY)).toBe("ui/checkbox.checked.png");
+    expect(chromeFileFor(FIELD_KEY)).toBe("ui/field.png");
+    expect(chromeFileFor(FIELD_SELECT_KEY)).toBe("ui/field.select.png");
+    expect(chromeFileFor(SCROLLBAR_KEY)).toBe("ui/scrollbar.png");
+    expect(chromeFileFor(ROW_KEY)).toBe("ui/row.png");
+    expect(chromeFileFor(ROW_HOVER_KEY)).toBe("ui/row.hover.png");
+    expect(chromeFileFor(ROW_SELECTED_KEY)).toBe("ui/row.selected.png");
+    expect(chromeFileFor(TOOLTIP_KEY)).toBe("ui/tooltip.png");
+    expect(chromeFileFor(TOAST_KEY)).toBe("ui/toast.png");
+    expect(chromeFileFor(KEYCAP_KEY)).toBe("ui/keycap.png");
+    expect(chromeFileFor(DIVIDER_KEY)).toBe("ui/divider.png");
+    expect(chromeFileFor(BRACKET_KEY)).toBe("ui/bracket.png");
+    expect(chromeFileFor(HEADER_KEY)).toBe("ui/header.png");
+  });
+
+  it("no mapped file falls back to the stretched 16x16 tiles", () => {
+    for (const file of Object.values(CHROME_FILES)) {
+      expect(file.startsWith("ui/tile_")).toBe(false);
+    }
+  });
+
+  it("idle and hover art share one box so states never shift layout", () => {
+    const manifest = JSON.parse(
+      fs.readFileSync(MANIFEST_PATH, "utf8"),
+    ) as Record<string, { w?: unknown; h?: unknown }>;
+    for (const [idle, hover] of [
+      [MENU_BUTTON_KEY, MENU_BUTTON_HOVER_KEY],
+      [ROW_KEY, ROW_HOVER_KEY],
+      [ROW_KEY, ROW_SELECTED_KEY],
+      [CHECKBOX_KEY, CHECKBOX_HOVER_KEY],
+      [TOGGLE_OFF_KEY, TOGGLE_ON_KEY],
+    ] as const) {
+      expect(manifest[idle]?.w).toBe(manifest[hover]?.w);
+      expect(manifest[idle]?.h).toBe(manifest[hover]?.h);
+    }
+  });
+
   it("builds client-root-relative atlas URLs for the staged files", () => {
     expect(chromeBackgroundFor(HUD_FRAME_KEY)).toBe(
-      'url("./assets/atlas/ui/tile_0000.png")',
+      'url("./assets/atlas/ui/panel.png")',
     );
     expect(chromeBackgroundFor("ui.nope")).toBe(null);
   });
@@ -220,12 +317,12 @@ describe("chrome files", () => {
 });
 
 describe("stampChrome", () => {
-  it("stamps data-frame plus the pixelated tile background", () => {
+  it("stamps data-frame plus the pixelated sliced background", () => {
     const el = makeEl("div");
     stampChrome(el, HUD_FRAME_KEY);
     expect(el.getAttribute("data-frame")).toBe("ui.panel");
     expect(el.style["backgroundImage"]).toBe(
-      'url("./assets/atlas/ui/tile_0000.png")',
+      'url("./assets/atlas/ui/panel.png")',
     );
     expect(el.style["imageRendering"]).toBe("pixelated");
   });
@@ -240,17 +337,17 @@ describe("stampChrome", () => {
 });
 
 describe("applyHudChrome", () => {
-  it("stamps the HUD frame plus the ammo module tiles", () => {
+  it("stamps the HUD frame plus the ammo module plates", () => {
     const hud = makeEl("div");
     const ammoModule = makeEl("div");
     applyHudChrome({ hud, ammoModule });
     expect(hud.getAttribute("data-frame")).toBe("ui.panel");
     expect(hud.style["backgroundImage"]).toBe(
-      'url("./assets/atlas/ui/tile_0000.png")',
+      'url("./assets/atlas/ui/panel.png")',
     );
     expect(ammoModule.getAttribute("data-frame")).toBe("ui.slot");
     expect(ammoModule.style["backgroundImage"]).toBe(
-      'url("./assets/atlas/ui/tile_0003.png")',
+      'url("./assets/atlas/ui/panel.inset.png")',
     );
   });
 
@@ -278,7 +375,7 @@ describe("bindMenuChrome", () => {
       const card = root?.querySelector(".sl-panel");
       expect(card?.getAttribute("data-frame")).toBe("ui.panel");
       expect(card?.style["backgroundImage"]).toBe(
-        'url("./assets/atlas/ui/tile_0000.png")',
+        'url("./assets/atlas/ui/panel.png")',
       );
     }
     expect(doc.byId.get("quick-play")?.getAttribute("data-frame")).toBe(

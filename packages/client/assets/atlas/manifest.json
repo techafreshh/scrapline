@@ -653,36 +653,6 @@
     "w": 64,
     "h": 64
   },
-  "ui.panel": {
-    "file": "ui/tile_0000.png",
-    "atlas": "ui.json",
-    "w": 16,
-    "h": 16
-  },
-  "ui.button": {
-    "file": "ui/tile_0001.png",
-    "atlas": "ui.json",
-    "w": 16,
-    "h": 16
-  },
-  "ui.button.hover": {
-    "file": "ui/tile_0002.png",
-    "atlas": "ui.json",
-    "w": 16,
-    "h": 16
-  },
-  "ui.slot": {
-    "file": "ui/tile_0003.png",
-    "atlas": "ui.json",
-    "w": 16,
-    "h": 16
-  },
-  "ui.bar": {
-    "file": "ui/tile_0004.png",
-    "atlas": "ui.json",
-    "w": 16,
-    "h": 16
-  },
   "ui.icon.0": {
     "file": "ui/tile_0005.png",
     "atlas": "ui.json",
@@ -742,5 +712,305 @@
   "weapon.rocket.muzzle": {
     "x": 21,
     "y": 0
+  },
+  "ui.divider": {
+    "file": "ui/divider.png",
+    "atlas": "ui.json",
+    "w": 224,
+    "h": 20
+  },
+  "ui.bracket": {
+    "file": "ui/bracket.png",
+    "atlas": "ui.json",
+    "w": 40,
+    "h": 44
+  },
+  "ui.header": {
+    "file": "ui/header.png",
+    "atlas": "ui.json",
+    "w": 164,
+    "h": 44
+  },
+  "ui.panel": {
+    "file": "ui/panel.png",
+    "atlas": "ui.json",
+    "w": 196,
+    "h": 192
+  },
+  "ui.panel.elevated": {
+    "file": "ui/panel.elevated.png",
+    "atlas": "ui.json",
+    "w": 108,
+    "h": 108
+  },
+  "ui.panel.inset": {
+    "file": "ui/panel.inset.png",
+    "atlas": "ui.json",
+    "w": 108,
+    "h": 108
+  },
+  "ui.panel.hazard": {
+    "file": "ui/panel.hazard.png",
+    "atlas": "ui.json",
+    "w": 108,
+    "h": 108
+  },
+  "ui.panel.banner": {
+    "file": "ui/panel.banner.png",
+    "atlas": "ui.json",
+    "w": 224,
+    "h": 132
+  },
+  "ui.button": {
+    "file": "ui/button.png",
+    "atlas": "ui.json",
+    "w": 116,
+    "h": 36
+  },
+  "ui.button.hover": {
+    "file": "ui/button.hover.png",
+    "atlas": "ui.json",
+    "w": 116,
+    "h": 36
+  },
+  "ui.button.pressed": {
+    "file": "ui/button.pressed.png",
+    "atlas": "ui.json",
+    "w": 116,
+    "h": 36
+  },
+  "ui.button.focus": {
+    "file": "ui/button.focus.png",
+    "atlas": "ui.json",
+    "w": 116,
+    "h": 36
+  },
+  "ui.button.disabled": {
+    "file": "ui/button.disabled.png",
+    "atlas": "ui.json",
+    "w": 116,
+    "h": 36
+  },
+  "ui.button.danger": {
+    "file": "ui/button.danger.png",
+    "atlas": "ui.json",
+    "w": 116,
+    "h": 36
+  },
+  "ui.button.cta": {
+    "file": "ui/button.cta.png",
+    "atlas": "ui.json",
+    "w": 228,
+    "h": 100
+  },
+  "ui.button.secondary": {
+    "file": "ui/button.secondary.png",
+    "atlas": "ui.json",
+    "w": 228,
+    "h": 60
+  },
+  "ui.button.icon": {
+    "file": "ui/button.icon.png",
+    "atlas": "ui.json",
+    "w": 228,
+    "h": 228
+  },
+  "ui.chip": {
+    "file": "ui/chip.png",
+    "atlas": "ui.json",
+    "w": 228,
+    "h": 132
+  },
+  "ui.bar.track": {
+    "file": "ui/bar.track.png",
+    "atlas": "ui.json",
+    "w": 240,
+    "h": 60
+  },
+  "ui.bar.fill": {
+    "file": "ui/bar.fill.png",
+    "atlas": "ui.json",
+    "w": 240,
+    "h": 60
+  },
+  "ui.slider.track": {
+    "file": "ui/slider.track.png",
+    "atlas": "ui.json",
+    "w": 184,
+    "h": 32
+  },
+  "ui.slider.thumb": {
+    "file": "ui/slider.thumb.png",
+    "atlas": "ui.json",
+    "w": 48,
+    "h": 24
+  },
+  "ui.toggle.off": {
+    "file": "ui/toggle.off.png",
+    "atlas": "ui.json",
+    "w": 116,
+    "h": 56
+  },
+  "ui.toggle.on": {
+    "file": "ui/toggle.on.png",
+    "atlas": "ui.json",
+    "w": 116,
+    "h": 56
+  },
+  "ui.checkbox": {
+    "file": "ui/checkbox.png",
+    "atlas": "ui.json",
+    "w": 80,
+    "h": 80
+  },
+  "ui.checkbox.hover": {
+    "file": "ui/checkbox.hover.png",
+    "atlas": "ui.json",
+    "w": 80,
+    "h": 80
+  },
+  "ui.checkbox.checked": {
+    "file": "ui/checkbox.checked.png",
+    "atlas": "ui.json",
+    "w": 80,
+    "h": 80
+  },
+  "ui.field": {
+    "file": "ui/field.png",
+    "atlas": "ui.json",
+    "w": 248,
+    "h": 140
+  },
+  "ui.field.select": {
+    "file": "ui/field.select.png",
+    "atlas": "ui.json",
+    "w": 248,
+    "h": 140
+  },
+  "ui.scrollbar": {
+    "file": "ui/scrollbar.png",
+    "atlas": "ui.json",
+    "w": 28,
+    "h": 232
+  },
+  "ui.row": {
+    "file": "ui/row.png",
+    "atlas": "ui.json",
+    "w": 244,
+    "h": 36
+  },
+  "ui.row.hover": {
+    "file": "ui/row.hover.png",
+    "atlas": "ui.json",
+    "w": 244,
+    "h": 36
+  },
+  "ui.row.selected": {
+    "file": "ui/row.selected.png",
+    "atlas": "ui.json",
+    "w": 244,
+    "h": 36
+  },
+  "ui.keycap": {
+    "file": "ui/keycap.png",
+    "atlas": "ui.json",
+    "w": 28,
+    "h": 28
+  },
+  "ui.tooltip": {
+    "file": "ui/tooltip.png",
+    "atlas": "ui.json",
+    "w": 232,
+    "h": 172
+  },
+  "ui.toast": {
+    "file": "ui/toast.png",
+    "atlas": "ui.json",
+    "w": 252,
+    "h": 32
+  },
+  "ui.sh-01a.00": {
+    "file": "ui/sh-01a.00.png",
+    "atlas": "ui.json",
+    "w": 76,
+    "h": 80
+  },
+  "ui.sh-01a.01": {
+    "file": "ui/sh-01a.01.png",
+    "atlas": "ui.json",
+    "w": 84,
+    "h": 80
+  },
+  "ui.sh-01a.02": {
+    "file": "ui/sh-01a.02.png",
+    "atlas": "ui.json",
+    "w": 76,
+    "h": 80
+  },
+  "ui.sh-01a.03": {
+    "file": "ui/sh-01a.03.png",
+    "atlas": "ui.json",
+    "w": 80,
+    "h": 28
+  },
+  "ui.sh-01a.04": {
+    "file": "ui/sh-01a.04.png",
+    "atlas": "ui.json",
+    "w": 84,
+    "h": 28
+  },
+  "ui.sh-01a.05": {
+    "file": "ui/sh-01a.05.png",
+    "atlas": "ui.json",
+    "w": 76,
+    "h": 28
+  },
+  "ui.sh-01a.06": {
+    "file": "ui/sh-01a.06.png",
+    "atlas": "ui.json",
+    "w": 76,
+    "h": 32
+  },
+  "ui.sh-01a.07": {
+    "file": "ui/sh-01a.07.png",
+    "atlas": "ui.json",
+    "w": 84,
+    "h": 32
+  },
+  "ui.sh-01a.08": {
+    "file": "ui/sh-01a.08.png",
+    "atlas": "ui.json",
+    "w": 76,
+    "h": 32
+  },
+  "ui.sh-01a.09": {
+    "file": "ui/sh-01a.09.png",
+    "atlas": "ui.json",
+    "w": 76,
+    "h": 80
+  },
+  "ui.sh-01a.10": {
+    "file": "ui/sh-01a.10.png",
+    "atlas": "ui.json",
+    "w": 88,
+    "h": 80
+  },
+  "ui.sh-01a.11": {
+    "file": "ui/sh-01a.11.png",
+    "atlas": "ui.json",
+    "w": 76,
+    "h": 80
+  },
+  "ui.slot": {
+    "file": "ui/panel.inset.png",
+    "atlas": "ui.json",
+    "w": 108,
+    "h": 108
+  },
+  "ui.bar": {
+    "file": "ui/bar.fill.png",
+    "atlas": "ui.json",
+    "w": 240,
+    "h": 60
   }
 }

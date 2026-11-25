@@ -449,13 +449,10 @@ const ATLAS_ALLOWLIST = [
   { name: "pad.grenades", from: `${SIMPLIFIED_ITEMS}/platformPack_item003.png`, to: "pads/pad-grenades.png" },
   { name: "pad.bounce", from: `${SIMPLIFIED_TILES}/platformPack_tile040.png`, to: "pads/pad-bounce.png" },
   { name: "pad.bounce.squash", from: `${SIMPLIFIED_TILES}/platformPack_tile041.png`, to: "pads/pad-bounce-squash.png" },
-  // UI: nine small-tile widgets plus both packed tilesheets, so the
-  // Tilesheets dir ships a frame too instead of raw PNGs only.
-  { name: "ui.panel", from: `${UI_SMALL}/tile_0000.png` },
-  { name: "ui.button", from: `${UI_SMALL}/tile_0001.png` },
-  { name: "ui.button.hover", from: `${UI_SMALL}/tile_0002.png` },
-  { name: "ui.slot", from: `${UI_SMALL}/tile_0003.png` },
-  { name: "ui.bar", from: `${UI_SMALL}/tile_0004.png` },
+  // UI: the chrome kit (panel, buttons, bars, inputs, rows, ornaments)
+  // ships sliced from SH-01a/CH art via the slice-chrome phase below,
+  // so the vendor allowlist keeps only the unreplaced small tiles plus
+  // both packed tilesheets. The five stretched 16x16 tiles are gone.
   { name: "ui.icon.0", from: `${UI_SMALL}/tile_0005.png` },
   { name: "ui.icon.1", from: `${UI_SMALL}/tile_0006.png` },
   { name: "ui.icon.2", from: `${UI_SMALL}/tile_0007.png` },
@@ -688,6 +685,23 @@ function main() {
   }
   fs.writeFileSync(ATLAS_MANIFEST, JSON.stringify(manifest, null, 2) + "\n");
 
+  // Chrome kit phase (issue #347): slice the curated SH-01a kit plus
+  // the CH singles into ui.* art, overwrite the five stretched 16x16
+  // tiles with the sliced files, and merge the full control library
+  // (panels, buttons, bars, inputs, rows, ornaments) into the manifest
+  // and ui.json. Runs after the vendor phase so the replacements win;
+  // the stale tiles are dropped here, before the weight gate and the
+  // dist staging below, so neither the tree nor the bundle falls back.
+  // Deterministic (palette order plus fixed deflate), so committed
+  // bytes equal rebuilt bytes; failures name slice-chrome, never this.
+  try {
+    const { sliceChrome } = require("./slice-chrome.js");
+    const chromeWritten = sliceChrome(ATLAS_SRC);
+    console.log(`build-atlas: chrome kit -> ${chromeWritten.length} ui frames`);
+  } catch (err) {
+    fail(err && err.message ? err.message : String(err));
+  }
+
   // Renderer-reference validation: every quoted
   // soldier./adventurer./zombie./female./player./tile./fx. token in
   // runtime sources must resolve to a manifest key, so later sprite
@@ -701,7 +715,9 @@ function main() {
 
   // 6 MB weight gate on the committed atlas dir, then stage the atlas
   // into dist/assets so the existing /assets/* route serves it with no
-  // server change. Padding the dir over budget fails the build.
+  // server change. The staged dir is cleared first so replaced files
+  // (issue #347: the five stretched tiles) cannot linger as orphans
+  // next to the sliced kit. Padding the dir over budget fails the build.
   const atlasBytes = sizeBytes(ATLAS_SRC);
   console.log(
     `build-atlas: atlas ${ATLAS_ALLOWLIST.length} frames (${refs.length} renderer refs) -> ${ATLAS_SRC} (${(atlasBytes / 1048576).toFixed(2)} MB)`,
@@ -709,6 +725,7 @@ function main() {
   if (atlasBytes > BUDGET_BYTES) {
     fail(`atlas budget exceeded: ${atlasBytes} bytes > ${BUDGET_BYTES} bytes.`);
   }
+  fs.rmSync(ATLAS_DEST, { recursive: true, force: true });
   copyTree(ATLAS_SRC, ATLAS_DEST);
   const stagedBytes = sizeBytes(DEST);
   console.log(

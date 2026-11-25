@@ -1,10 +1,14 @@
-// UI pixel-pack chrome (issue #270): shared `ui.*` frame keys, asset
+// UI sliced chrome (issues #270, #347): shared `ui.*` frame keys, asset
 // files, pure selectors/snapshots, and DOM binders for the HUD frame and
-// menu chrome. Pure helpers stay DOM-free and unit-testable under node
-// (the feed.ts lookup/model idiom); the binders degrade to no-ops on
-// fake docs without builders and never throw (the pushFeed binder
-// idiom). Bitmap HUD digits stay owned by ui/fonts.ts — this module
-// only stamps pixel-panel backgrounds and `data-frame` probe keys.
+// menu chrome. Act A2 replaced the five stretched 16x16 tiles with
+// properly sliced SH-01a/CH art (tools/slice-chrome.js); the five legacy
+// key names stay so snapshots and binders keep working, only the files
+// (and the added control keys below) changed. Pure helpers stay DOM-free
+// and unit-testable under node (the feed.ts lookup/model idiom); the
+// binders degrade to no-ops on fake docs without builders and never
+// throw (the pushFeed binder idiom). Bitmap HUD digits stay owned by
+// ui/fonts.ts — this module only stamps pixel-panel backgrounds and
+// `data-frame` probe keys.
 
 /**
  * Manifest key prefix for the ui-pack-pixel-adventure family. Built
@@ -14,30 +18,131 @@
  */
 export const UI_PREFIX = "ui" + ".";
 
-/** HUD outer frame key (the 16px pixel panel tile). */
+/** HUD outer frame key (the sliced CH-01 panel plate). */
 export const HUD_FRAME_KEY = UI_PREFIX + "panel";
-/** HUD fuel-bar fill key (the 16px bar tile). */
+/** HUD fuel-bar fill key (the sliced CH-08 fill block). */
 export const HUD_BAR_KEY = UI_PREFIX + "bar";
-/** Bottom-right ammo module key (the 16px slot tile). */
+/** Bottom-right ammo module key (the sliced inset well). */
 export const AMMO_MODULE_KEY = UI_PREFIX + "slot";
-/** Menu overlay/panel key (same pixel panel as the HUD frame). */
+/** Menu overlay/panel key (same sliced panel as the HUD frame). */
 export const MENU_PANEL_KEY = UI_PREFIX + "panel";
-/** Menu/setup button resting key. */
+/** Menu/setup button resting key (SH-04 idle cell). */
 export const MENU_BUTTON_KEY = UI_PREFIX + "button";
-/** Menu/setup button hover/pressed key. */
+/** Menu/setup button hover key (SH-04 hover cell, same silhouette). */
 export const MENU_BUTTON_HOVER_KEY = UI_PREFIX + "button" + "." + "hover";
+/** Elevated panel variant key (CH-02 cell, modals over the menu). */
+export const PANEL_ELEVATED_KEY = UI_PREFIX + "panel" + "." + "elevated";
+/** Inset well key (CH-02 cell, standings/locker recess). */
+export const PANEL_INSET_KEY = UI_PREFIX + "panel" + "." + "inset";
+/** Hazard panel key (CH-02 cell, end-screen/death header bands). */
+export const PANEL_HAZARD_KEY = UI_PREFIX + "panel" + "." + "hazard";
+/** Wide banner panel key (CH-03 large plate, hero rows). */
+export const PANEL_BANNER_KEY = UI_PREFIX + "panel" + "." + "banner";
+/** Button pressed key (SH-04 cell, inverted bevel, same box). */
+export const BUTTON_PRESSED_KEY = UI_PREFIX + "button" + "." + "pressed";
+/** Button disabled key (SH-04 cell, desaturated, same box). */
+export const BUTTON_DISABLED_KEY = UI_PREFIX + "button" + "." + "disabled";
+/** Button focus key (SH-04 cell, pale rim, same box). */
+export const BUTTON_FOCUS_KEY = UI_PREFIX + "button" + "." + "focus";
+/** Button danger key (SH-04 cell, destructive actions). */
+export const BUTTON_DANGER_KEY = UI_PREFIX + "button" + "." + "danger";
+/** Primary CTA key (CH-04 dithered cyan-glass plate). */
+export const BUTTON_CTA_KEY = UI_PREFIX + "button" + "." + "cta";
+/** Secondary button key (CH-06 recessed row plate). */
+export const BUTTON_SECONDARY_KEY = UI_PREFIX + "button" + "." + "secondary";
+/** Icon button frame key (CH-05 square plate, glyphs separate). */
+export const BUTTON_ICON_KEY = UI_PREFIX + "button" + "." + "icon";
+/** Chip/badge key (CH-07 pill, accent nub tints in CSS). */
+export const CHIP_KEY = UI_PREFIX + "chip";
+/** Bar track key (CH-08 upper half, recessed groove). */
+export const BAR_TRACK_KEY = UI_PREFIX + "bar" + "." + "track";
+/** Bar fill key (CH-08 lower half, flat-ended block). */
+export const BAR_FILL_KEY = UI_PREFIX + "bar" + "." + "fill";
+/** Slider groove key (CH-09 assembled plate). */
+export const SLIDER_TRACK_KEY = UI_PREFIX + "slider" + "." + "track";
+/** Slider thumb key (CH-09 centred knob crop, same plate). */
+export const SLIDER_THUMB_KEY = UI_PREFIX + "slider" + "." + "thumb";
+/** Toggle off key (CH-10 left cell). */
+export const TOGGLE_OFF_KEY = UI_PREFIX + "toggle" + "." + "off";
+/** Toggle on key (CH-10 right cell, lit knob). */
+export const TOGGLE_ON_KEY = UI_PREFIX + "toggle" + "." + "on";
+/** Checkbox empty key (CH-11 left cell). */
+export const CHECKBOX_KEY = UI_PREFIX + "checkbox";
+/** Checkbox hover key (CH-11 middle cell, cyan frame). */
+export const CHECKBOX_HOVER_KEY = UI_PREFIX + "checkbox" + "." + "hover";
+/** Checkbox checked key (CH-11 right cell, chunky tick). */
+export const CHECKBOX_CHECKED_KEY = UI_PREFIX + "checkbox" + "." + "checked";
+/** Text field key (CH-12 recessed plate). */
+export const FIELD_KEY = UI_PREFIX + "field";
+/** Select key (CH-12 plate, chevron cavity drawn in CSS). */
+export const FIELD_SELECT_KEY = UI_PREFIX + "field" + "." + "select";
+/** Scrollbar key (CH-13 recessed track with thumb). */
+export const SCROLLBAR_KEY = UI_PREFIX + "scrollbar";
+/** List row default key (CH-14 upper band). */
+export const ROW_KEY = UI_PREFIX + "row";
+/** List row hover key (CH-14 middle band, same height). */
+export const ROW_HOVER_KEY = UI_PREFIX + "row" + "." + "hover";
+/** List row selected key (CH-14 lower band, cyan frame, same height). */
+export const ROW_SELECTED_KEY = UI_PREFIX + "row" + "." + "selected";
+/** Tooltip bubble key (CH-17 plate with tail). */
+export const TOOLTIP_KEY = UI_PREFIX + "tooltip";
+/** Toast strip key (CH-18 plate with status block). */
+export const TOAST_KEY = UI_PREFIX + "toast";
+/** Keycap key (CH-15 cap, label set in HTML). */
+export const KEYCAP_KEY = UI_PREFIX + "keycap";
+/** Divider rule key (CH-16 upper rule with centre diamond). */
+export const DIVIDER_KEY = UI_PREFIX + "divider";
+/** Corner bracket key (CH-16 lower-left arms). */
+export const BRACKET_KEY = UI_PREFIX + "bracket";
+/** Header strip key (CH-16 lower-right rail band). */
+export const HEADER_KEY = UI_PREFIX + "header";
 
 /**
- * Committed tile file per chrome key, relative to the atlas dir
+ * Committed sliced-chrome file per key, relative to the atlas dir
  * (mirrors the `file` fields of the `ui.*` entries in
  * assets/atlas/manifest.json; the chrome sync test pins them equal).
+ * The five legacy keys keep their names and only change files; every
+ * other key ships the required control piece from the same kit.
  */
 export const CHROME_FILES: Record<string, string> = {
-  [HUD_FRAME_KEY]: "ui/tile_0000.png",
-  [MENU_BUTTON_KEY]: "ui/tile_0001.png",
-  [MENU_BUTTON_HOVER_KEY]: "ui/tile_0002.png",
-  [AMMO_MODULE_KEY]: "ui/tile_0003.png",
-  [HUD_BAR_KEY]: "ui/tile_0004.png",
+  [HUD_FRAME_KEY]: "ui/panel.png",
+  [MENU_BUTTON_KEY]: "ui/button.png",
+  [MENU_BUTTON_HOVER_KEY]: "ui/button.hover.png",
+  [AMMO_MODULE_KEY]: "ui/panel.inset.png",
+  [HUD_BAR_KEY]: "ui/bar.fill.png",
+  [PANEL_ELEVATED_KEY]: "ui/panel.elevated.png",
+  [PANEL_INSET_KEY]: "ui/panel.inset.png",
+  [PANEL_HAZARD_KEY]: "ui/panel.hazard.png",
+  [PANEL_BANNER_KEY]: "ui/panel.banner.png",
+  [BUTTON_PRESSED_KEY]: "ui/button.pressed.png",
+  [BUTTON_DISABLED_KEY]: "ui/button.disabled.png",
+  [BUTTON_FOCUS_KEY]: "ui/button.focus.png",
+  [BUTTON_DANGER_KEY]: "ui/button.danger.png",
+  [BUTTON_CTA_KEY]: "ui/button.cta.png",
+  [BUTTON_SECONDARY_KEY]: "ui/button.secondary.png",
+  [BUTTON_ICON_KEY]: "ui/button.icon.png",
+  [CHIP_KEY]: "ui/chip.png",
+  [BAR_TRACK_KEY]: "ui/bar.track.png",
+  [BAR_FILL_KEY]: "ui/bar.fill.png",
+  [SLIDER_TRACK_KEY]: "ui/slider.track.png",
+  [SLIDER_THUMB_KEY]: "ui/slider.thumb.png",
+  [TOGGLE_OFF_KEY]: "ui/toggle.off.png",
+  [TOGGLE_ON_KEY]: "ui/toggle.on.png",
+  [CHECKBOX_KEY]: "ui/checkbox.png",
+  [CHECKBOX_HOVER_KEY]: "ui/checkbox.hover.png",
+  [CHECKBOX_CHECKED_KEY]: "ui/checkbox.checked.png",
+  [FIELD_KEY]: "ui/field.png",
+  [FIELD_SELECT_KEY]: "ui/field.select.png",
+  [SCROLLBAR_KEY]: "ui/scrollbar.png",
+  [ROW_KEY]: "ui/row.png",
+  [ROW_HOVER_KEY]: "ui/row.hover.png",
+  [ROW_SELECTED_KEY]: "ui/row.selected.png",
+  [TOOLTIP_KEY]: "ui/tooltip.png",
+  [TOAST_KEY]: "ui/toast.png",
+  [KEYCAP_KEY]: "ui/keycap.png",
+  [DIVIDER_KEY]: "ui/divider.png",
+  [BRACKET_KEY]: "ui/bracket.png",
+  [HEADER_KEY]: "ui/header.png",
 };
 
 /** Tile file for a chrome key (null for unknown keys). Pure. */
@@ -147,8 +252,8 @@ function readFrameAttr(el: {
 }
 
 /**
- * Stamp one element with a chrome key: `data-frame` plus the pixel
- * tile background (`image-rendering: pixelated` so the 16px tiles stay
+ * Stamp one element with a chrome key: `data-frame` plus the sliced
+ * art background (`image-rendering: pixelated` so the plates stay
  * crisp at any camera/browser zoom). Change-guarded so the 20 Hz HUD
  * mirror stays cheap; null-safe and never throws.
  */
@@ -201,7 +306,7 @@ export interface HudChromeHandles {
 }
 
 /**
- * Stamp the HUD frame plus the ammo module with their pixel tiles.
+ * Stamp the HUD frame plus the ammo module with their sliced plates.
  * Change-guarded per element so the every-frame mirror stays cheap;
  * null-safe and never throws.
  */
@@ -412,8 +517,8 @@ export function bindMenuChrome(doc: unknown): void {
   if (lookup !== null) {
     for (const id of MENU_PANEL_IDS) {
       try {
-        // Full-screen overlay roots never carry the tile themselves:
-        // the 16px panel stamps the constrained inner `.sl-panel`
+        // Full-screen overlay roots never carry the art themselves:
+        // the sliced panel stamps the constrained inner `.sl-panel`
         // card, and roots without one stay unstamped (issue #313).
         const root = lookup(id);
         const inner = panelChild(root);

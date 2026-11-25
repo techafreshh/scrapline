@@ -1,8 +1,13 @@
-/* Button primitive (issue #312): default/hover/pressed/disabled states plus
-  a visible keyboard focus ring and a consistent hit area for every overlay
-  button. Native <button disabled> semantics own the click suppression; the
-  :disabled rule only supplies the visual dim. Consumes token variables
-  only — no raw colors. */
+/* Button primitive (issues #312, #347): default/hover/pressed/disabled
+  states plus a visible keyboard focus ring and a consistent hit area
+  for every overlay button. Act A2 swaps the flat token fill for the
+  sliced SH-01a/CH kit: every state carries the same-silhouette art from
+  one strip (SH-04 cells), so states change lighting and bevel only and
+  the box never shifts between idle and hover. The face tint still comes
+  from token variables; the frame comes from 9-slice art with an 8px
+  slice (a multiple of 4). Native <button disabled> semantics own the
+  click suppression; the :disabled rule only supplies the visual dim.
+  Consumes token variables plus atlas art only. */
 .sl-btn {
   display: inline-flex;
   align-items: center;
@@ -15,18 +20,33 @@
   letter-spacing: 0.4px;
   background: var(--color-bg);
   color: var(--color-cyan);
-  border: 1px solid var(--color-cyan);
-  border-radius: 6px;
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.png");
+  border-image-slice: 8;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  image-rendering: pixelated;
   cursor: pointer;
 }
 
 .sl-btn:hover {
   background: var(--color-elevated);
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.hover.png");
+  border-image-slice: 8;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
   box-shadow: var(--shadow-lift);
 }
 
 .sl-btn:active {
   background: var(--color-track);
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.pressed.png");
+  border-image-slice: 8;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45);
 }
 
@@ -34,11 +54,22 @@
   outline: 2px solid var(--color-cyan);
   outline-offset: 2px;
   background: var(--color-chip);
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.focus.png");
+  border-image-slice: 8;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
   box-shadow: var(--shadow-glow);
 }
 
 .sl-btn:disabled,
 .sl-btn[aria-disabled="true"] {
+  background: var(--color-track);
+  border: 8px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/button.disabled.png");
+  border-image-slice: 8;
+  border-image-width: 8px;
+  border-image-repeat: stretch;
   opacity: 0.45;
   cursor: not-allowed;
 }

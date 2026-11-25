@@ -5,41 +5,6 @@
     "family": "ui"
   },
   "frames": {
-    "ui.panel": {
-      "file": "ui/tile_0000.png",
-      "x": 0,
-      "y": 0,
-      "w": 16,
-      "h": 16
-    },
-    "ui.button": {
-      "file": "ui/tile_0001.png",
-      "x": 0,
-      "y": 0,
-      "w": 16,
-      "h": 16
-    },
-    "ui.button.hover": {
-      "file": "ui/tile_0002.png",
-      "x": 0,
-      "y": 0,
-      "w": 16,
-      "h": 16
-    },
-    "ui.slot": {
-      "file": "ui/tile_0003.png",
-      "x": 0,
-      "y": 0,
-      "w": 16,
-      "h": 16
-    },
-    "ui.bar": {
-      "file": "ui/tile_0004.png",
-      "x": 0,
-      "y": 0,
-      "w": 16,
-      "h": 16
-    },
     "ui.icon.0": {
       "file": "ui/tile_0005.png",
       "x": 0,
@@ -81,6 +46,356 @@
       "y": 0,
       "w": 428,
       "h": 230
+    },
+    "ui.divider": {
+      "file": "ui/divider.png",
+      "x": 0,
+      "y": 0,
+      "w": 224,
+      "h": 20
+    },
+    "ui.bracket": {
+      "file": "ui/bracket.png",
+      "x": 0,
+      "y": 0,
+      "w": 40,
+      "h": 44
+    },
+    "ui.header": {
+      "file": "ui/header.png",
+      "x": 0,
+      "y": 0,
+      "w": 164,
+      "h": 44
+    },
+    "ui.panel": {
+      "file": "ui/panel.png",
+      "x": 0,
+      "y": 0,
+      "w": 196,
+      "h": 192
+    },
+    "ui.panel.elevated": {
+      "file": "ui/panel.elevated.png",
+      "x": 0,
+      "y": 0,
+      "w": 108,
+      "h": 108
+    },
+    "ui.panel.inset": {
+      "file": "ui/panel.inset.png",
+      "x": 0,
+      "y": 0,
+      "w": 108,
+      "h": 108
+    },
+    "ui.panel.hazard": {
+      "file": "ui/panel.hazard.png",
+      "x": 0,
+      "y": 0,
+      "w": 108,
+      "h": 108
+    },
+    "ui.panel.banner": {
+      "file": "ui/panel.banner.png",
+      "x": 0,
+      "y": 0,
+      "w": 224,
+      "h": 132
+    },
+    "ui.button": {
+      "file": "ui/button.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 36
+    },
+    "ui.button.hover": {
+      "file": "ui/button.hover.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 36
+    },
+    "ui.button.pressed": {
+      "file": "ui/button.pressed.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 36
+    },
+    "ui.button.focus": {
+      "file": "ui/button.focus.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 36
+    },
+    "ui.button.disabled": {
+      "file": "ui/button.disabled.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 36
+    },
+    "ui.button.danger": {
+      "file": "ui/button.danger.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 36
+    },
+    "ui.button.cta": {
+      "file": "ui/button.cta.png",
+      "x": 0,
+      "y": 0,
+      "w": 228,
+      "h": 100
+    },
+    "ui.button.secondary": {
+      "file": "ui/button.secondary.png",
+      "x": 0,
+      "y": 0,
+      "w": 228,
+      "h": 60
+    },
+    "ui.button.icon": {
+      "file": "ui/button.icon.png",
+      "x": 0,
+      "y": 0,
+      "w": 228,
+      "h": 228
+    },
+    "ui.chip": {
+      "file": "ui/chip.png",
+      "x": 0,
+      "y": 0,
+      "w": 228,
+      "h": 132
+    },
+    "ui.bar.track": {
+      "file": "ui/bar.track.png",
+      "x": 0,
+      "y": 0,
+      "w": 240,
+      "h": 60
+    },
+    "ui.bar.fill": {
+      "file": "ui/bar.fill.png",
+      "x": 0,
+      "y": 0,
+      "w": 240,
+      "h": 60
+    },
+    "ui.slider.track": {
+      "file": "ui/slider.track.png",
+      "x": 0,
+      "y": 0,
+      "w": 184,
+      "h": 32
+    },
+    "ui.slider.thumb": {
+      "file": "ui/slider.thumb.png",
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 24
+    },
+    "ui.toggle.off": {
+      "file": "ui/toggle.off.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 56
+    },
+    "ui.toggle.on": {
+      "file": "ui/toggle.on.png",
+      "x": 0,
+      "y": 0,
+      "w": 116,
+      "h": 56
+    },
+    "ui.checkbox": {
+      "file": "ui/checkbox.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 80
+    },
+    "ui.checkbox.hover": {
+      "file": "ui/checkbox.hover.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 80
+    },
+    "ui.checkbox.checked": {
+      "file": "ui/checkbox.checked.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 80
+    },
+    "ui.field": {
+      "file": "ui/field.png",
+      "x": 0,
+      "y": 0,
+      "w": 248,
+      "h": 140
+    },
+    "ui.field.select": {
+      "file": "ui/field.select.png",
+      "x": 0,
+      "y": 0,
+      "w": 248,
+      "h": 140
+    },
+    "ui.scrollbar": {
+      "file": "ui/scrollbar.png",
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 232
+    },
+    "ui.row": {
+      "file": "ui/row.png",
+      "x": 0,
+      "y": 0,
+      "w": 244,
+      "h": 36
+    },
+    "ui.row.hover": {
+      "file": "ui/row.hover.png",
+      "x": 0,
+      "y": 0,
+      "w": 244,
+      "h": 36
+    },
+    "ui.row.selected": {
+      "file": "ui/row.selected.png",
+      "x": 0,
+      "y": 0,
+      "w": 244,
+      "h": 36
+    },
+    "ui.keycap": {
+      "file": "ui/keycap.png",
+      "x": 0,
+      "y": 0,
+      "w": 28,
+      "h": 28
+    },
+    "ui.tooltip": {
+      "file": "ui/tooltip.png",
+      "x": 0,
+      "y": 0,
+      "w": 232,
+      "h": 172
+    },
+    "ui.toast": {
+      "file": "ui/toast.png",
+      "x": 0,
+      "y": 0,
+      "w": 252,
+      "h": 32
+    },
+    "ui.sh-01a.00": {
+      "file": "ui/sh-01a.00.png",
+      "x": 0,
+      "y": 0,
+      "w": 76,
+      "h": 80
+    },
+    "ui.sh-01a.01": {
+      "file": "ui/sh-01a.01.png",
+      "x": 0,
+      "y": 0,
+      "w": 84,
+      "h": 80
+    },
+    "ui.sh-01a.02": {
+      "file": "ui/sh-01a.02.png",
+      "x": 0,
+      "y": 0,
+      "w": 76,
+      "h": 80
+    },
+    "ui.sh-01a.03": {
+      "file": "ui/sh-01a.03.png",
+      "x": 0,
+      "y": 0,
+      "w": 80,
+      "h": 28
+    },
+    "ui.sh-01a.04": {
+      "file": "ui/sh-01a.04.png",
+      "x": 0,
+      "y": 0,
+      "w": 84,
+      "h": 28
+    },
+    "ui.sh-01a.05": {
+      "file": "ui/sh-01a.05.png",
+      "x": 0,
+      "y": 0,
+      "w": 76,
+      "h": 28
+    },
+    "ui.sh-01a.06": {
+      "file": "ui/sh-01a.06.png",
+      "x": 0,
+      "y": 0,
+      "w": 76,
+      "h": 32
+    },
+    "ui.sh-01a.07": {
+      "file": "ui/sh-01a.07.png",
+      "x": 0,
+      "y": 0,
+      "w": 84,
+      "h": 32
+    },
+    "ui.sh-01a.08": {
+      "file": "ui/sh-01a.08.png",
+      "x": 0,
+      "y": 0,
+      "w": 76,
+      "h": 32
+    },
+    "ui.sh-01a.09": {
+      "file": "ui/sh-01a.09.png",
+      "x": 0,
+      "y": 0,
+      "w": 76,
+      "h": 80
+    },
+    "ui.sh-01a.10": {
+      "file": "ui/sh-01a.10.png",
+      "x": 0,
+      "y": 0,
+      "w": 88,
+      "h": 80
+    },
+    "ui.sh-01a.11": {
+      "file": "ui/sh-01a.11.png",
+      "x": 0,
+      "y": 0,
+      "w": 76,
+      "h": 80
+    },
+    "ui.slot": {
+      "file": "ui/panel.inset.png",
+      "x": 0,
+      "y": 0,
+      "w": 108,
+      "h": 108
+    },
+    "ui.bar": {
+      "file": "ui/bar.fill.png",
+      "x": 0,
+      "y": 0,
+      "w": 240,
+      "h": 60
     }
   }
 }

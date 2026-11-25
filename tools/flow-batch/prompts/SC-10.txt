@@ -1,0 +1,9 @@
+Pixel art game online-connection overlay, 16:9 widescreen over a dimmed arena. Dead centre, a
+compact panel 560 by 320 pixels with a bevelled steel frame and a 3-pixel cyan rail along the
+bottom edge. Inside: a 64-pixel square status well at the top centre holding three stacked
+chevrons, a placeholder title bar, a thin indeterminate progress track 320 by 8 pixels with a
+dithered cyan segment, and a small secondary cancel button at the bottom right. A faint
+dithered cyan halo ring surrounds the panel. No text, no numbers. Chunky 32-bit era pixel art
+at a consistent 4x pixel pitch.
+16:9 game UI mockup, no readable words, no browser chrome, no watermark, palette #0b0f1a #16213a
+#2a3550 #4a5a7f #00E5FF #a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

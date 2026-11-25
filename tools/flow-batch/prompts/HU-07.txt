@@ -1,0 +1,10 @@
+Pixel art game HUD match-state chip, empty, 160 by 40 logical pixels, viewed straight on. A
+compact smoked-glass plate: 1-pixel #0b0f1a stroke, 2-pixel #2a3550 frame, checkerboard dither
+of #0b0f1a over #16213a, split by a 1-pixel #2a3550 vertical divider into a wider left cell for
+the score and a narrower right cell for the clock. Along the bottom edge, a 3-pixel rail in
+#00E5FF for the leading side and #FF6B35 for the trailing side, meeting at the divider. Two
+8-pixel corner brackets at the top corners. No text, no numbers. Chunky 32-bit era pixel art at
+8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

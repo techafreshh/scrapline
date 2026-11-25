@@ -1,0 +1,10 @@
+Pixel art game cosmetic category icons, three icons in a row, each 32 by 32 logical pixels
+centred in a 64 by 64 cell with 16-pixel gutters, viewed side-on facing right, identical stroke
+weight. Left: a soldier helmet with a flat crown and a raised ear guard. Centre: a visor — a
+narrow horizontal slot with a #00E5FF glow inside and two mounting bolts. Right: a paint palette
+— a rectangular swatch card with three overlapping #00E5FF, #FF6B35 and #a3e635 squares. All in
+#e8ecf4 with #2a3550 shadow and 1-pixel #0b0f1a outline. No text.
+Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

@@ -1,0 +1,8 @@
+Pixel art game HUD grenade counter, three 16 by 16 logical cells in a row with 8-pixel gaps,
+viewed straight on. Each cell holds a tiny grenade silhouette 12 pixels tall, two-tone #e8ecf4
+body with a #2a3550 band and a #FF6B35 2-pixel pin. Left cell lit and full, middle cell lit and
+full, right cell dark silhouette in #2a3550 only meaning spent. Chunky 32-bit era pixel art at
+8x pixel pitch, orthographic.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

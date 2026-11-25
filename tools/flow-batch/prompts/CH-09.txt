@@ -1,0 +1,9 @@
+Pixel art game UI horizontal slider, 160 by 16 logical pixels, viewed straight on. A recessed
+8-pixel-tall groove centred vertically, 1-pixel #0b0f1a stroke, dithered #0b0f1a interior,
+with a filled left portion of solid #00E5FF and a 1-pixel #a5f3fc highlight along the groove's
+top edge. The thumb is a 16 by 16 bevelled square of #2a3550 with a #4a5a7f top-left highlight,
+a #0a0e18 bottom-right shadow, a 1-pixel #0b0f1a stroke, and a 4-pixel #00E5FF notch across its
+middle. No text, no numbers. Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

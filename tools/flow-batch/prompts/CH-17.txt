@@ -1,0 +1,8 @@
+Pixel art game UI tooltip bubble, empty, 96 by 64 logical pixels, viewed straight on, with a
+12-pixel-wide pointed tail centred on its bottom edge. A 2-pixel #2a3550 frame, 1-pixel #4a5a7f
+top-left highlight, 1-pixel #0a0e18 bottom-right shadow, 1-pixel #0b0f1a outer stroke, flat
+dithered #0b0f1a interior, and a 2-pixel #00E5FF line along the top inner edge. No text.
+Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

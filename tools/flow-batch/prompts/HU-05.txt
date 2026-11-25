@@ -1,0 +1,11 @@
+Pixel art game HUD weapon module, empty, 192 by 64 logical pixels, viewed straight on. A
+translucent smoked-glass plate, 1-pixel #0b0f1a outer stroke, 2-pixel #2a3550 frame, interior a
+50 percent checkerboard dither of #0b0f1a over #16213a. On the left, a 48-pixel square recessed
+weapon slot: a 2-pixel #0a0e18 shadow on its top and left inner edges, a 1-pixel #2a3550
+outline, flat #0b0f1a interior, and a 4-pixel #00E5FF corner bracket in its top-left. On the
+right, five empty 8-by-8 magazine pip sockets in a row along the bottom edge, each a 1-pixel
+#2a3550 outline with #0b0f1a interior. No text, no icons, no numbers. Chunky 32-bit era pixel
+art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

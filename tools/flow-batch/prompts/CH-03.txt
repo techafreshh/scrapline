@@ -1,0 +1,9 @@
+Pixel art game UI button, empty, 64 by 32 logical pixels, viewed straight on. A bevelled
+rectangular plate of #2a3550 with a 1-pixel #4a5a7f highlight on the top and left, a 3-pixel
+near-black #0a0e18 shadow on the bottom and right, a 1-pixel #0b0f1a outer stroke, and a flat
+dithered #16213a face with no text. Two 1-pixel cyan #00E5FF ticks, one inset 6 pixels from
+each short end, like a bracket pair. Chunky 32-bit era pixel art at 8x pixel pitch,
+orthographic, flat front lighting.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

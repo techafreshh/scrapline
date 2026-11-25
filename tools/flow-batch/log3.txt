@@ -1,0 +1,181 @@
+20:52:36 sink on http://127.0.0.1:8731, 0 prompts queued
+20:52:36 === batch done ===
+13:33:00 sink on http://127.0.0.1:8731, 44 prompts queued
+13:33:00 === aspect 1:1 ===
+13:33:00 tab gone: reopening
+13:33:28 composer missing: reloading
+13:34:15 aspect -> 1:1 (click=ok, page=True)
+13:34:18 post CH-09: True submitted (chars=772 disabled=False)
+13:35:40 fetch CH-09: saved CH-09-v1.jpg (49219 bytes, src 49219)
+13:35:43 post CH-13: True submitted (chars=634 disabled=False)
+13:35:59 fetch CH-13: saved CH-13-v1.jpg (68135 bytes, src 68135)
+13:35:59 composer missing: reloading
+13:36:29 composer missing: reloading
+13:37:09 post HU-02: True submitted (chars=754 disabled=False)
+13:43:13 sink on http://127.0.0.1:8731, 42 prompts queued
+13:43:13 === aspect 1:1 ===
+13:43:22 aspect -> 1:1 (click=ok, page=True)
+13:43:24 post HU-02: True submitted (chars=754 disabled=False)
+13:44:54 sink on http://127.0.0.1:8731, 42 prompts queued
+13:44:54 === aspect 1:1 ===
+13:45:03 aspect -> 1:1 (click=ok, page=True)
+13:45:05 post HU-02: True submitted (chars=754 disabled=False)
+13:45:59 fetch HU-02: saved HU-02-v1.jpg (88609 bytes, src 88609)
+13:46:01 post HU-09: True submitted (chars=578 disabled=False)
+13:47:09 fetch HU-09: saved HU-09-v1.jpg (43793 bytes, src 43793)
+13:47:10 post HU-11: True submitted (chars=898 disabled=False)
+13:48:09 fetch HU-11: saved HU-11-v1.jpg (179171 bytes, src 179171)
+13:48:11 post HU-14: True submitted (chars=538 disabled=False)
+13:49:20 fetch HU-14: saved HU-14-v1.jpg (77513 bytes, src 77513)
+13:49:22 post HU-16: True submitted (chars=766 disabled=False)
+13:50:11 fetch HU-16: saved HU-16-v1.jpg (28730 bytes, src 28730)
+13:50:12 post IC-02: True submitted (chars=926 disabled=False)
+13:51:37 fetch IC-02: saved IC-02-v1.jpg (50067 bytes, src 50067)
+13:51:39 post IC-03: True submitted (chars=1042 disabled=False)
+13:55:01 no images for IC-03
+13:55:02 tab gone: reopening
+13:55:25 post IC-04: True submitted (chars=977 disabled=False)
+13:56:45 fetch IC-04: saved IC-04-v1.jpg (121382 bytes, src 121382)
+13:56:47 post IC-07: True submitted (chars=663 disabled=False)
+13:57:55 fetch IC-07: saved IC-07-v1.jpg (45779 bytes, src 45779)
+13:57:58 post IC-08: True submitted (chars=708 disabled=False)
+13:58:57 fetch IC-08: saved IC-08-v1.jpg (200069 bytes, src 200069)
+13:58:59 post ME-05: True submitted (chars=706 disabled=False)
+13:59:18 fetch ME-05: saved ME-05-v1.jpg (200069 bytes, src 200069)
+13:59:20 post ME-08: True submitted (chars=809 disabled=False)
+14:02:42 no images for ME-08
+14:02:42 tab gone: reopening
+14:03:06 post SH-04: True submitted (chars=691 disabled=False)
+14:07:46 fetch SH-04: saved SH-04-v1.jpg (95825 bytes, src 95825)
+14:07:46 === aspect 16:9 ===
+14:07:54 aspect -> 16:9 (click=ok, page=True)
+14:07:57 post CH-08: True submitted (chars=790 disabled=False)
+14:08:36 fetch CH-08: saved CH-08-v1.jpg (95825 bytes, src 95825)
+14:08:38 post CH-12: True submitted (chars=685 disabled=False)
+14:09:42 fetch CH-12: saved CH-12-v1.jpg (123752 bytes, src 123752)
+14:09:45 post CH-14: True submitted (chars=792 disabled=False)
+14:11:05 fetch CH-14: saved CH-14-v1.jpg (106529 bytes, src 106529)
+14:11:08 post CH-16: True submitted (chars=846 disabled=False)
+14:11:26 fetch CH-16: saved CH-16-v1.jpg (106529 bytes, src 106529)
+14:11:29 post CH-17: True submitted (chars=642 disabled=False)
+14:17:11 sink on http://127.0.0.1:8731, 30 prompts queued
+14:17:11 seeded 35 existing gallery sources as used
+14:17:11 === aspect 1:1 ===
+14:17:20 aspect -> 1:1 (click=ok, page=True)
+14:17:23 post IC-03: True submitted (chars=1042 disabled=False)
+14:18:20 fetch IC-03: head failed: The user dismissed the browser's debugging bar, which detached browse from their tabs, so this was stopped. Ask the user how to continue.
+14:21:42 no images for IC-03 (attempt 2)
+14:25:08 no images for IC-03 (attempt 3)
+14:25:13 gave up on IC-03 this pass
+14:25:13 tab gone: reopening
+14:30:33 tab gone: reopening
+14:31:12 composer missing: reloading
+14:31:50 composer missing: reloading
+14:32:58 post ME-05: True submitted (chars=no-composer disabled=missing)
+14:40:39 no images for ME-05 (attempt 1)
+14:44:07 no images for ME-05 (attempt 2)
+14:47:39 no images for ME-05 (attempt 3)
+14:47:44 gave up on ME-05 this pass
+14:47:44 composer missing: reloading
+14:48:31 composer missing: reloading
+14:48:39 composer missing: reloading
+14:48:48 composer missing: reloading
+14:48:56 composer missing: reloading
+14:49:38 post ME-08: True submitted (chars=The page did not answer within 10 s while browse set up its helpers (it may be busy or still navigating) disabled=The page did not answer within 10 s while browse set up its helpers (it may be busy or still navigating))
+14:55:16 no images for ME-08 (attempt 1)
+14:58:43 no images for ME-08 (attempt 2)
+15:02:09 no images for ME-08 (attempt 3)
+15:02:14 gave up on ME-08 this pass
+15:02:14 === aspect 16:9 ===
+15:02:15 tab gone: reopening
+15:02:40 aspect -> 16:9 (click=ok, page=True)
+15:02:43 post CH-08: True submitted (chars=790 disabled=False)
+15:06:05 no images for CH-08 (attempt 1)
+15:09:31 no images for CH-08 (attempt 2)
+15:12:58 no images for CH-08 (attempt 3)
+15:13:03 gave up on CH-08 this pass
+15:13:03 tab gone: reopening
+15:13:30 post CH-16: True submitted (chars=846 disabled=False)
+15:14:28 fetch CH-16: saved CH-16-v1.jpg (21913 bytes, src 21913)
+15:14:31 post CH-17: True submitted (chars=642 disabled=False)
+15:15:39 sink on http://127.0.0.1:8731, 1 prompts queued
+15:15:39 seeded 43 existing gallery sources as used
+15:15:39 === aspect 16:9 ===
+15:15:48 aspect -> 16:9 (click=ok, page=True)
+15:15:51 post CH-08: True submitted (chars=790 disabled=False)
+15:16:59 fetch CH-08: saved CH-08-v1.jpg (68705 bytes, src 68705)
+15:16:59 === batch done ===
+15:17:19 sink on http://127.0.0.1:8731, 28 prompts queued
+15:17:20 seeded 45 existing gallery sources as used
+15:17:20 === aspect 1:1 ===
+15:17:28 aspect -> 1:1 (click=ok, page=True)
+15:17:31 post IC-03: True submitted (chars=1042 disabled=False)
+15:18:44 fetch IC-03: saved IC-03-v1.jpg (111668 bytes, src 111668)
+15:18:46 post ME-05: True submitted (chars=706 disabled=False)
+15:20:03 fetch ME-05: saved ME-05-v1.jpg (58733 bytes, src 58733)
+15:20:05 post ME-08: True submitted (chars=809 disabled=False)
+15:20:53 fetch ME-08: saved ME-08-v1.jpg (102553 bytes, src 102553)
+15:20:53 === aspect 16:9 ===
+15:21:01 aspect -> 16:9 (click=ok, page=True)
+15:21:03 post CH-17: True submitted (chars=642 disabled=False)
+15:21:48 fetch CH-17: saved CH-17-v1.jpg (55581 bytes, src 55581)
+15:21:50 post CH-18: True submitted (chars=625 disabled=False)
+15:22:53 fetch CH-18: saved CH-18-v1.jpg (43462 bytes, src 43462)
+15:22:55 post HU-07: True submitted (chars=802 disabled=False)
+15:23:48 fetch HU-07: saved HU-07-v1.jpg (40704 bytes, src 40704)
+15:23:50 post HU-08: True submitted (chars=699 disabled=False)
+15:24:38 fetch HU-08: saved HU-08-v1.jpg (53692 bytes, src 53692)
+15:24:41 post HU-12: True submitted (chars=655 disabled=False)
+15:25:28 fetch HU-12: saved HU-12-v1.jpg (82089 bytes, src 82089)
+15:25:31 post HU-13: True submitted (chars=559 disabled=False)
+15:26:29 fetch HU-13: saved HU-13-v1.jpg (75226 bytes, src 75226)
+15:26:31 post HU-15: True submitted (chars=600 disabled=False)
+15:27:38 fetch HU-15: saved HU-15-v1.jpg (48161 bytes, src 48161)
+15:27:41 post ME-02: True submitted (chars=859 disabled=False)
+15:28:34 fetch ME-02: saved ME-02-v1.jpg (53819 bytes, src 53819)
+15:28:37 post ME-03: True submitted (chars=830 disabled=False)
+15:29:14 fetch ME-03: saved ME-03-v1.jpg (120103 bytes, src 120103)
+15:29:20 post ME-04: True submitted (chars=818 disabled=False)
+15:30:18 fetch ME-04: saved ME-04-v1.jpg (33715 bytes, src 33715)
+15:30:23 post ME-06: True submitted (chars=696 disabled=False)
+15:31:17 fetch ME-06: saved ME-06-v1.jpg (57109 bytes, src 57109)
+15:31:22 post ME-07: True submitted (chars=762 disabled=False)
+15:32:12 fetch ME-07: saved ME-07-v1.jpg (40223 bytes, src 40223)
+15:32:18 post ME-09: True submitted (chars=725 disabled=False)
+15:33:16 fetch ME-09: saved ME-09-v1.jpg (51022 bytes, src 51022)
+15:33:21 post SC-01: True submitted (chars=854 disabled=False)
+15:34:07 fetch SC-01: saved SC-01-v1.jpg (49358 bytes, src 49358)
+15:34:14 post SC-02: True submitted (chars=1017 disabled=False)
+15:35:34 fetch SC-02: saved SC-02-v1.jpg (80088 bytes, src 80088)
+15:35:39 post SC-03: True submitted (chars=886 disabled=False)
+15:39:17 no images for SC-03 (attempt 1)
+15:42:26 no images for SC-03 (attempt 2)
+15:45:32 no images for SC-03 (attempt 3)
+15:45:37 gave up on SC-03 this pass
+15:45:37 tab gone: reopening
+15:46:00 post SC-04: True submitted (chars=848 disabled=False)
+15:47:00 fetch SC-04: saved SC-04-v1.jpg (79575 bytes, src 79575)
+15:47:03 post SC-05: True submitted (chars=884 disabled=False)
+15:47:55 fetch SC-05: saved SC-05-v1.jpg (73076 bytes, src 73076)
+15:47:57 post SC-06: True submitted (chars=920 disabled=False)
+15:48:46 fetch SC-06: saved SC-06-v1.jpg (110352 bytes, src 110352)
+15:48:50 post SC-08: True submitted (chars=1034 disabled=False)
+15:49:54 fetch SC-08: saved SC-08-v1.jpg (83499 bytes, src 83499)
+15:49:57 post SC-09: True submitted (chars=784 disabled=False)
+15:51:00 fetch SC-09: saved SC-09-v1.jpg (133878 bytes, src 133878)
+15:51:03 post SC-10: True submitted (chars=761 disabled=False)
+15:51:53 fetch SC-10: saved SC-10-v1.jpg (62915 bytes, src 62915)
+15:51:56 post SC-11: True submitted (chars=669 disabled=False)
+15:52:56 fetch SC-11: saved SC-11-v1.jpg (54524 bytes, src 54524)
+15:53:00 post SH-01: True submitted (chars=1876 disabled=False)
+15:54:24 fetch SH-01: saved SH-01-v1.jpg (107259 bytes, src 107259)
+15:54:29 post SH-02: True submitted (chars=1646 disabled=False)
+15:55:42 fetch SH-02: saved SH-02-v1.jpg (98973 bytes, src 98973)
+15:55:42 === batch done ===
+15:56:08 sink on http://127.0.0.1:8731, 1 prompts queued
+15:56:09 seeded 101 existing gallery sources as used
+15:56:09 === aspect 16:9 ===
+15:56:19 aspect -> 16:9 (click=ok, page=True)
+15:56:22 post SC-03: True submitted (chars=886 disabled=False)
+15:57:25 fetch SC-03: saved SC-03-v1.jpg (51587 bytes, src 51587)
+15:57:25 === batch done ===

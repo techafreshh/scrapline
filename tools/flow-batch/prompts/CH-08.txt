@@ -1,0 +1,10 @@
+Pixel art game UI progress bar, empty, 160 by 8 logical pixels, viewed straight on, in two
+separate pieces: a recessed track and a fill. Track: 1-pixel #0b0f1a outer stroke, 1-pixel
+#2a3550 inner edge along the bottom and right only, interior flat dithered #0b0f1a, with a
+1-pixel #00E5FF tick at every 16 pixels along the top edge. Fill: a solid #00E5FF block 8
+pixels tall with a 1-pixel #a5f3fc highlight along its top edge and a 1-pixel #0a0e18 shadow
+along its bottom edge, flat right end so segments butt cleanly. Chunky 32-bit era pixel art at
+8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

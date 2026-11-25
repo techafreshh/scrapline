@@ -1,0 +1,10 @@
+Pixel art game logo wordmark reading SCRAPLINE in capital letters, 768 by 128 logical pixels,
+viewed straight on. Heavy industrial stencil letterforms built from bevelled steel plates:
+each letter is a #2a3550 slab with a 1-pixel #4a5a7f top-left highlight and a 3-pixel #0a0e18
+bottom-right shadow, a 1-pixel #0b0f1a outline, and a 3-pixel cyan #00E5FF seam running through
+the lower third of every glyph. The A and the I are slightly damaged — one chipped corner each
+— to suggest salvage. Slight forward lean of 4 degrees, kerning tight, all letters the same
+height, no tagline, no extra words, no subtitle. Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, strict pixel grid with hard edges, no anti-aliasing, no blur, no
+gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF #a5f3fc #FF6B35 #eab308 #a3e635
+#ef4444 #e8ecf4 #8a94a8 only.

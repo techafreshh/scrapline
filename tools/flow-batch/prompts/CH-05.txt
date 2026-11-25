@@ -1,0 +1,7 @@
+Pixel art square icon button, empty frame only, 32 by 32 logical pixels, viewed straight on.
+A 2-pixel #2a3550 frame with a 1-pixel #4a5a7f top-left highlight and 1-pixel #0a0e18
+bottom-right shadow, a flat #16213a face, and a 4-pixel chamfer on all four corners. No glyph
+inside — the glyph is added separately. Chunky 32-bit era pixel art at 8x pixel pitch.
+Flat #FF00FF background, no text or lettering, strict pixel grid with hard edges,
+no anti-aliasing, no blur, no gradients, palette #0b0f1a #16213a #2a3550 #4a5a7f #00E5FF
+#a5f3fc #FF6B35 #eab308 #a3e635 #ef4444 #e8ecf4 #8a94a8 only.

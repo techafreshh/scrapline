@@ -81,19 +81,21 @@
   transform: translateY(1px);
   filter: brightness(0.92);
 }
+/* Menu secondary buttons (issue #359): layout and ink only. The
+  9-slice frame comes from button.css/chrome.css (`border-image`);
+  no border/background here, so the CSS frame cannot be doubled or
+  clobbered into the legacy 1px box. Token variables only. */
 #stage #menu .menu-secondary,
 .menu-secondary {
   align-self: stretch;
   min-height: 44px;
   margin-left: var(--spacing-12);
   margin-right: var(--spacing-12);
-  background: transparent;
   color: var(--color-text);
-  border: 1px solid var(--color-border);
+  white-space: nowrap;
 }
 #stage #menu .menu-secondary:hover,
 .menu-secondary:hover {
-  background: rgba(0, 229, 255, 0.08);
   border-color: var(--color-cyan);
   box-shadow: none;
 }
@@ -224,6 +226,51 @@
   max-width: calc(100% - var(--spacing-24) - var(--spacing-24));
   margin: 0;
   padding: var(--spacing-4) var(--spacing-12);
+}
+/* Profile row wrap (issue #359): the avatar, pilot/colour fields,
+  and badge wrap inside the 380px column instead of clipping `Color`
+  at 1280x720. Token variables only; boxes stay owned here while the
+  field bevels stay in chrome.css. */
+#stage #menu #profile-row,
+#profile-row {
+  flex-wrap: wrap;
+  max-width: 100%;
+  row-gap: var(--spacing-8);
+}
+#stage #menu #profile-name,
+#profile-name {
+  flex: 1 1 120px;
+  min-width: 0;
+  max-width: 100%;
+}
+#stage #menu #profile-palette,
+#profile-palette {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+/* Compact short viewports (issue #359): at 1280x720 the wrapped
+  profile row plus the CTA stack must fit without scrolling the
+  title out of view. Token variables only; the 56px CTA floor and
+  the 8px gap floors from the layout/CTA contracts still hold. */
+@media (max-height: 800px) {
+  #stage #menu .menu-grid,
+  .menu-grid {
+    gap: var(--spacing-12);
+    padding: var(--spacing-16) var(--spacing-16) calc(var(--spacing-16) + var(--spacing-16));
+  }
+  #stage #menu .menu-column,
+  .menu-column {
+    gap: var(--spacing-8);
+  }
+  #stage #menu .menu-cta,
+  .menu-cta {
+    min-height: 56px;
+  }
+  #stage #menu #profile-row,
+  #profile-row {
+    row-gap: var(--spacing-4);
+  }
 }
 /* Per-theme menu veils (issue #348): the live match canvas behind the
   menu already paints the selected theme (view/backdrop.ts), so the

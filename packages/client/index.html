@@ -232,6 +232,9 @@
         font-size: var(--font-label);
         letter-spacing: 0.6px;
       }
+      /* Menu CTA type scale (issue #359): the 9-slice frames live in
+        button.css/chrome.css, so this legacy block owns type only and
+        never a border/background that could double the frame. */
       #play,
       #quick-play,
       #play-online,
@@ -241,9 +244,6 @@
       #locker-open {
         font-size: 16px;
         padding: 10px 22px;
-        border: 1px solid var(--color-cyan);
-        border-radius: 6px;
-        background: var(--color-bg);
         color: var(--color-cyan);
         cursor: pointer;
       }
@@ -254,7 +254,7 @@
       #howto-open:hover,
       #challenges-open:hover,
       #locker-open:hover {
-        background: var(--color-elevated);
+        color: var(--color-cyan-pale);
       }
       #quick-play {
         font-size: 20px;

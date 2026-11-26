@@ -25,8 +25,9 @@
 // above ART_THRESHOLD 60 (worst committed view scores ~53). Coarse on
 // purpose: the mockups are AI art with invented text and backdrops, so
 // pixel equality can never pass — only a structural comparison is
-// meaningful. The region term keeps a clipped title band failing even
-// when the whole-frame mean dilutes it. Mockup table (one file per
+// meaningful. The region term keeps top-band drift visible even
+// when the whole-frame mean dilutes it; title clipping itself is caught
+// by the title asserts, which this comparison reinforces. Mockup table (one file per
 // view, after-menu-return reuses the menu mockup):
 //   menu -> ME-01-menu-v1.jpg | setup -> SC-02-v1.jpg
 //   how-to -> SC-04-v1.jpg | challenges -> SC-05-v1.jpg

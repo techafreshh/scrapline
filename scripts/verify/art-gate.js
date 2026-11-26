@@ -35,8 +35,8 @@ const GRID_W = 32;
 const GRID_H = 18;
 // Score ceiling on the 0-255 mean-absolute-difference scale. Calibrated
 // against the current captures (worst real view scores ~53, margin ~7),
-// so a full-flat plate (~115+) or a blanked title band (~100+ regionally)
-// fails while legitimate views pass.
+// so a blank or flat frame fails by a wide margin while legitimate views
+// pass.
 const ART_THRESHOLD = 60;
 
 // One mockup per PRD view; after-menu-return reuses the menu mockup (no
@@ -184,8 +184,9 @@ function luminanceGrid(img) {
 /**
  * Structural score between two luminance grids: max(cellMeanAbs,
  * regionMeanAbs) on the 0-255 scale, where regionMeanAbs is the worst of
- * the 3x2 region means. The region term keeps a clipped title band (top
- * regions shift while the whole-frame mean dilutes it) failing. Pure.
+ * the 3x2 region means. The region term amplifies top-band drift (top
+ * regions shift while the whole-frame mean dilutes it), reinforcing the
+ * title asserts that catch title clipping. Pure.
  */
 function artScore(a, b) {
   if (a.length !== GRID_W * GRID_H || b.length !== GRID_W * GRID_H) {

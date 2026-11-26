@@ -315,8 +315,6 @@ const VENDOR_CELL = 18;
 const PARTICLES = "particle-pack/PNG";
 const SIMPLIFIED_TILES = "simplified-platformer-pack/PNG/Tiles";
 const SIMPLIFIED_ITEMS = "simplified-platformer-pack/PNG/Items";
-const UI_SMALL = "ui-pack-pixel-adventure/Tiles/Small tiles/Thick outline";
-const UI_SHEETS = "ui-pack-pixel-adventure/Tilesheets";
 
 const ATLAS_ALLOWLIST = [
   // Characters: every Soldier pose plus the limb kit. The run cycle

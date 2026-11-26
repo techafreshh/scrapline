@@ -13,6 +13,7 @@ const zlib = require("node:zlib");
 const TOOL = path.join(__dirname, "slice-sheet.js");
 const {
   PALETTE_12,
+  crc32,
   decodeImage,
   chromaKey,
   erodeAlpha,
@@ -78,7 +79,10 @@ function encodeRgbaPng(img) {
   const chunk = (type, data) => {
     const len = Buffer.alloc(4);
     len.writeUInt32BE(data.length, 0);
-    return Buffer.concat([len, Buffer.from(type, "latin1"), data, Buffer.alloc(4)]);
+    const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body), 0);
+    return Buffer.concat([len, body, crc]);
   };
   const raw = Buffer.alloc((img.w * 4 + 1) * img.h);
   for (let y = 0; y < img.h; y += 1) {
@@ -341,6 +345,46 @@ test("decodeImage: committed reference JPEG decodes to RGBA", () => {
 
 test("decodeImage: unknown magic refuses naming decode", () => {
   assert.throws(() => decodeImage(Buffer.from([1, 2, 3, 4])), /slice-sheet:decode/);
+});
+
+test("decodeImage: fixture chunks carry valid CRCs", () => {
+  for (const png of [cliFixturePng(), cliCellsFixturePng(), encodeRgbaPng(makeImg(4, 4, () => INK))]) {
+    let off = 8;
+    let kinds = 0;
+    while (off + 8 <= png.length) {
+      const len = png.readUInt32BE(off);
+      const type = png.toString("latin1", off + 4, off + 8);
+      assert.ok(off + 12 + len <= png.length, `${type} is truncated`);
+      const body = png.subarray(off + 4, off + 8 + len);
+      const stored = png.readUInt32BE(off + 8 + len);
+      assert.notEqual(stored, 0, `${type} chunk must not carry a zero CRC`);
+      assert.equal(stored, crc32(body), `${type} chunk CRC recomputes`);
+      kinds += 1;
+      off += 12 + len;
+      if (type === "IEND") {
+        assert.equal(len, 0);
+        break;
+      }
+    }
+    assert.ok(kinds >= 3, "expected IHDR + IDAT + IEND chunks");
+  }
+});
+
+test("decodeImage: corrupted CRC refuses naming decode", () => {
+  const good = cliFixturePng();
+  // Zero the IHDR stored CRC.
+  const zeroed = Buffer.from(good);
+  zeroed.writeUInt32BE(0, 8 + 8 + 13);
+  assert.throws(() => decodeImage(zeroed), /slice-sheet:decode/);
+  // Flip one fixture byte so a stored CRC no longer matches.
+  const flipped = Buffer.from(good);
+  flipped[8 + 8 + 5] ^= 0x01;
+  assert.throws(() => decodeImage(flipped), /slice-sheet:decode/);
+});
+
+test("decodeImage: truncation inside a CRC word refuses naming decode", () => {
+  const good = cliFixturePng();
+  assert.throws(() => decodeImage(good.subarray(0, good.length - 2)), /slice-sheet:decode/);
 });
 
 // ---------------------------------------------------------------------------

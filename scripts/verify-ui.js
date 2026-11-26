@@ -776,27 +776,35 @@ async function run() {
     note(`captures ok (16 pngs, 8 views x 2 resolutions)`);
     note(`art:atlas:ok (${atlasCount} chrome/icon plates decoded, non-blank, no legacy tiles)`);
 
-    // Art comparison gate (issue #352, act A7): each capture against its
-    // view mockup (docs/ui-prompts/results/, after-menu-return reuses
+    // Art comparison gate (issue #352, act A7; issue #370 caches the
+    // grids): each capture against its view mockup
+    // (docs/ui-prompts/results/, after-menu-return reuses
     // ME-01-menu-v1.jpg) with the coarse structural score from
     // verify/art-gate (32x18 luminance grid + 3x2 regions, threshold 60).
-    // Mockups decode once up front; any decode failure names the file,
-    // never skips. A tiled or blanked view drifts past the threshold;
-    // title clipping is caught by the title asserts, which this
-    // comparison reinforces.
-    const mockupBufs = new Map();
+    // Each unique mockup JPEG decodes once up front into a cached
+    // luminance grid (7 decodes for the 16 comparisons — menu and
+    // after-menu-return share ME-01-menu-v1.jpg); any decode failure
+    // names the file, never skips. A tiled or blanked view drifts past
+    // the threshold; title clipping is caught by the title asserts,
+    // which this comparison reinforces.
+    const mockupGrids = new Map();
+    const gridsByFile = new Map();
     for (const [view, mockup] of Object.entries(artGate.VIEW_MOCKUPS)) {
       const full = path.join(artGate.RESULTS_DIR, mockup);
       assert(fs.existsSync(full), `missing art mockup ${mockup} for view ${view}`);
-      mockupBufs.set(view, fs.readFileSync(full));
+      if (!gridsByFile.has(mockup)) {
+        gridsByFile.set(mockup, artGate.decodeMockupGrid(fs.readFileSync(full), mockup));
+      }
+      mockupGrids.set(view, gridsByFile.get(mockup));
     }
     for (const viewport of VIEWPORTS) {
       for (const view of VIEWS) {
         const file = path.join(CAPTURES_DIR, fileFor(view, viewport.label));
-        const diff = artGate.assertCaptureVsMockup(
+        const diff = artGate.assertCaptureVsGrid(
           fs.readFileSync(file),
-          mockupBufs.get(view),
+          mockupGrids.get(view),
           `${view}-${viewport.label}`,
+          artGate.VIEW_MOCKUPS[view],
         );
         note(`art:${view}-${viewport.label}:ok (diff=${diff.toFixed(1)})`);
       }

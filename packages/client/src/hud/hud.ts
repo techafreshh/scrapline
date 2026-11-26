@@ -491,9 +491,9 @@ export function updateHud(
     // rects (no anti-aliased vector text) keep Sobel edge energy flat.
     setBitmapText(handles.health, String(Math.ceil(snapshot.hp)));
   }
-  // Pixel-pack frame chrome (issue #270): HUD container plus ammo
-  // module read their `ui.*` tiles (change-guarded, never throws);
-  // the bitmap health/timer/grenade writes above stay untouched.
+  // Pixel-pack frame chrome (issues #270, #359): the full-width `#hud`
+  // container is cleared to `background-image: none` while the four `.hud-module`
+  // clusters (status, center, killfeed, ammo) read their `ui.*` tiles (change-guarded, never throws); the bitmap health/timer/grenade writes above stay untouched.
   applyHudChrome(handles);
   if (handles.fuel !== null) {
     const pct = Math.min(100, Math.max(0, (snapshot.fuel / JETPACK_FUEL_MAX) * 100));

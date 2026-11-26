@@ -653,42 +653,6 @@
     "w": 64,
     "h": 64
   },
-  "ui.icon.0": {
-    "file": "ui/tile_0005.png",
-    "atlas": "ui.json",
-    "w": 16,
-    "h": 16
-  },
-  "ui.icon.1": {
-    "file": "ui/tile_0006.png",
-    "atlas": "ui.json",
-    "w": 16,
-    "h": 16
-  },
-  "ui.icon.2": {
-    "file": "ui/tile_0007.png",
-    "atlas": "ui.json",
-    "w": 16,
-    "h": 16
-  },
-  "ui.corner.0": {
-    "file": "ui/tile_0008.png",
-    "atlas": "ui.json",
-    "w": 16,
-    "h": 16
-  },
-  "ui.tilesheet.small": {
-    "file": "ui/tilemap-small.png",
-    "atlas": "ui.json",
-    "w": 390,
-    "h": 118
-  },
-  "ui.tilesheet.large": {
-    "file": "ui/tilemap-large.png",
-    "atlas": "ui.json",
-    "w": 428,
-    "h": 230
-  },
   "weapon.pistol.muzzle": {
     "x": 14,
     "y": 0

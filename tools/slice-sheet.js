@@ -162,10 +162,14 @@ function decodePng(buf) {
   while (off + 8 <= buf.length) {
     const len = buf.readUInt32BE(off);
     const type = buf.toString("latin1", off + 4, off + 8);
-    if (off + 8 + len > buf.length) {
+    if (off + 12 + len > buf.length) {
       err("truncated PNG chunk — refusing a corrupt input.");
     }
     const data = buf.subarray(off + 8, off + 8 + len);
+    const stored = buf.readUInt32BE(off + 8 + len);
+    if (crc32(buf.subarray(off + 4, off + 8 + len)) !== stored) {
+      err(`PNG chunk ${type} fails its CRC check — refusing a corrupt input.`);
+    }
     if (type === "IHDR") {
       w = data.readUInt32BE(0);
       h = data.readUInt32BE(4);
@@ -1599,6 +1603,7 @@ if (require.main === module) {
 
 module.exports = {
   votePitch,
+  crc32,
   PALETTE_12,
   CHROMA,
   KEY_TOLERANCE,

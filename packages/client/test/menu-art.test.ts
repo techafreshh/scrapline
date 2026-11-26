@@ -126,18 +126,22 @@ function makeDoc(opts?: { withMenu?: boolean; withNav?: boolean }): {
   const withMenu = opts?.withMenu ?? true;
   const menu = withMenu ? makeEl("div", "menu") : null;
   if (opts?.withNav === true && menu !== null) {
-    const prev = makeEl("button", CAROUSEL_PREV_ID);
-    menu.appendChild(prev);
+    // Nested skeleton (issue #377): arrows flank the cards in the row
+    // and dots sit beneath it, all inside #map-carousel.
     const carousel = makeEl("div", "map-carousel");
+    const row = makeEl("div");
+    row.setAttribute("class", "carousel-row");
+    const prev = makeEl("button", CAROUSEL_PREV_ID);
+    row.appendChild(prev);
     for (const name of MAP_LIST) {
       const card = makeEl("button");
       card.setAttribute("data-map-card", name);
       card.setAttribute("aria-pressed", name === "kilima" ? "true" : "false");
-      carousel.appendChild(card);
+      row.appendChild(card);
     }
-    menu.appendChild(carousel);
     const next = makeEl("button", CAROUSEL_NEXT_ID);
-    menu.appendChild(next);
+    row.appendChild(next);
+    carousel.appendChild(row);
     const dots = makeEl("div", CAROUSEL_DOTS_ID);
     for (const name of MAP_LIST) {
       const dot = makeEl("button");
@@ -145,7 +149,8 @@ function makeDoc(opts?: { withMenu?: boolean; withNav?: boolean }): {
       dot.setAttribute("aria-selected", name === "kilima" ? "true" : "false");
       dots.appendChild(dot);
     }
-    menu.appendChild(dots);
+    carousel.appendChild(dots);
+    menu.appendChild(carousel);
   }
   const doc = {
     getElementById(id: string): FakeEl | null {
@@ -396,6 +401,30 @@ describe("ensureCarouselNav", () => {
       );
       expect(found).not.toBe(null);
     }
+    // Issue #377: the nav lives inside the carousel bounds.
+    const carousel = get("map-carousel");
+    expect(carousel).not.toBe(null);
+    const inside = (id: string): boolean => {
+      const node = get(id);
+      if (node === null || carousel === null) {
+        return false;
+      }
+      const visit = (root: FakeEl): boolean => {
+        for (const kid of root.children) {
+          if (kid === node) {
+            return true;
+          }
+          if (visit(kid)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      return visit(carousel as unknown as FakeEl);
+    };
+    expect(inside(CAROUSEL_PREV_ID)).toBe(true);
+    expect(inside(CAROUSEL_NEXT_ID)).toBe(true);
+    expect(inside(CAROUSEL_DOTS_ID)).toBe(true);
     const before = (get("menu")?.children.length ?? 0);
     ensureCarouselNav(doc as Document);
     expect(get("menu")?.children.length).toBe(before);
@@ -407,5 +436,58 @@ describe("ensureCarouselNav", () => {
     const before = get("menu")?.children.length ?? 0;
     ensureCarouselNav(doc as Document);
     expect(get("menu")?.children.length).toBe(before);
+    // Nested skeleton stays nested: arrows and dots remain descendants
+    // of #map-carousel with no duplicates.
+    const carousel = get("map-carousel");
+    expect(carousel?.children.length).toBe(2);
+    expect(get(CAROUSEL_PREV_ID)).not.toBe(null);
+    expect(get(CAROUSEL_NEXT_ID)).not.toBe(null);
+    expect(get(CAROUSEL_DOTS_ID)).not.toBe(null);
+  });
+
+  it("reparents stray menu-level nav into the carousel", () => {
+    const { doc, menu } = makeDoc();
+    if (menu === null) {
+      throw new Error("expected #menu");
+    }
+    const get = (doc as { getElementById(id: string): FakeEl | null }).getElementById.bind(doc);
+    // Pre-#377 flat layout: arrows and dots flank #map-carousel as
+    // siblings under #menu.
+    const prev = makeEl("button", CAROUSEL_PREV_ID);
+    menu.appendChild(prev);
+    const carousel = makeEl("div", "map-carousel");
+    for (const name of MAP_LIST) {
+      const card = makeEl("button");
+      card.setAttribute("data-map-card", name);
+      carousel.appendChild(card);
+    }
+    menu.appendChild(carousel);
+    const next = makeEl("button", CAROUSEL_NEXT_ID);
+    menu.appendChild(next);
+    const dots = makeEl("div", CAROUSEL_DOTS_ID);
+    for (const name of MAP_LIST) {
+      const dot = makeEl("button");
+      dot.setAttribute(DOT_ATTR, name);
+      dots.appendChild(dot);
+    }
+    menu.appendChild(dots);
+    ensureCarouselNav(doc as Document);
+    // Strays collapse into the carousel: #menu keeps only the carousel.
+    expect(get("menu")?.children.length).toBe(1);
+    expect(get("menu")?.children[0]).toBe(get("map-carousel"));
+    const box = get("map-carousel");
+    expect(box).not.toBe(null);
+    const visit = (root: FakeEl): FakeEl[] => {
+      const out: FakeEl[] = [];
+      for (const kid of root.children) {
+        out.push(kid);
+        out.push(...visit(kid));
+      }
+      return out;
+    };
+    const nested = new Set(visit(box as unknown as FakeEl));
+    expect(nested.has(get(CAROUSEL_PREV_ID) as unknown as FakeEl)).toBe(true);
+    expect(nested.has(get(CAROUSEL_NEXT_ID) as unknown as FakeEl)).toBe(true);
+    expect(nested.has(get(CAROUSEL_DOTS_ID) as unknown as FakeEl)).toBe(true);
   });
 });

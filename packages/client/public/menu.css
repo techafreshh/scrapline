@@ -105,9 +105,16 @@
 }
 #stage #menu #map-carousel,
 #menu #map-carousel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  align-items: stretch;
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
+  overflow: visible;
+  position: relative;
+  box-sizing: border-box;
+  padding: var(--spacing-8);
 }
 /* Carousel shell (issue #348): ME-01 places the arena cards between
   arrow affordances with page dots beneath; boxes and rhythm only —
@@ -124,8 +131,11 @@
 .carousel-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--spacing-12);
   min-width: 0;
+  width: 100%;
+  order: 0;
 }
 #stage #menu .carousel-arrow,
 .carousel-arrow {
@@ -155,6 +165,16 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-8);
+  order: 1;
+  width: 100%;
+}
+#stage #menu #carousel-prev,
+#carousel-prev {
+  order: -1;
+}
+#stage #menu #carousel-next,
+#carousel-next {
+  order: 1;
 }
 #stage #menu .carousel-dot,
 .carousel-dot {

@@ -716,8 +716,10 @@ export function refreshBestLines(
  * Ensure the carousel container exists inside #menu with one card per
  * arena. Each card is a `<button class="map-card" data-map-card>`
  * holding a `<canvas class="map-thumb" width height>` plus a
- * `<span class="map-name">`. Idempotent; missing #menu or shorn
- * documents read null instead of throwing.
+ * `<span class="map-name">`, grouped in a `.carousel-row` inside
+ * #map-carousel so arrows flank the cards within the carousel bounds
+ * (issue #377). Idempotent; missing #menu or shorn documents read
+ * null instead of throwing.
  */
 export function ensureCarousel(doc: Document): unknown {
   try {
@@ -757,6 +759,37 @@ export function ensureCarousel(doc: Document): unknown {
       (container as { id?: unknown }).id = CAROUSEL_ID;
     } catch {
       // Id/role best-effort only.
+    }
+    // Card row inside the carousel (issue #377): arrows flank the cards
+    // and dots sit beneath them, all within the carousel bounds, so the
+    // row must live inside #map-carousel, not beside it.
+    let rowTarget: unknown = container;
+    try {
+      const rowEl = make.call(doc, "div");
+      if (rowEl !== null && typeof rowEl === "object") {
+        try {
+          const setRowAttr = (
+            rowEl as { setAttribute?: (name: string, value: string) => void }
+          ).setAttribute;
+          if (typeof setRowAttr === "function") {
+            setRowAttr.call(rowEl, "class", "carousel-row");
+          }
+        } catch {
+          // Row class best-effort only.
+        }
+        try {
+          const rowAppender = (container as { appendChild?: unknown })
+            .appendChild;
+          if (typeof rowAppender === "function") {
+            (rowAppender as (kid: unknown) => void).call(container, rowEl);
+            rowTarget = rowEl;
+          }
+        } catch {
+          // Row append best-effort: cards fall back to the container.
+        }
+      }
+    } catch {
+      // Row backstop best-effort only.
     }
     for (const map of CAROUSEL_MAPS) {
       const card = make.call(doc, "button");
@@ -852,9 +885,9 @@ export function ensureCarousel(doc: Document): unknown {
         }
       }
       try {
-        const appender = (container as { appendChild?: unknown }).appendChild;
+        const appender = (rowTarget as { appendChild?: unknown }).appendChild;
         if (typeof appender === "function") {
-          (appender as (kid: unknown) => void).call(container, card);
+          (appender as (kid: unknown) => void).call(rowTarget, card);
         }
       } catch {
         // Card append failure: keep the rest of the carousel.
@@ -1135,10 +1168,12 @@ export function cycleCarouselMap(
 }
 
 /**
- * Ensure the carousel nav affordances exist: previous/next arrow
- * buttons flanking the cards plus one page dot per arena. Static
- * skeletons ship them; this backstops dynamic documents by appending
- * text-glyph buttons to #menu. Idempotent; never throws.
+ * Ensure the carousel nav affordances exist inside #map-carousel: a
+ * `.carousel-row` holding the previous/next arrow buttons flanking the
+ * cards plus a `#carousel-dots` group with one page dot per arena
+ * beneath the row (issue #377). Static skeletons ship them nested; this
+ * backstops dynamic documents by creating (or reparenting stray
+ * `#menu` children into) the row and dots box. Idempotent; never throws.
  */
 export function ensureCarouselNav(doc: Document): void {
   try {
@@ -1158,9 +1193,254 @@ export function ensureCarouselNav(doc: Document): void {
     if (menu === null || typeof menu !== "object") {
       return;
     }
-    const appender = (menu as { appendChild?: unknown }).appendChild;
-    if (typeof appender !== "function") {
+    let carousel = get.call(doc, CAROUSEL_ID);
+    if (carousel === null || typeof carousel !== "object") {
+      try {
+        ensureCarousel(doc);
+      } catch {
+        // Container backstop best-effort only.
+      }
+      carousel = get.call(doc, CAROUSEL_ID);
+    }
+    if (carousel === null || typeof carousel !== "object") {
       return;
+    }
+    const carouselEl: unknown = carousel;
+    const childList = (node: unknown): unknown[] => {
+      try {
+        const kids = (node as { children?: unknown }).children;
+        if (Array.isArray(kids)) {
+          return kids.slice();
+        }
+        if (kids !== null && typeof kids === "object") {
+          const list = kids as ArrayLike<unknown>;
+          if (typeof list.length === "number") {
+            const out: unknown[] = [];
+            for (let i = 0; i < list.length; i += 1) {
+              out.push(list[i]);
+            }
+            return out;
+          }
+        }
+      } catch {
+        // Unreadable children: no move.
+      }
+      return [];
+    };
+    const hasClassToken = (node: unknown, token: string): boolean => {
+      try {
+        const list = (node as { classList?: unknown }).classList as
+          | { contains?: unknown }
+          | undefined;
+        if (
+          list !== undefined &&
+          list !== null &&
+          typeof list.contains === "function"
+        ) {
+          try {
+            if (
+              (list.contains as (n: string) => unknown).call(list, token) ===
+              true
+            ) {
+              return true;
+            }
+          } catch {
+            // Unreadable token: fall through to attributes.
+          }
+        }
+      } catch {
+        // Shorn classList: fall through to attributes.
+      }
+      try {
+        const getter = (node as { getAttribute?: unknown }).getAttribute;
+        if (typeof getter === "function") {
+          const raw = (getter as (n: string) => unknown).call(node, "class");
+          if (typeof raw === "string" && raw.split(/\s+/).includes(token)) {
+            return true;
+          }
+        }
+      } catch {
+        // Unreadable class: no token.
+      }
+      try {
+        const name = (node as { className?: unknown }).className;
+        if (typeof name === "string" && name.split(/\s+/).includes(token)) {
+          return true;
+        }
+      } catch {
+        // Unreadable className: no token.
+      }
+      return false;
+    };
+    const directParent = (root: unknown, target: unknown): unknown | null => {
+      try {
+        const viaDom = (target as { parentNode?: unknown }).parentNode;
+        if (viaDom !== undefined && viaDom !== null && typeof viaDom === "object") {
+          return viaDom;
+        }
+      } catch {
+        // Shorn parentNode: traverse below.
+      }
+      try {
+        const kids = childList(root);
+        for (const kid of kids) {
+          if (kid === target) {
+            return root;
+          }
+          const deeper = directParent(kid, target);
+          if (deeper !== null) {
+            return deeper;
+          }
+        }
+      } catch {
+        // Unreadable subtree: no parent.
+      }
+      return null;
+    };
+    const detachFrom = (parent: unknown, target: unknown): void => {
+      try {
+        const kids = (parent as { children?: unknown }).children;
+        if (Array.isArray(kids)) {
+          const at = kids.indexOf(target as never);
+          if (at >= 0) {
+            kids.splice(at, 1);
+          }
+        }
+      } catch {
+        // Detach best-effort: real DOM moves on append below.
+      }
+    };
+    const appendTo = (parent: unknown, kid: unknown): void => {
+      try {
+        const appender = (parent as { appendChild?: unknown }).appendChild;
+        if (typeof appender !== "function") {
+          return;
+        }
+        try {
+          const old = directParent(menu, kid);
+          if (old !== null && old !== parent) {
+            detachFrom(old, kid);
+          }
+        } catch {
+          // Detach best-effort: append still lands.
+        }
+        (appender as (child: unknown) => void).call(parent, kid);
+      } catch {
+        // Append best-effort only.
+      }
+    };
+    const findRow = (): unknown | null => {
+      try {
+        const query = (carouselEl as { querySelector?: unknown }).querySelector;
+        if (typeof query === "function") {
+          const found = (query as (sel: string) => unknown).call(
+            carouselEl,
+            ".carousel-row",
+          );
+          if (found !== null && typeof found === "object") {
+            return found;
+          }
+        }
+      } catch {
+        // Selector shorn: scan children below.
+      }
+      for (const kid of childList(carouselEl)) {
+        if (hasClassToken(kid, "carousel-row")) {
+          return kid;
+        }
+      }
+      return null;
+    };
+    let row = findRow();
+    if (row === null || typeof row !== "object") {
+      try {
+        const made = make.call(doc, "div");
+        if (made !== null && typeof made === "object") {
+          try {
+            const setAttr = (
+              made as { setAttribute?: (name: string, value: string) => void }
+            ).setAttribute;
+            if (typeof setAttr === "function") {
+              setAttr.call(made, "class", "carousel-row");
+            }
+          } catch {
+            // Row class best-effort only.
+          }
+          appendTo(carouselEl, made);
+          row = made;
+        }
+      } catch {
+        // Row backstop best-effort only.
+      }
+    }
+    // Cards stranded directly under #map-carousel (pre-#377 dynamic
+    // containers) ride inside the row so the arrows truly flank them.
+    try {
+      const rowEl: unknown = row;
+      if (rowEl !== null && typeof rowEl === "object") {
+        for (const kid of childList(carouselEl)) {
+          if (kid === rowEl) {
+            continue;
+          }
+          try {
+            const getter = (kid as { getAttribute?: unknown }).getAttribute;
+            if (
+              typeof getter === "function" &&
+              (getter as (n: string) => unknown).call(kid, CARD_ATTR) !== null
+            ) {
+              appendTo(rowEl, kid);
+            }
+          } catch {
+            // One unreadable child never blocks the rest.
+          }
+        }
+      }
+    } catch {
+      // Card reparenting best-effort only.
+    }
+    const rowHost: unknown =
+      row !== null && typeof row === "object" ? row : carouselEl;
+    let dotsBox: unknown | null = null;
+    try {
+      const found = get.call(doc, CAROUSEL_DOTS_ID);
+      dotsBox = found !== null && typeof found === "object" ? found : null;
+    } catch {
+      dotsBox = null;
+    }
+    if (dotsBox === null) {
+      try {
+        const made = make.call(doc, "div");
+        if (made !== null && typeof made === "object") {
+          try {
+            const setAttr = (
+              made as { setAttribute?: (name: string, value: string) => void }
+            ).setAttribute;
+            if (typeof setAttr === "function") {
+              setAttr.call(made, "id", CAROUSEL_DOTS_ID);
+              setAttr.call(made, "role", "group");
+              setAttr.call(made, "aria-label", "Choose arena");
+            }
+            (made as { id?: unknown }).id = CAROUSEL_DOTS_ID;
+          } catch {
+            // Dots attrs best-effort only.
+          }
+          appendTo(carouselEl, made);
+          dotsBox = made;
+        }
+      } catch {
+        // Dots box backstop best-effort only.
+      }
+    } else {
+      try {
+        const parent = directParent(menu, dotsBox);
+        if (parent !== null && parent !== carouselEl) {
+          appendTo(carouselEl, dotsBox);
+        } else if (parent === null) {
+          appendTo(carouselEl, dotsBox);
+        }
+      } catch {
+        // Dots reparenting best-effort only.
+      }
     }
     const glyphSrcFor = (glyph: string): string | null => {
       if (glyph === "\u2039") {
@@ -1181,10 +1461,23 @@ export function ensureCarouselNav(doc: Document): void {
       glyph: string,
       attrName: string | null,
       attrValue: string | null,
+      host: unknown,
     ): void => {
       try {
         const existing = get.call(doc, id);
         if (existing !== null && typeof existing === "object") {
+          // Reparent strays (pre-#377 `#menu` children) into the row so
+          // the arrows stay within the carousel bounds.
+          try {
+            const parent = directParent(menu, existing);
+            if (parent !== null && parent !== host) {
+              appendTo(host, existing);
+            } else if (parent === null && host !== null && typeof host === "object") {
+              appendTo(host, existing);
+            }
+          } catch {
+            // Reparent best-effort: the arrow still selects.
+          }
           return;
         }
         const made = make.call(doc, "button");
@@ -1247,30 +1540,42 @@ export function ensureCarouselNav(doc: Document): void {
         } catch {
           // Glyph best-effort only.
         }
-        (appender as (kid: unknown) => void).call(menu, made);
+        appendTo(host, made);
       } catch {
         // One missing affordance never blocks the rest.
       }
     };
-    ensureButton(CAROUSEL_PREV_ID, "carousel-arrow", "Previous arena", "‹", null, null);
-    ensureButton(CAROUSEL_NEXT_ID, "carousel-arrow", "Next arena", "›", null, null);
+    ensureButton(CAROUSEL_PREV_ID, "carousel-arrow", "Previous arena", "‹", null, null, rowHost);
+    ensureButton(CAROUSEL_NEXT_ID, "carousel-arrow", "Next arena", "›", null, null, rowHost);
+    const dotsHost: unknown = dotsBox !== null && typeof dotsBox === "object" ? dotsBox : carouselEl;
     const query = (doc as unknown as { querySelector?: unknown }).querySelector;
     for (const map of CAROUSEL_MAPS) {
-      let dotExists = false;
+      let dotNode: unknown | null = null;
       try {
         if (typeof query === "function") {
           const found = (query as (sel: string) => unknown).call(
             doc,
             `[${DOT_ATTR}="${map}"]`,
           );
-          dotExists = found !== null && typeof found === "object";
+          dotNode = found !== null && typeof found === "object" ? found : null;
         }
       } catch {
-        dotExists = false;
+        dotNode = null;
       }
       // Static skeletons ship the dots (id-less, found by attribute);
-      // only the dynamic backstop mints id'd spares.
-      if (dotExists) {
+      // stray dots reparent into the dots box, only the dynamic
+      // backstop mints id'd spares there.
+      if (dotNode !== null) {
+        try {
+          const parent = directParent(menu, dotNode);
+          if (parent !== null && parent !== dotsHost) {
+            appendTo(dotsHost, dotNode);
+          } else if (parent === null) {
+            appendTo(dotsHost, dotNode);
+          }
+        } catch {
+          // Dot reparenting best-effort only.
+        }
         continue;
       }
       ensureButton(
@@ -1280,6 +1585,7 @@ export function ensureCarouselNav(doc: Document): void {
         "●",
         DOT_ATTR,
         map,
+        dotsHost,
       );
     }
   } catch {

@@ -196,9 +196,9 @@
         position: relative;
         z-index: 1;
         display: flex;
-        flex-direction: row;
+        flex-direction: column;
         gap: 10px;
-        overflow-x: auto;
+        overflow: visible;
         max-width: 92vw;
         padding: var(--spacing-4) 2px;
       }
@@ -1056,19 +1056,19 @@
         <div class="menu-stage">
         <div id="menu-scene" aria-hidden="true"><div id="menu-soldier"><div id="menu-flame"></div></div></div>
         <div class="carousel-shell">
+        <div id="map-carousel" role="listbox" aria-label="Choose arena">
         <div class="carousel-row">
         <button id="carousel-prev" class="carousel-arrow" type="button" aria-label="Previous arena"><span class="carousel-glyph" aria-hidden="true"><img class="carousel-glyph-img" data-src="./assets/atlas/icons/glyph-chev-left.png" alt="Previous arena"></span></button>
-        <div id="map-carousel" role="listbox" aria-label="Choose arena">
           <button class="map-card selected" data-map-card="kilima" aria-pressed="true" role="option" aria-selected="true" type="button"><canvas class="map-thumb" width="192" height="96"></canvas><span class="map-name">kilima</span><span class="map-best"></span></button>
           <button class="map-card" data-map-card="dune" aria-pressed="false" role="option" aria-selected="false" type="button"><canvas class="map-thumb" width="192" height="96"></canvas><span class="map-name">dune</span><span class="map-best"></span></button>
           <button class="map-card" data-map-card="frostbite" aria-pressed="false" role="option" aria-selected="false" type="button"><canvas class="map-thumb" width="192" height="96"></canvas><span class="map-name">frostbite</span><span class="map-best"></span></button>
-        </div>
         <button id="carousel-next" class="carousel-arrow" type="button" aria-label="Next arena"><span class="carousel-glyph" aria-hidden="true"><img class="carousel-glyph-img" data-src="./assets/atlas/icons/glyph-chev-right.png" alt="Next arena"></span></button>
         </div>
         <div id="carousel-dots" role="group" aria-label="Choose arena">
           <button class="carousel-dot" data-carousel-dot="kilima" type="button" aria-label="kilima" aria-selected="true"><img class="carousel-dot-img" data-src="./assets/ui/menu-dot-on.png" alt="selected"></button>
           <button class="carousel-dot" data-carousel-dot="dune" type="button" aria-label="dune" aria-selected="false"><img class="carousel-dot-img" data-src="./assets/ui/menu-dot-off.png" alt="not selected"></button>
           <button class="carousel-dot" data-carousel-dot="frostbite" type="button" aria-label="frostbite" aria-selected="false"><img class="carousel-dot-img" data-src="./assets/ui/menu-dot-off.png" alt="not selected"></button>
+        </div>
         </div>
         </div>
         </div>

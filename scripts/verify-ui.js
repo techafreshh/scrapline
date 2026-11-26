@@ -10,6 +10,32 @@
 // Zero repo dependencies beyond puppeteer-core (devDependency): stays out
 // of `npm test` and CI on purpose (no browser there), mirroring the
 // tools/feel-parity.js and scripts/verify-presentation.mjs idiom.
+//
+// Art gate (issue #352, act A7): the visual-layer regression backstop.
+// Atlas phase (offline, pre-browser): every `ui/*.png` + `icons/*.png`
+// literal in CHROME_FILES (chrome.ts) and ICON_FILES (icons.ts) must
+// resolve under the atlas dir, decode via the vendored decodePng from
+// tools/slice-sheet.js, and be non-blank (more than one distinct RGB
+// triplet over all pixels, transparent pixels voting their stored RGB).
+// Any key pointing back at the old `ui/tile_*` files fails fast here —
+// a reverted chrome key never reaches the browser. Comparison phase
+// (post-census): each of the 16 captures is area-averaged to a 32x18
+// luminance grid plus 3x2 region means and scored against its view
+// mockup as max(cellMeanAbs, regionMeanAbs) on a 0-255 scale, failing
+// above ART_THRESHOLD 60 (worst committed view scores ~53). Coarse on
+// purpose: the mockups are AI art with invented text and backdrops, so
+// pixel equality can never pass — only a structural comparison is
+// meaningful. The region term keeps top-band drift visible even
+// when the whole-frame mean dilutes it; title clipping itself is caught
+// by the title asserts, which this comparison reinforces. Mockup table (one file per
+// view, after-menu-return reuses the menu mockup):
+//   menu -> ME-01-menu-v1.jpg | setup -> SC-02-v1.jpg
+//   how-to -> SC-04-v1.jpg | challenges -> SC-05-v1.jpg
+//   locker -> SC-06-v1.jpg | midmatch-hud -> HU-01-hud-v1.jpg
+//   end-screen -> SC-07-end-screen-v1.jpg
+//   after-menu-return -> ME-01-menu-v1.jpg
+// Emits `art:atlas:ok`, per-view `art:<view>-<label>:ok (diff=N.N)`,
+// and final `art:ok` tokens into captures/verify.log.
 /* global window, document, getComputedStyle:readonly */
 // (Browser globals above appear only inside page.evaluate /
 // waitForFunction callbacks, which execute in Chromium, not in node.
@@ -21,6 +47,7 @@ const path = require("node:path");
 
 const HERE = __dirname;
 const ROOT = path.join(HERE, "..");
+const artGate = require("./verify/art-gate");
 const CAPTURES_DIR = path.join(ROOT, "captures");
 const VERIFY_LOG = path.join(CAPTURES_DIR, "verify.log");
 const SNAPSHOT_JSON = path.join(CAPTURES_DIR, "after-menu-return.json");
@@ -397,6 +424,11 @@ async function run() {
   }
   builtIndex = path.join(ROOT, "packages", "client", "dist", "index.html");
   assert(fs.existsSync(builtIndex), "missing packages/client/dist/index.html after build");
+  // Art atlas gate (issue #352): offline, pre-browser — a reverted chrome
+  // key (ui/tile_*) or a blank plate fails here naming the key, with no
+  // browser installed. The count is noted once the log exists below.
+  const atlasCount = artGate.assertAtlasGate();
+  log(`art:atlas:ok (${atlasCount} chrome/icon plates decoded, non-blank, no legacy tiles)`);
   const chromePath = resolveChrome();
   assert(chromePath !== null, "no system Chromium found (CHROME_PATH, /usr/bin/chromium)");
   log(`chromium: ${chromePath}`);
@@ -742,6 +774,34 @@ async function run() {
     }
     assert(census.length === 16, `expected 16 captures, found ${census.length}`);
     note(`captures ok (16 pngs, 8 views x 2 resolutions)`);
+    note(`art:atlas:ok (${atlasCount} chrome/icon plates decoded, non-blank, no legacy tiles)`);
+
+    // Art comparison gate (issue #352, act A7): each capture against its
+    // view mockup (docs/ui-prompts/results/, after-menu-return reuses
+    // ME-01-menu-v1.jpg) with the coarse structural score from
+    // verify/art-gate (32x18 luminance grid + 3x2 regions, threshold 60).
+    // Mockups decode once up front; any decode failure names the file,
+    // never skips. A tiled or blanked view drifts past the threshold;
+    // title clipping is caught by the title asserts, which this
+    // comparison reinforces.
+    const mockupBufs = new Map();
+    for (const [view, mockup] of Object.entries(artGate.VIEW_MOCKUPS)) {
+      const full = path.join(artGate.RESULTS_DIR, mockup);
+      assert(fs.existsSync(full), `missing art mockup ${mockup} for view ${view}`);
+      mockupBufs.set(view, fs.readFileSync(full));
+    }
+    for (const viewport of VIEWPORTS) {
+      for (const view of VIEWS) {
+        const file = path.join(CAPTURES_DIR, fileFor(view, viewport.label));
+        const diff = artGate.assertCaptureVsMockup(
+          fs.readFileSync(file),
+          mockupBufs.get(view),
+          `${view}-${viewport.label}`,
+        );
+        note(`art:${view}-${viewport.label}:ok (diff=${diff.toFixed(1)})`);
+      }
+    }
+    note("art:ok (16 captures within threshold 60 of their mockups)");
 
     // Menu DOM snapshot + log: the F1 regression proofs.
     assert(snapshot !== null, "missing after-menu-return snapshot");

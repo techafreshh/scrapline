@@ -7,6 +7,7 @@
 import { HEALTH_MAX, JETPACK_FUEL_MAX, TICK_HZ } from "../../../core/src/constants";
 import { standingsFor } from "../../../core/src/match";
 import {
+  formatAmmoCounts,
   grenadePipStates,
   normalizeWeaponId,
   pipClass,
@@ -530,12 +531,13 @@ export function updateHud(
     handles.weapon.textContent = snapshot.weaponName;
   }
   if (handles.ammo !== null) {
-    handles.ammo.textContent = `${snapshot.weaponName} ${snapshot.magAmmo}`;
+    handles.ammo.textContent = formatAmmoCounts(snapshot.magAmmo, snapshot.weaponName);
   }
   // Bottom-right weapon module (issue #152): plain vector text plus
-  // icon, grenade pips, and the five magazine pips (HU-05). The legacy
-  // #hud-ammo line above keeps its exact shape so reserve-free
-  // snapshots still read `Pistol 7`.
+  // icon, grenade pips, and the five magazine pips (HU-05). The
+  // #hud-ammo line above now mirrors the module counts (mag/reserve,
+  // e.g. `7/36`) while the weapon name lives in `#ammo-name`, so the
+  // status cluster no longer prints the name twice (issue #376).
   updateAmmo(
     {
       module: handles.ammoModule ?? null,

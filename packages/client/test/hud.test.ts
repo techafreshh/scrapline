@@ -132,7 +132,7 @@ describe("killsFromDiff", () => {
 });
 
 describe("updateHud ammo", () => {
-  it("renders weapon plus mag only from a reserve-free snapshot", () => {
+  it("renders counts only (mag/reserve) from a reserve-free snapshot", () => {
     const ammo = { textContent: "" };
     const handles = {
       hud: null,
@@ -164,7 +164,9 @@ describe("updateHud ammo", () => {
     } as HudSnapshot;
     expect("reserveAmmo" in snapshot).toBe(false);
     updateHud(handles, snapshot);
-    expect(ammo.textContent).toBe("Pistol 7");
+    expect(ammo.textContent).toBe("7/36");
+    expect(ammo.textContent).not.toContain("Pistol");
+    expect(ammo.textContent).toMatch(/^\d+\/\d+$/);
   });
 });
 
@@ -553,7 +555,7 @@ describe("updateHud pixel chrome snapshot (issue #270)", () => {
       respawnTicks: 0,
     } as HudSnapshot);
     expect(health.textContent).toBe("75");
-    expect(ammo.textContent).toContain("12");
+    expect(ammo.textContent).toBe("12/90");
     // Issue #359: the wide container stays clear while the status
     // cluster carries its single plate.
     expect(hud.attrs.get("data-frame") ?? null).toBe(null);

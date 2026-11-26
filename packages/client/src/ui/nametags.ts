@@ -17,6 +17,176 @@ import { playerName } from "../hud/hud";
 /** Pixels above the player top where the tag anchor sits. */
 export const NAMETAG_LIFT_PX = 6;
 
+/** HUD cluster ids whose corner bands tags must avoid (issue #385). */
+const HUD_GUARD_IDS: readonly string[] = [
+  "hud-status",
+  "hud-center",
+  "killfeed",
+  "ammo-module",
+];
+/** Guard padding in CSS px around each cluster (covers label half-size
+  plus its icon well, so an anchor just outside still cannot bleed its
+  rect over the plate). */
+const HUD_GUARD_PAD_PX = 48;
+
+/** Guard box in viewport CSS px. */
+interface HudGuardBox {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * Build a HUD-band guard for one frame (issue #385): tags whose
+ * anchor projects inside an expanded HUD cluster rect stay hidden so
+ * no `.nametag` rect can overlap the status plate (or the other
+ * corner clusters). The overlay positions anchors in canvas backing px
+ * written straight as CSS px inside the stage container (placeTag has
+ * no backing-to-CSS scaling), so the guard adds the container origin
+ * with no scale factor and compares directly to the live cluster
+ * rects; null when the DOM surface is missing (fake docs, hidden HUD)
+ * so the reconciler shows tags exactly like before. Never throws.
+ */
+function buildHudGuard(
+  container: unknown,
+  canvasW: number,
+  canvasH: number,
+): ((bx: number, by: number) => boolean) | null {
+  try {
+    if (!Number.isFinite(canvasW) || !Number.isFinite(canvasH) || canvasW <= 0 || canvasH <= 0) {
+      return null;
+    }
+    const box = container as {
+      ownerDocument?: unknown;
+      getBoundingClientRect?: unknown;
+    };
+    const doc = box.ownerDocument ?? null;
+    if (doc === null || doc === undefined) {
+      return null;
+    }
+    const lookup = (doc as { getElementById?: unknown }).getElementById;
+    if (typeof lookup !== "function") {
+      return null;
+    }
+    const containerRectFn = box.getBoundingClientRect;
+    if (typeof containerRectFn !== "function") {
+      return null;
+    }
+    let containerRect: unknown = null;
+    try {
+      containerRect = (containerRectFn as () => unknown).call(container);
+    } catch {
+      return null;
+    }
+    const cr = containerRect as {
+      left?: unknown;
+      top?: unknown;
+      width?: unknown;
+      height?: unknown;
+    };
+    if (
+      typeof cr.left !== "number" ||
+      typeof cr.top !== "number" ||
+      typeof cr.width !== "number" ||
+      typeof cr.height !== "number"
+    ) {
+      return null;
+    }
+    if (!Number.isFinite(cr.left) || !Number.isFinite(cr.top) || !Number.isFinite(cr.width) || !Number.isFinite(cr.height)) {
+      return null;
+    }
+    if (cr.width <= 0 || cr.height <= 0) {
+      return null;
+    }
+    const boxes: HudGuardBox[] = [];
+    for (const id of HUD_GUARD_IDS) {
+      let el: unknown = null;
+      try {
+        el = (lookup as (name: string) => unknown).call(doc, id);
+      } catch {
+        continue;
+      }
+      if (el === null || el === undefined) {
+        continue;
+      }
+      const rectFn = (el as { getBoundingClientRect?: unknown }).getBoundingClientRect;
+      if (typeof rectFn !== "function") {
+        continue;
+      }
+      let rect: unknown = null;
+      try {
+        rect = (rectFn as () => unknown).call(el);
+      } catch {
+        continue;
+      }
+      const r = rect as {
+        left?: unknown;
+        top?: unknown;
+        right?: unknown;
+        bottom?: unknown;
+        width?: unknown;
+        height?: unknown;
+      };
+      if (typeof r.left !== "number" || typeof r.top !== "number") {
+        continue;
+      }
+      let right: number | null = typeof r.right === "number" ? r.right : null;
+      let bottom: number | null = typeof r.bottom === "number" ? r.bottom : null;
+      if (right === null && typeof r.width === "number") {
+        right = (r.left as number) + (r.width as number);
+      }
+      if (bottom === null && typeof r.height === "number") {
+        bottom = (r.top as number) + (r.height as number);
+      }
+      if (right === null || bottom === null) {
+        continue;
+      }
+      if (!Number.isFinite(right) || !Number.isFinite(bottom)) {
+        continue;
+      }
+      const width = right - (r.left as number);
+      const height = bottom - (r.top as number);
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+        continue;
+      }
+      boxes.push({ left: r.left as number, top: r.top as number, right, bottom });
+    }
+    if (boxes.length === 0) {
+      return null;
+    }
+    const originLeft = cr.left as number;
+    const originTop = cr.top as number;
+    return (bx: number, by: number): boolean => {
+      try {
+        if (!Number.isFinite(bx) || !Number.isFinite(by)) {
+          return false;
+        }
+        // No backing-to-CSS scaling: anchors land 1:1 inside the
+        // stage container, so the container origin alone maps them
+        // into viewport CSS px for the cluster comparison.
+        const cx = originLeft + bx;
+        const cy = originTop + by;
+        for (const guard of boxes) {
+          if (
+            cx >= guard.left - HUD_GUARD_PAD_PX &&
+            cx <= guard.right + HUD_GUARD_PAD_PX &&
+            cy >= guard.top - HUD_GUARD_PAD_PX &&
+            cy <= guard.bottom + HUD_GUARD_PAD_PX
+          ) {
+            return true;
+          }
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Element handles owned by the overlay; nulls make updates no-op. */
 export interface NametagsHandles {
   container: HTMLElement | null;
@@ -395,6 +565,10 @@ export function updateNametags(
       ? (box.removeChild as (kid: unknown) => void).bind(box)
       : null;
   const seen = new Set<string>();
+  // HUD corner-band guard (issue #385): anchors inside an expanded
+  // cluster rect stay hidden so tags never overlap the status plate.
+  // Null on fake docs or a hidden HUD, where tags show like before.
+  const hudGuard = buildHudGuard(container, frame.canvasW, frame.canvasH);
   for (let index = 0; index < frame.players.length; index += 1) {
     const player = frame.players[index] as NametagPlayer | undefined;
     if (
@@ -429,6 +603,25 @@ export function updateNametags(
       point.y > frame.canvasH + 50
     ) {
       continue;
+    }
+    // HUD corner-band cull (issue #385): drop the anchor (and any
+    // stale node via the seen-set below) instead of painting over
+    // the status plate. Fake docs and hidden HUDs guard null.
+    if (hudGuard !== null) {
+      let inside = false;
+      try {
+        inside = hudGuard(point.x, point.y) === true;
+      } catch {
+        // Hostile guard: keep the anchor visible like before.
+      }
+      if (inside) {
+        try {
+          seen.delete(key);
+        } catch {
+          // Set-less shims: the removal pass below still hides it.
+        }
+        continue;
+      }
     }
     let node: unknown = existing.get(key) ?? null;
     if (node === null) {

@@ -1,8 +1,13 @@
 /* Layer stacking authority (issue #313): the single numeric contract for
   every surface — canvas 0, HUD 10, overlays 20, menu 30, transient chrome
-  above. The `#stage`-qualified selectors outrank the legacy inline style
-  block so this sheet stays authoritative regardless of link order, while
-  the plain-id selectors beside them keep static band scans literal.
+  above. World-space tags paint under the HUD plate (issue #385): the
+  floating `#nametags`/`#padlabels` overlays ride one step below the
+  HUD clusters, so a tag projected into a corner band never covers the
+  status plate — the plate always wins the paint while the numeric
+  menu > overlay > HUD > canvas band order stays intact. The
+  `#stage`-qualified selectors outrank the legacy inline style block so
+  this sheet stays authoritative regardless of link order, while the
+  plain-id selectors beside them keep static band scans literal.
   Full-screen overlay roots carry a no-repeat guard with token scrim or
   veil fills, never a tiled image. Consumes token variables only. */
 #game,
@@ -15,19 +20,22 @@
 #killfeed,
 #crosshair,
 #scope,
-#nametags,
-#padlabels,
 #respawn,
 #stage #hud,
 #stage #ammo-module,
 #stage #killfeed,
 #stage #crosshair,
 #stage #scope,
-#stage #nametags,
-#stage #padlabels,
 #stage #respawn {
   position: absolute;
   z-index: 10;
+}
+#nametags,
+#padlabels,
+#stage #nametags,
+#stage #padlabels {
+  position: absolute;
+  z-index: 9;
 }
 #setup,
 #settings,

@@ -231,19 +231,113 @@
 #hud {
   max-width: 32vw;
 }
+/* HUD status cluster grid (issue #385): a single padded grid inside
+  the 9-slice frame so the scaled-up children from #380 can no longer
+  cross the frame. Row 1 reads the HP value plus its bar, row 2 the
+  full-width fuel bar, row 3 the grenade count plus pips plus weapon
+  plus ammo — each child in its own grid cell, so no child overlaps
+  another and every child stays inside the plate's inner box (frame
+  minus padding) at both acceptance viewports. The #380 floors stay
+  untouched (15.5vh plate, 24px HP). Token variables only — no raw
+  colors, no background images, no stacking overrides (the layers.css
+  band contract stays authoritative). Every offset/padding/gap rides
+  the spacing scale. */
 #stage #hud-status.hud-module,
 #hud-status.hud-module {
   min-width: 192px;
   max-width: 304px;
   min-height: max(112px, 15.5vh);
   padding: var(--spacing-8) var(--spacing-16);
-  gap: var(--spacing-8);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto auto;
+  column-gap: var(--spacing-8);
+  row-gap: var(--spacing-4);
+  align-items: center;
+  align-content: start;
+  overflow: hidden;
 }
 #stage #hud-status > div:first-child,
 #hud-status > div:first-child {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  justify-self: start;
   font-size: var(--font-label);
   line-height: 1.2;
   white-space: nowrap;
+}
+/* Row-1 HP bar: spans the three trailing columns at full cell width
+  so the value plus bar share the first row without wrapping. */
+#stage #hud-status > .hp-bar,
+#hud-status > .hp-bar {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  align-self: center;
+  justify-self: stretch;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+/* Row-2 fuel bar: full inner width on its own row, never beside a
+  sibling, so it cannot push the grenade count past the frame. */
+#stage #hud-status > .hud-bar:not(.hp-bar),
+#hud-status > .hud-bar:not(.hp-bar) {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  align-self: center;
+  justify-self: stretch;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+/* Row-3 cluster: grenade count plus pips plus weapon plus ammo share
+  one row in four traced columns, each clipped to its cell. */
+#stage #hud-grenades,
+#hud-grenades {
+  grid-column: 1;
+  grid-row: 3;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  justify-self: start;
+  align-self: center;
+}
+#stage #hud-grenade-pips,
+#hud-grenade-pips {
+  grid-column: 2;
+  grid-row: 3;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  justify-self: start;
+  align-self: center;
+}
+#stage #hud-weapon,
+#hud-weapon {
+  grid-column: 3;
+  grid-row: 3;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  justify-self: start;
+  align-self: center;
+}
+#stage #hud-ammo,
+#hud-ammo {
+  grid-column: 4;
+  grid-row: 3;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  justify-self: end;
+  align-self: center;
 }
 #stage #hud-health,
 #hud-health {

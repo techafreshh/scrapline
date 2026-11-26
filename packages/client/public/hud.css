@@ -215,3 +215,188 @@
   background: var(--color-chip);
   border-color: var(--color-cyan);
 }
+/* Art A8 HUD geometry + type scale (issue #380): the HU-01 corner
+  modules read tall with a big HP number. The status cluster keeps its
+  row-wrap flow but floors at 15.5vh so the frame fraction lands near
+  the mockup sixth; the ammo module floors at 12.5vh near the mockup
+  seventh. Type scales with vh (timer > HP > counts > score) so both
+  acceptance viewports clear their DOM floors. Bitmap glyph cells step
+  5/7px (HP) and 6/8px (timer) across the 900px-height breakpoint so
+  the rects stay integer-crisp while tracking their font sizes.
+  Token variables only — no raw colors, no background images, no
+  stacking overrides (the layers.css band contract stays authoritative).
+  Every offset/padding/gap rides the spacing scale; the corner modules
+  hug their edges inside max-width 32vw so the centre third stays clear. */
+#stage #hud,
+#hud {
+  max-width: 32vw;
+}
+#stage #hud-status.hud-module,
+#hud-status.hud-module {
+  min-width: 192px;
+  max-width: 304px;
+  min-height: max(112px, 15.5vh);
+  padding: var(--spacing-8) var(--spacing-16);
+  gap: var(--spacing-8);
+}
+#stage #hud-status > div:first-child,
+#hud-status > div:first-child {
+  font-size: var(--font-label);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+#stage #hud-health,
+#hud-health {
+  font-size: max(24px, 3.4vh);
+  font-weight: bold;
+  line-height: 1.2;
+}
+#stage .hud-bar,
+.hud-bar {
+  width: max(120px, 16vh);
+  height: max(12px, 1.7vh);
+}
+#stage #hud-grenades,
+#hud-grenades {
+  font-size: max(14px, 2vh);
+  line-height: 1.2;
+}
+#stage #hud-grenade-pips .pip,
+#hud-grenade-pips .pip {
+  display: inline-block;
+  width: max(20px, 2.8vh);
+  height: max(20px, 2.8vh);
+  border-width: 2px;
+  border-style: solid;
+  border-radius: 50%;
+}
+#stage #hud-weapon,
+#hud-weapon,
+#stage #hud-ammo,
+#hud-ammo {
+  font-size: var(--font-label);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+#stage #ammo-module.hud-module,
+#ammo-module.hud-module {
+  min-height: max(88px, 12.5vh);
+  padding: var(--spacing-8) var(--spacing-16);
+  gap: var(--spacing-16);
+  right: var(--spacing-16);
+  bottom: var(--spacing-16);
+}
+#stage #ammo-icon,
+#ammo-icon {
+  width: max(44px, 6vh);
+  height: max(40px, 5.5vh);
+}
+#stage #ammo-counts,
+#ammo-counts {
+  font-size: max(22px, 3.1vh);
+  font-weight: bold;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+#stage #ammo-pips .pip,
+#ammo-pips .pip {
+  width: max(12px, 1.7vh);
+  height: max(12px, 1.7vh);
+}
+#stage #ammo-mags .pip.mag-pip,
+#ammo-mags .pip.mag-pip {
+  width: max(10px, 1.5vh);
+  height: max(10px, 1.5vh);
+}
+#stage #hud-center.hud-module,
+#hud-center.hud-module {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-8) var(--spacing-16);
+  top: var(--spacing-8);
+}
+#stage #hud-timer,
+#hud-timer {
+  order: -1;
+  font-size: max(26px, 3.8vh);
+  font-weight: bold;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+#stage #hud-score,
+#hud-score {
+  font-size: max(11px, 1.7vh);
+  line-height: 1.4;
+}
+/* Bitmap cell scaling (issue #380): the inline 3px rects from
+  fonts.ts lose to these !important sizes so the HP/timer rects track
+  their viewport-scaled font sizes without fractional smoothing. */
+#stage #hud-health .hud-px,
+#hud-health .hud-px {
+  width: 5px !important;
+  height: 5px !important;
+}
+#stage #hud-health .hud-glyph,
+#hud-health .hud-glyph {
+  grid-template-columns: repeat(3, 5px) !important;
+  grid-auto-rows: 5px !important;
+}
+#stage #hud-health .hud-bitmap-gfx,
+#hud-health .hud-bitmap-gfx {
+  gap: 4px !important;
+}
+#stage #hud-timer .hud-px,
+#hud-timer .hud-px {
+  width: 6px !important;
+  height: 6px !important;
+}
+#stage #hud-timer .hud-glyph,
+#hud-timer .hud-glyph {
+  grid-template-columns: repeat(3, 6px) !important;
+  grid-auto-rows: 6px !important;
+}
+#stage #hud-timer .hud-bitmap-gfx,
+#hud-timer .hud-bitmap-gfx {
+  gap: 4px !important;
+}
+@media (min-height: 900px) {
+  #stage #hud-health .hud-px,
+  #hud-health .hud-px {
+    width: 7px !important;
+    height: 7px !important;
+  }
+  #stage #hud-health .hud-glyph,
+  #hud-health .hud-glyph {
+    grid-template-columns: repeat(3, 7px) !important;
+    grid-auto-rows: 7px !important;
+  }
+  #stage #hud-health .hud-bitmap-gfx,
+  #hud-health .hud-bitmap-gfx {
+    gap: 5px !important;
+  }
+  #stage #hud-timer .hud-px,
+  #hud-timer .hud-px {
+    width: 8px !important;
+    height: 8px !important;
+  }
+  #stage #hud-timer .hud-glyph,
+  #hud-timer .hud-glyph {
+    grid-template-columns: repeat(3, 8px) !important;
+    grid-auto-rows: 8px !important;
+  }
+  #stage #hud-timer .hud-bitmap-gfx,
+  #hud-timer .hud-bitmap-gfx {
+    gap: 6px !important;
+  }
+  #stage #hud-grenades .hud-px,
+  #hud-grenades .hud-px {
+    width: 4px !important;
+    height: 4px !important;
+  }
+  #stage #hud-grenades .hud-glyph,
+  #hud-grenades .hud-glyph {
+    grid-template-columns: repeat(3, 4px) !important;
+    grid-auto-rows: 4px !important;
+  }
+}

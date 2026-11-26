@@ -22,6 +22,8 @@ const {
   assertAtlasGate,
   luminanceGrid,
   artScore,
+  decodeMockupGrid,
+  assertCaptureVsGrid,
   assertCaptureVsMockup,
 } = artGate;
 
@@ -202,6 +204,48 @@ test("assertCaptureVsMockup passes near-identical PNGs and fails flat ones", () 
   assert.throws(
     () => assertCaptureVsMockup(flat, same, "synthetic-view"),
     /drifts from mockup.*> 60/,
+  );
+});
+
+test("assertCaptureVsGrid scores identically to assertCaptureVsMockup on near-identical PNGs", () => {
+  const base = pngRoundTrip(structuredImage());
+  const same = encodePng8(structuredImage());
+  const grid = decodeMockupGrid(same, "synthetic-mockup.png");
+  const uncached = assertCaptureVsMockup(encodePng8(base), same, "synthetic-view");
+  const cached = assertCaptureVsGrid(encodePng8(base), grid, "synthetic-view", "synthetic-mockup.png");
+  assert.equal(cached, uncached);
+  assert.ok(cached <= ART_THRESHOLD, `near-identical captures must pass: ${cached}`);
+});
+
+test("assertCaptureVsGrid fails flat plates with the same drift error", () => {
+  const same = encodePng8(structuredImage());
+  const grid = decodeMockupGrid(same, "synthetic-mockup.png");
+  const flat = encodePng8(makeImage(64, 36, () => [220, 220, 220, 255]));
+  assert.throws(
+    () => assertCaptureVsGrid(flat, grid, "synthetic-view", "synthetic-mockup.png"),
+    /drifts from mockup.*> 60/,
+  );
+});
+
+test("one mockup grid reused across two captures yields identical diffs", () => {
+  // Two-viewport proxy: the cached grid scores a second capture without
+  // re-decoding the mockup, matching the uncached diff both times.
+  const same = encodePng8(structuredImage());
+  const grid = decodeMockupGrid(same, "synthetic-mockup.png");
+  const first = assertCaptureVsGrid(encodePng8(structuredImage()), grid, "synthetic-view-1920x1080");
+  const second = assertCaptureVsGrid(encodePng8(structuredImage()), grid, "synthetic-view-1280x720");
+  assert.equal(first, second);
+  assert.equal(first, assertCaptureVsMockup(encodePng8(structuredImage()), same, "synthetic-view"));
+});
+
+test("decodeMockupGrid names the file on decode failure, never skips", () => {
+  assert.throws(
+    () => decodeMockupGrid(Buffer.from("not an image"), "ME-01-menu-v1.jpg"),
+    /ME-01-menu-v1\.jpg.*undecodable/,
+  );
+  assert.throws(
+    () => assertCaptureVsGrid(Buffer.from("not an image"), decodeMockupGrid(encodePng8(structuredImage()), "m.png"), "menu-1920x1080"),
+    /menu-1920x1080.*undecodable/,
   );
 });
 

@@ -220,18 +220,54 @@ function artScore(a, b) {
 }
 
 /**
- * Capture-vs-mockup proof: decode the PNG capture plus the mockup
- * (JPEG on disk; decodeImage dispatches so PNG fixtures work in tests —
- * any decode failure names the file, never skips) and fail above
- * ART_THRESHOLD naming the view and its diff. Returns the diff.
+ * Mockup grid proof: decode a mockup buffer once via decodeImage
+ * (JPEG on disk; PNG fixtures work in tests) and area-average it to
+ * its 32x18 luminance grid for reuse across captures. Any decode
+ * failure names the mockup file, never skips. Pure (no fs). Returns
+ * the grid.
  */
-function assertCaptureVsMockup(captureBuf, mockupBuf, view) {
+function decodeMockupGrid(mockupBuf, mockupName) {
+  let mockup = null;
+  try {
+    mockup = decodeImage(mockupBuf);
+  } catch (err) {
+    fail(`art: mockup ${mockupName} undecodable (${err && err.message ? err.message : err})`);
+  }
+  return luminanceGrid(mockup);
+}
+
+/**
+ * Capture-vs-grid proof: decode only the PNG capture and score it
+ * against an already-decoded mockup grid (see decodeMockupGrid — the
+ * mockup JPEG decode + luminanceGrid happens once per unique mockup,
+ * not once per capture). Fails above ART_THRESHOLD naming the view
+ * and its diff. Returns the diff. Pure (no fs).
+ */
+function assertCaptureVsGrid(captureBuf, mockupGrid, view, mockupName) {
   let capture = null;
   try {
     capture = decodePng(captureBuf);
   } catch (err) {
     fail(`art: ${view} capture undecodable (${err && err.message ? err.message : err})`);
   }
+  const name =
+    mockupName || VIEW_MOCKUPS[view] || VIEW_MOCKUPS[String(view).replace(/-\d+x\d+$/, "")] || view;
+  const diff = artScore(luminanceGrid(capture), mockupGrid);
+  if (!Number.isFinite(diff) || diff > ART_THRESHOLD) {
+    fail(
+      `art: ${view} drifts from mockup ${name} (diff=${diff.toFixed(1)} > ${ART_THRESHOLD}) — tiling or layout regression`,
+    );
+  }
+  return diff;
+}
+
+/**
+ * Capture-vs-mockup proof: decode the PNG capture plus the mockup
+ * (JPEG on disk; decodeImage dispatches so PNG fixtures work in tests —
+ * any decode failure names the file, never skips) and fail above
+ * ART_THRESHOLD naming the view and its diff. Returns the diff.
+ */
+function assertCaptureVsMockup(captureBuf, mockupBuf, view) {
   const mockupName =
     VIEW_MOCKUPS[view] || VIEW_MOCKUPS[String(view).replace(/-\d+x\d+$/, "")] || view;
   let mockup = null;
@@ -240,13 +276,7 @@ function assertCaptureVsMockup(captureBuf, mockupBuf, view) {
   } catch (err) {
     fail(`art: ${view} mockup ${mockupName} undecodable (${err && err.message ? err.message : err})`);
   }
-  const diff = artScore(luminanceGrid(capture), luminanceGrid(mockup));
-  if (!Number.isFinite(diff) || diff > ART_THRESHOLD) {
-    fail(
-      `art: ${view} drifts from mockup ${mockupName} (diff=${diff.toFixed(1)} > ${ART_THRESHOLD}) — tiling or layout regression`,
-    );
-  }
-  return diff;
+  return assertCaptureVsGrid(captureBuf, luminanceGrid(mockup), view, mockupName);
 }
 
 // Guarded so tests can require the pure helpers without running the
@@ -278,5 +308,7 @@ module.exports = {
   assertAtlasGate,
   luminanceGrid,
   artScore,
+  decodeMockupGrid,
+  assertCaptureVsGrid,
   assertCaptureVsMockup,
 };

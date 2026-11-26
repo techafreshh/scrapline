@@ -315,8 +315,6 @@ const VENDOR_CELL = 18;
 const PARTICLES = "particle-pack/PNG";
 const SIMPLIFIED_TILES = "simplified-platformer-pack/PNG/Tiles";
 const SIMPLIFIED_ITEMS = "simplified-platformer-pack/PNG/Items";
-const UI_SMALL = "ui-pack-pixel-adventure/Tiles/Small tiles/Thick outline";
-const UI_SHEETS = "ui-pack-pixel-adventure/Tilesheets";
 
 const ATLAS_ALLOWLIST = [
   // Characters: every Soldier pose plus the limb kit. The run cycle
@@ -454,15 +452,10 @@ const ATLAS_ALLOWLIST = [
   { name: "pad.bounce", from: `${SIMPLIFIED_TILES}/platformPack_tile040.png`, to: "pads/pad-bounce.png" },
   { name: "pad.bounce.squash", from: `${SIMPLIFIED_TILES}/platformPack_tile041.png`, to: "pads/pad-bounce-squash.png" },
   // UI: the chrome kit (panel, buttons, bars, inputs, rows, ornaments)
-  // ships sliced from SH-01a/CH art via the slice-chrome phase below,
-  // so the vendor allowlist keeps only the unreplaced small tiles plus
-  // both packed tilesheets. The five stretched 16x16 tiles are gone.
-  { name: "ui.icon.0", from: `${UI_SMALL}/tile_0005.png` },
-  { name: "ui.icon.1", from: `${UI_SMALL}/tile_0006.png` },
-  { name: "ui.icon.2", from: `${UI_SMALL}/tile_0007.png` },
-  { name: "ui.corner.0", from: `${UI_SMALL}/tile_0008.png` },
-  { name: "ui.tilesheet.small", from: `${UI_SHEETS}/Small tiles/Thick outline/tilemap.png`, to: "ui/tilemap-small.png" },
-  { name: "ui.tilesheet.large", from: `${UI_SHEETS}/Large tiles/Thick outline/tilemap.png`, to: "ui/tilemap-large.png" },
+  // ships sliced from SH-01a/CH art via the slice-chrome phase below.
+  // The unreplaced small tiles and both packed tilesheets are retired:
+  // no runtime key references them, so the vendor allowlist ships no
+  // ui.* entries of its own. The five stretched 16x16 tiles are gone.
 ];
 
 // Per-weapon muzzle offsets in pivot-relative world px at rest aim

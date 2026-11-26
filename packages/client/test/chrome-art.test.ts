@@ -105,6 +105,22 @@ describe("chrome manifest kit", () => {
     }
   });
 
+  it("ships no manifest entry pointing at a legacy ui/tile file", () => {
+    for (const [key, entry] of Object.entries(MANIFEST)) {
+      if (!key.startsWith("ui.")) {
+        continue;
+      }
+      expect(
+        String(entry?.file),
+        `${key} must not point at a legacy ui/tile file`,
+      ).not.toMatch(/^ui\/tile/);
+      expect(
+        String(entry?.file),
+        `${key} must not point at a legacy ui/tile file`,
+      ).not.toMatch(/tile_/);
+    }
+  });
+
   it("keeps every mapped chrome file on disk with whole-pixel boxes", () => {
     for (const [key, file] of Object.entries(CHROME_FILES)) {
       expect(fs.existsSync(path.join(ATLAS, file))).toBe(true);

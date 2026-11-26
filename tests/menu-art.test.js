@@ -149,16 +149,30 @@ test("static chrome.css never repeats menu art and sizes it whole-pixel", () => 
   assert.match(source, /menu-field\.png/);
 });
 
-test("source index.html flanks the cards with arrows and dots", () => {
+test("source index.html nests the arrows and dots inside the carousel", () => {
   const source = fs.readFileSync(SRC_HTML, "utf8");
   const prev = source.indexOf('id="carousel-prev"');
   const carousel = source.indexOf('id="map-carousel"');
   const next = source.indexOf('id="carousel-next"');
   const dots = source.indexOf('id="carousel-dots"');
   assert.ok(prev !== -1 && carousel !== -1 && next !== -1 && dots !== -1);
-  assert.ok(prev < carousel, "prev arrow must precede the cards");
-  assert.ok(carousel < next, "next arrow must follow the cards");
+  // Issue #377: arrows and dots render within the carousel bounds, so
+  // the skeleton nests them inside #map-carousel (row flanks the cards,
+  // dots sit beneath the row).
+  assert.ok(carousel < prev, "prev arrow must open inside the carousel");
+  assert.ok(prev < next, "prev arrow must precede the next arrow");
   assert.ok(next < dots, "dots must follow the arrows");
+  const rowOpen = source.indexOf('class="carousel-row"', carousel);
+  assert.ok(rowOpen !== -1 && rowOpen < prev, "carousel row must wrap the arrows");
+  const carouselBlock = /<div id="map-carousel"[\s\S]*?<div id="carousel-dots"[\s\S]*?<\/div>\s*<\/div>/.exec(source);
+  assert.ok(carouselBlock !== null, "expected arrows and dots nested in a #map-carousel block");
+  assert.ok(carouselBlock[0].includes('id="carousel-prev"'), "carousel block must hold the prev arrow");
+  assert.ok(carouselBlock[0].includes('id="carousel-next"'), "carousel block must hold the next arrow");
+  assert.ok(carouselBlock[0].includes('id="carousel-dots"'), "carousel block must hold the dots");
+  const firstCard = source.indexOf("data-map-card=\"kilima\"", carousel);
+  const lastCard = source.indexOf("data-map-card=\"frostbite\"", carousel);
+  assert.ok(prev < firstCard, "prev arrow must flank the start of the card row");
+  assert.ok(lastCard < next, "next arrow must flank the end of the card row");
   const dotHits = source.match(/data-carousel-dot="(kilima|dune|frostbite)"/g) || [];
   assert.equal(dotHits.length, 3, `expected 3 page dots, got ${dotHits.length}`);
   assert.match(source, /data-carousel-dot="kilima"[^>]*aria-selected="true"/);

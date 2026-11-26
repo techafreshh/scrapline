@@ -15,12 +15,6 @@ under packages/client/assets/vendor/ for the sprite-swap milestone (PRD v6).
   - packages/client/assets/soldier-jet.svg
   - packages/client/assets/soldier-crouch.svg
   - packages/client/assets/soldier-dead.svg
-  - packages/client/assets/weapon-pistol.svg
-  - packages/client/assets/weapon-smg.svg
-  - packages/client/assets/weapon-rifle.svg
-  - packages/client/assets/weapon-shotgun.svg
-  - packages/client/assets/weapon-sniper.svg
-  - packages/client/assets/weapon-rocket.svg
 
 ## Pack: Orbitron display webfont (OFL)
 
@@ -63,19 +57,12 @@ Parallax backdrop sets for kilima (dusk savanna), dune (golden-hour
 - Author: Scrapline contributors
 - License: CC0-1.0 (public domain dedication; no attribution required)
 - Files:
-  - packages/client/assets/tile-kilima.svg
-  - packages/client/assets/tile-dune.svg
-  - packages/client/assets/tile-frostbite.svg
   - packages/client/assets/prop-crate.svg
   - packages/client/assets/prop-barrel.svg
   - packages/client/assets/prop-barrel-cracked.svg
   - packages/client/assets/prop-crate-cracked.svg
   - packages/client/assets/prop-explosion.svg
   - packages/client/assets/prop-bounce-pad.svg
-  - packages/client/assets/pickup-health.svg
-  - packages/client/assets/pickup-grenade.svg
-  - packages/client/assets/pickup-pad.svg
-  - packages/client/assets/weapon-hornet.svg
 
 ## Pack: Scrapline generated menu art (issue #348)
 

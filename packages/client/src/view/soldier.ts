@@ -138,7 +138,7 @@ export interface WeaponDef {
   color: number;
   /** Gun paint as CSS. */
   colorCss: string;
-  /** Documented muzzle pixel on the weapon-*.svg card (equals length). */
+  /** Documented muzzle pixel on the in-hand icon well (equals length). */
   muzzleX: number;
 }
 

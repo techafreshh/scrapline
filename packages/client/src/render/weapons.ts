@@ -1,8 +1,7 @@
 // In-hand weapon sprites with manifest muzzle points (issue #264).
 //
 // Each of the six weapon ids owns a distinct in-hand silhouette (the
-// committed hand-authored weapon-*.svg cards, the SMG reusing the Hornet
-// card exactly like the HUD iconFor mapping) anchored to the soldier
+// sliced IC-01 icon wells, the SMG reusing the Hornet well exactly like the HUD iconFor mapping) anchored to the soldier
 // arm, plus a pivot-relative muzzle offset so muzzle flashes and tracers
 // originate at the barrel tip.
 //
@@ -115,8 +114,8 @@ export function weaponSpriteKey(weapon: unknown): string {
 }
 
 /**
- * SVG card for a held weapon (client-root-relative path). Unknown
- * readings fall back to the pistol card. Pure.
+ * PNG well for a held weapon (client-root-relative path). Unknown
+ * readings fall back to the pistol well. Pure.
  */
 export function weaponSpriteFile(weapon: unknown): string {
   return WEAPON_SPRITE_FILES[normalizeWeaponId(weapon)] as string;

@@ -1,7 +1,7 @@
 // Themed tileset model: kind classification, z-order, sizes, and layer
 // collection. Mirrors the renderer paint contract without touching the DOM.
 import { afterEach, describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { TileMap, TILE_SIZE } from "../../core/src/map";
 import { createCamera } from "../src/renderer/camera";
@@ -195,16 +195,23 @@ describe("per-theme tilesets", () => {
     expect(SOLID_TILE_H).toBe(TILE_SIZE);
   });
 
-  it("ships probe hexes in the kilima 32x32 SVG source", () => {
-    const svg = readFileSync(
-      join(process.cwd(), "packages", "client", "assets", "tile-kilima.svg"),
-      "utf8",
-    );
-    expect(svg).toContain("#FFD21F");
-    expect(svg).toContain("#111111");
-    expect(svg).toMatch(/viewBox="0 0 32 32"/);
-    expect(svg).toMatch(/width="32"/);
-    expect(svg).toMatch(/height="32"/);
+  it("keeps the dead tile-*.svg placeholders off disk (issue #365)", () => {
+    // Themed tiles now ride the sliced vendor atlas cells
+    // (tiles/tile-<theme>-<kind>.png via render/tiles.ts); the flat SVG
+    // placeholders must stay deleted so they never re-enter the bundle.
+    for (const name of ["tile-kilima.svg", "tile-dune.svg", "tile-frostbite.svg"]) {
+      expect(existsSync(join(process.cwd(), "packages", "client", "assets", name))).toBe(false);
+    }
+    // The staged per-theme PNG cells still ship with the probe pair.
+    for (const name of ["tile-kilima-solid.png", "tile-dune-solid.png", "tile-frostbite-solid.png"]) {
+      expect(
+        existsSync(join(process.cwd(), "packages", "client", "assets", "atlas", "tiles", name)),
+      ).toBe(true);
+    }
+    // The kilima hazard probe pair still reads from the theme palette.
+    const oneway = tilePaintFor("oneway", THEMES.kilima);
+    expect(oneway.baseCss).toBe("#FFD21F");
+    expect(oneway.edgeCss).toBe("#111111");
   });
 });
 

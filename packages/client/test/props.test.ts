@@ -3,7 +3,7 @@
 // grenade icon, and the bounce squash cycle. Mirrors tiles.test.ts
 // style without touching the DOM.
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BARREL_HP, CRATE_HP } from "../../core/src/constants";
 import { World } from "../../core/src/world";
@@ -192,15 +192,12 @@ describe("frame carries prop hp and pickup weapons", () => {
 });
 
 describe("prop art assets", () => {
-  it("ships cracked, explosion, pad, and hornet cards with probe hexes", () => {
+  it("ships cracked, explosion, and bounce-pad cards with probe hexes", () => {
     for (const name of [
       "prop-barrel-cracked.svg",
       "prop-crate-cracked.svg",
       "prop-explosion.svg",
       "prop-bounce-pad.svg",
-      "pickup-grenade.svg",
-      "pickup-pad.svg",
-      "weapon-hornet.svg",
     ]) {
       const svg = asset(name);
       expect(svg).toMatch(/<svg[\s>]/);
@@ -209,8 +206,6 @@ describe("prop art assets", () => {
     expect(asset("prop-barrel-cracked.svg")).toContain("#7c3a06");
     expect(asset("prop-crate-cracked.svg")).toContain("#5c2e0a");
     expect(asset("prop-bounce-pad.svg")).toContain("#FFD21F");
-    expect(asset("pickup-grenade.svg")).toContain("#a3e635");
-    expect(asset("weapon-hornet.svg")).toContain("Hornet");
   });
 
   it("lists every new card in the LICENSES manifest", () => {
@@ -220,11 +215,37 @@ describe("prop art assets", () => {
       "prop-crate-cracked.svg",
       "prop-explosion.svg",
       "prop-bounce-pad.svg",
-      "pickup-grenade.svg",
-      "pickup-pad.svg",
-      "weapon-hornet.svg",
     ]) {
       expect(text).toContain(name);
     }
+  });
+
+  it("keeps the dead weapon/pickup placeholder SVGs off disk (issue #365)", () => {
+    // The in-hand weapon cards and pickup pads now ride the sliced PNG-8
+    // atlas wells (icons/weapon-*.png, pads/pad-*.png); the flat SVG
+    // placeholders must stay deleted so they never re-enter the bundle.
+    for (const name of [
+      "weapon-pistol.svg",
+      "weapon-smg.svg",
+      "weapon-rifle.svg",
+      "weapon-shotgun.svg",
+      "weapon-sniper.svg",
+      "weapon-rocket.svg",
+      "weapon-hornet.svg",
+      "pickup-health.svg",
+      "pickup-grenade.svg",
+      "pickup-pad.svg",
+    ]) {
+      expect(existsSync(join(process.cwd(), "packages", "client", "assets", name))).toBe(false);
+    }
+    // And the manifest no longer lists them.
+    const text = manifest();
+    for (const name of ["weapon-pistol.svg", "weapon-hornet.svg", "pickup-grenade.svg", "pickup-pad.svg"]) {
+      expect(text).not.toContain(name);
+    }
+    // The live mappings still resolve to the PNG wells.
+    expect(weaponPlaqueFor("Hornet").file).toBe("icons/weapon-smg.png");
+    expect(weaponPlaqueFor("rifle").file).toBe("icons/weapon-rifle.png");
+    expect(pickupPaintFor("grenades").edgeHex).toBe(0xeab308);
   });
 });

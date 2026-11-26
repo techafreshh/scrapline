@@ -645,15 +645,15 @@ function soldierImageFor(key: string): unknown {
 }
 
 /**
- * In-hand weapon sprite cache (canvas2d backend): the hand-authored
- * weapon-*.svg cards keyed by weapon id. Same guarded-async-Image idiom
+ * In-hand weapon sprite cache (canvas2d backend): the sliced PNG icon
+ * wells keyed by weapon id. Same guarded-async-Image idiom
  * as soldierImageFor: node unit tests (no document/Image) resolve null
  * and keep the vector gun; failures never throw.
  */
 const weaponImageCache = new Map<string, unknown>();
 const weaponImageFailed = new Set<string>();
 
-/** Resolve the client-root-relative SVG URL for a held weapon. */
+/** Resolve the client-root-relative atlas PNG URL for a held weapon. */
 function weaponSpriteUrl(weapon: WeaponId): string | null {
   try {
     const file = weaponSpriteFile(weapon);
@@ -673,7 +673,7 @@ function weaponSpriteUrl(weapon: WeaponId): string | null {
 
 /**
  * Paint the per-weapon in-hand silhouette for the canvas2d backend: the
- * hand-authored SVG card drawn grip-behind-pivot so it spans the vector
+ * sliced PNG well drawn grip-behind-pivot so it spans the vector
  * gun segment it overlays. The caller holds the ARM_PIVOT-translated,
  * aim-rotated transform; local px match the gun geometry above. A cache
  * miss or an undecoded image is a silent no-op (the vector gun stays).

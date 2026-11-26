@@ -432,9 +432,9 @@ export function capMarksFor(theme: unknown): CapMark[] {
 
 /** Per-theme tileset entry: flat CC0 asset key plus the paint pair. */
 export interface TilesetEntry {
-  /** Asset key without extension (e.g. tile-kilima). */
+  /** Legacy flat asset key without extension (e.g. tile-kilima). */
   key: string;
-  /** Flat CC0 source file (e.g. tile-kilima.svg). */
+  /** Legacy flat file name (e.g. tile-kilima.svg; logical only, no longer shipped). */
   file: string;
   /** Entry base as Pixi hex. */
   baseHex: number;

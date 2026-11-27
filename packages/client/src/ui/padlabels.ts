@@ -29,6 +29,17 @@ export function padIconSrcFor(kind: unknown, weapon: unknown): string {
 /** World px above the pad center where the label anchor sits. */
 export const PADLABEL_LIFT_PX = 8;
 
+/** World-px radius around the local-player focus inside which pad
+  labels stay visible (issue #393). Pads farther away keep their
+  canvas sprite (the affordance); only the DOM word is culled. */
+export const PADLABEL_RADIUS_PX = 260;
+/** Max pad labels on screen at once, nearest first (issue #393). */
+export const PADLABEL_MAX_VISIBLE = 3;
+/** World-px distance where the distance fade starts (full opacity). */
+export const PADLABEL_FADE_START_PX = 100;
+/** Opacity floor at the radius edge (issue #393). */
+export const PADLABEL_FADE_FLOOR = 0.25;
+
 /** HUD cluster ids whose corner bands labels must avoid (issue #385). */
 const HUD_GUARD_IDS: readonly string[] = [
   "hud-status",
@@ -263,6 +274,14 @@ export interface PadlabelsFrame {
   camera: Camera | null;
   canvasW: number;
   canvasH: number;
+  /** Local-player world center (issue #393 radius anchor). Optional
+    so existing callers typecheck; when missing or non-finite the
+    reconciler falls back to the camera center. */
+  focusX?: number | null;
+  focusY?: number | null;
+  /** Currently held weapon id (issue #393): weapon pads matching it
+    earn no label. Health/grenade pads are never suppressed. */
+  heldWeapon?: unknown;
 }
 
 /**
@@ -298,6 +317,84 @@ export function shouldShowLabel(
   camera: Camera | null,
 ): boolean {
   return active === true && camera !== null;
+}
+
+/**
+ * Euclidean world-px distance between two points. Non-finite inputs
+ * read Infinity so they sort last and cull at the radius edge. Pure.
+ */
+export function padDistancePx(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
+  if (
+    !Number.isFinite(ax) ||
+    !Number.isFinite(ay) ||
+    !Number.isFinite(bx) ||
+    !Number.isFinite(by)
+  ) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return Math.hypot(ax - bx, ay - by);
+}
+
+/**
+ * Normalized weapon id for held-weapon comparison (issue #393):
+ * trimmed lowercase, with the Hornet art alias folded to "smg" so
+ * `hornet` and `smg` compare equal. Non-strings read "". Pure.
+ */
+export function normalizePadWeaponId(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const key = value.trim().toLowerCase();
+  if (key === "") {
+    return "";
+  }
+  if (key.includes("hornet")) {
+    return "smg";
+  }
+  return key;
+}
+
+/**
+ * True when a weapon pad already matches the held weapon (issue
+ * #393) and earns no label. Only weapon pads suppress; health and
+ * grenade pads always label (radius permitting). Pure.
+ */
+export function isHeldWeaponPad(
+  kind: unknown,
+  weapon: unknown,
+  held: unknown,
+): boolean {
+  if (typeof kind !== "string" || kind.trim().toLowerCase() !== "weapon") {
+    return false;
+  }
+  const want = normalizePadWeaponId(weapon);
+  const have = normalizePadWeaponId(held);
+  return want !== "" && want === have;
+}
+
+/**
+ * Distance-faded label opacity (issue #393): full at or inside the
+ * fade start, linear down to the floor at the radius edge, clamped.
+ * Non-finite distances read fully opaque. Pure.
+ */
+export function padLabelOpacity(distPx: number): number {
+  if (!Number.isFinite(distPx)) {
+    return 1;
+  }
+  if (distPx <= PADLABEL_FADE_START_PX) {
+    return 1;
+  }
+  if (distPx >= PADLABEL_RADIUS_PX) {
+    return PADLABEL_FADE_FLOOR;
+  }
+  const span = PADLABEL_RADIUS_PX - PADLABEL_FADE_START_PX;
+  const t = (distPx - PADLABEL_FADE_START_PX) / span;
+  return 1 - t * (1 - PADLABEL_FADE_FLOOR);
 }
 
 /** Write a string attribute without throwing on hostile shims. */
@@ -401,6 +498,30 @@ function paintLabelAccent(el: unknown, kind: unknown): void {
   }
   if (readAttr(el, "data-accent") !== edge) {
     writeAttr(el, "data-accent", edge);
+  }
+}
+
+/**
+ * Paint a label's distance fade (issue #393): change-guarded opacity
+ * plus a `data-dist` mirror (rounded world px) for DOM probes.
+ * Never throws.
+ */
+function paintLabelDistance(el: unknown, distPx: number): void {
+  const opacity = padLabelOpacity(distPx).toFixed(2);
+  try {
+    const style = (el as { style?: unknown }).style;
+    if (typeof style === "object" && style !== null) {
+      const bag = style as Record<string, unknown>;
+      if (bag["opacity"] !== opacity) {
+        bag["opacity"] = opacity;
+      }
+    }
+  } catch {
+    // Style-less fakes: the attribute mirror below still carries it.
+  }
+  const wantDist = Number.isFinite(distPx) ? String(Math.round(distPx)) : "";
+  if (readAttr(el, "data-dist") !== wantDist) {
+    writeAttr(el, "data-dist", wantDist);
   }
 }
 
@@ -582,11 +703,13 @@ function attrText(value: unknown): string {
 /**
  * Reconcile the overlay to one frame: with no camera the container
  * hides with zero label nodes; otherwise every active onscreen pickup
- * gets one `.padlabel` child (`data-pickup` id plus `data-kind` and
- * `data-weapon` for DOM queries) positioned at the pad center minus
- * the lift, while inactive/offscreen pickups keep no node. Text writes
- * are change-guarded, so a weapon mutation on a live pad id flips the
- * label without node churn. Missing containers are no-ops.
+ * within the readable radius earns one `.padlabel` child, capped at
+ * the nearest few (issue #393), positioned at the pad center minus
+ * the lift. Each node carries `data-pickup` id plus `data-kind`,
+ * `data-weapon`, and `data-dist` for DOM queries, with opacity faded
+ * by distance. Weapon pads matching the held weapon earn no label.
+ * Text writes are change-guarded, so a weapon mutation on a live pad
+ * id flips the label without node churn. Missing containers are no-ops.
  */
 export function updatePadlabels(
   handles: PadlabelsHandles | null | undefined,
@@ -651,6 +774,24 @@ export function updatePadlabels(
   // cluster rect stay hidden so labels never overlap the status plate.
   // Null on fake docs or a hidden HUD, where labels show like before.
   const hudGuard = buildHudGuard(container, frame.canvasW, frame.canvasH);
+  // Radius anchor (issue #393): the local-player focus when finite,
+  // else the camera center so old callers keep working.
+  const focusX =
+    typeof frame.focusX === "number" && Number.isFinite(frame.focusX)
+      ? frame.focusX
+      : null;
+  const focusY =
+    typeof frame.focusY === "number" && Number.isFinite(frame.focusY)
+      ? frame.focusY
+      : null;
+  const anchorX = focusX !== null && focusY !== null ? focusX : cam.x;
+  const anchorY = focusX !== null && focusY !== null ? focusY : cam.y;
+  interface PadCandidate {
+    pickup: PadlabelPickup;
+    point: { x: number; y: number };
+    dist: number;
+  }
+  const candidates: PadCandidate[] = [];
   for (const pickup of frame.pickups) {
     if (
       pickup === undefined ||
@@ -658,11 +799,8 @@ export function updatePadlabels(
     ) {
       continue;
     }
-    const key = String(pickup.id);
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
+    // Held-weapon suppression (issue #393): a weapon pad matching the
+    // held weapon earns no label; health/grenade pads never suppress.
     const point = projectCamera(
       cam,
       frame.canvasW,
@@ -682,9 +820,9 @@ export function updatePadlabels(
     ) {
       continue;
     }
-    // HUD corner-band cull (issue #385): drop the anchor (and any
-    // stale node via the seen-set below) instead of painting over
-    // the status plate. Fake docs and hidden HUDs guard null.
+    // HUD corner-band cull (issue #385): drop the anchor instead of
+    // painting over the status plate. Fake docs and hidden HUDs guard
+    // null.
     if (hudGuard !== null) {
       let inside = false;
       try {
@@ -693,14 +831,51 @@ export function updatePadlabels(
         // Hostile guard: keep the anchor visible like before.
       }
       if (inside) {
-        try {
-          seen.delete(key);
-        } catch {
-          // Set-less shims: the removal pass below still hides it.
-        }
         continue;
       }
     }
+    let suppressed = false;
+    try {
+      suppressed = isHeldWeaponPad(pickup.kind, pickup.weapon, frame.heldWeapon) === true;
+    } catch {
+      // Hostile kinds: keep the anchor visible like before.
+    }
+    if (suppressed) {
+      continue;
+    }
+    // Radius cull (issue #393): pads beyond the readable radius earn
+    // no node; their canvas sprite stays untouched (the affordance).
+    const dist = padDistancePx(pickup.x, pickup.y, anchorX, anchorY);
+    if (!(dist <= PADLABEL_RADIUS_PX)) {
+      continue;
+    }
+    candidates.push({ pickup, point, dist });
+  }
+  // Nearest-first cap (issue #393): sort by world distance
+  // (tie-break: pickup id) and reconcile only the first slice; the
+  // seen-set removal pass below drops the rest in the same frame.
+  // Dedupe repeated ids first so one id cannot claim two slots.
+  const deduped = new Map<string, PadCandidate>();
+  for (const candidate of candidates) {
+    const key = String(candidate.pickup.id);
+    if (!deduped.has(key)) {
+      deduped.set(key, candidate);
+    }
+  }
+  const winners = [...deduped.values()]
+    .sort((a, b) => {
+      if (a.dist !== b.dist) {
+        return a.dist - b.dist;
+      }
+      return a.pickup.id - b.pickup.id;
+    })
+    .slice(0, PADLABEL_MAX_VISIBLE);
+  for (const { pickup, point, dist } of winners) {
+    const key = String(pickup.id);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
     let node: unknown = existing.get(key) ?? null;
     if (node === null) {
       if (create === null || append === null) {
@@ -737,10 +912,12 @@ export function updatePadlabels(
     }
     syncPadIcon(node, pickup.kind, pickup.weapon);
     paintLabelAccent(node, pickup.kind);
+    paintLabelDistance(node, dist);
     placeLabel(node, point.x, point.y);
     setDisplay(node, "");
   }
-  // Drop nodes for collected, duplicate, or offscreen pickups.
+  // Drop nodes for collected, duplicate, offscreen, HUD-guarded,
+  // radius-culled, over-cap, or held-weapon pickups.
   if (remove !== null) {
     for (const [key, node] of existing) {
       if (!seen.has(key)) {

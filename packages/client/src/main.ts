@@ -1394,13 +1394,30 @@ function frame(now: number): void {
     // Floating pad labels (issue #154): reconciled every animation
     // frame from the live pickup rows (change-guarded in the binder)
     // so weapon swaps land within a frame, well inside the 500ms probe
-    // budget.
-    updatePadlabels(padlabels, {
-      pickups: world.pickups,
-      camera,
-      canvasW: LOGICAL_W,
-      canvasH: LOGICAL_H,
-    });
+    // budget. Issue #393: labels gate on the local-player center plus
+    // the held weapon; without a local player the camera-center
+    // fallback inside the binder applies.
+    if (local !== undefined) {
+      const focusHeight = local.crouching
+        ? PLAYER_CROUCH_HEIGHT
+        : PLAYER_HEIGHT;
+      updatePadlabels(padlabels, {
+        pickups: world.pickups,
+        camera,
+        canvasW: LOGICAL_W,
+        canvasH: LOGICAL_H,
+        focusX: local.x + PLAYER_WIDTH / 2,
+        focusY: local.y + focusHeight / 2,
+        heldWeapon: local.weapon,
+      });
+    } else {
+      updatePadlabels(padlabels, {
+        pickups: world.pickups,
+        camera,
+        canvasW: LOGICAL_W,
+        canvasH: LOGICAL_H,
+      });
+    }
   }
   window.__scraplineTick = world.tick;
   // Generative soundtrack tension follows match progress (clock plus

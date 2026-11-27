@@ -185,6 +185,7 @@ import {
 import { DISPLAY_FONT_FAMILY, publishFonts } from "./ui/fonts";
 import {
   applyLetterbox,
+  applyOverlayScale,
   BASE_H,
   BASE_W,
   computeLetterboxFit,
@@ -757,6 +758,9 @@ let renderer: Renderer | null = null;
 function applyResponsiveSize(): void {
   const size = computeLetterboxFit(window.innerWidth, window.innerHeight);
   applyLetterbox(canvas, document.getElementById("stage"), size);
+  // Logical-px overlays stretch onto the CSS-sized stage (issue #392):
+  // skipped when the node is missing, like the renderer null guard.
+  applyOverlayScale(document.getElementById("nametags"), size);
   cachedRect = null;
   if (renderer !== null) {
     renderer.setResolution(currentRendererResolution());

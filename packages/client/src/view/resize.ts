@@ -61,6 +61,66 @@ export function currentRendererResolution(): number {
   return clampRendererResolution(window.devicePixelRatio);
 }
 
+/** Logical overlay scale: CSS px per logical px for one axis pair. */
+export interface OverlayScale {
+  sx: number;
+  sy: number;
+}
+
+/**
+ * Logical-to-CSS scale for a letterboxed overlay: stage CSS size over
+ * the logical backing store (mirrors the computeLetterboxFit clamp
+ * idiom: non-finite or non-positive inputs read 1).
+ */
+export function overlayScaleFor(
+  size: LetterboxSize,
+  logicalW: number = BASE_W,
+  logicalH: number = BASE_H,
+): OverlayScale {
+  const lw =
+    typeof logicalW === "number" && Number.isFinite(logicalW) && logicalW > 0
+      ? logicalW
+      : 1;
+  const lh =
+    typeof logicalH === "number" && Number.isFinite(logicalH) && logicalH > 0
+      ? logicalH
+      : 1;
+  const w =
+    typeof size?.width === "number" && Number.isFinite(size.width) && size.width > 0
+      ? size.width
+      : lw;
+  const h =
+    typeof size?.height === "number" && Number.isFinite(size.height) && size.height > 0
+      ? size.height
+      : lh;
+  return { sx: w / lw, sy: h / lh };
+}
+
+/**
+ * Stretch a logical-px overlay onto its CSS-sized stage: the canvas
+ * solves the same problem declaratively via element sizing
+ * (applyLetterbox); the overlay mirrors it with a top-left-origin
+ * transform scale so logical `left/top` writes land on the sprite.
+ * Missing handles are no-ops.
+ */
+export function applyOverlayScale(
+  el: unknown,
+  size: LetterboxSize,
+  logicalW: number = BASE_W,
+  logicalH: number = BASE_H,
+): void {
+  if (typeof el !== "object" || el === null) {
+    return;
+  }
+  const style = (el as StyleLike).style;
+  if (typeof style !== "object" || style === null) {
+    return;
+  }
+  const { sx, sy } = overlayScaleFor(size, logicalW, logicalH);
+  (style as Record<string, unknown>)["transform"] = `scale(${sx}, ${sy})`;
+  (style as Record<string, unknown>)["transformOrigin"] = "0 0";
+}
+
 /** Minimal style surface; real HTMLElements satisfy it. */
 interface StyleLike {
   style: { width?: unknown; height?: unknown } | unknown;

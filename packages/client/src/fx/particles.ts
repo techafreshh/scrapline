@@ -22,12 +22,12 @@
 
 /** Hard cap on live pooled particles (oldest dropped first). */
 export const MAX_PARTICLES = 512;
-/** Muzzle-flash particles per firing (above the >= 4 probe floor). */
-export const MUZZLE_COUNT = 6;
+/** Muzzle-flash particles per firing (mockup flash density, issue #403). */
+export const MUZZLE_COUNT = 10;
 /** Muzzle-flash life in draws (~300ms at 60fps, covers the 200ms probe). */
 export const MUZZLE_TTL = 18;
-/** Impact-spark particles per damage detail. */
-export const IMPACT_COUNT = 6;
+/** Impact-spark particles per damage detail (mockup spark density, issue #403). */
+export const IMPACT_COUNT = 10;
 /** Impact-spark life in draws (~250ms). */
 export const IMPACT_TTL = 15;
 /** Explosion flash particles per blast (single bright core). */
@@ -42,8 +42,8 @@ export const EXPLOSION_SMOKE_TTL = 48;
 export const EXPLOSION_DEBRIS_COUNT = 12;
 /** Explosion debris life in draws (~650ms, bright at the 400ms probe). */
 export const EXPLOSION_DEBRIS_TTL = 40;
-/** Jet-exhaust particles spawned per frame while thrusting. */
-export const JET_PER_FRAME = 3;
+/** Jet-exhaust particles spawned per frame while thrusting (mockup flame density, issue #403). */
+export const JET_PER_FRAME = 5;
 /** Jet-exhaust life in draws (500ms trail). */
 export const JET_TTL = 30;
 /** Jet smoke wisps per low-fuel gate hit (single gray puff). */

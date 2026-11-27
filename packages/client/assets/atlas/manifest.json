@@ -557,6 +557,12 @@
     "w": 512,
     "h": 512
   },
+  "fx.flame.1": {
+    "file": "particles/flame_02.png",
+    "atlas": "particles.json",
+    "w": 512,
+    "h": 512
+  },
   "fx.flash.0": {
     "file": "particles/flare_01.png",
     "atlas": "particles.json",

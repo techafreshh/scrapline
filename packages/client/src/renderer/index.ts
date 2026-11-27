@@ -161,6 +161,7 @@ import {
 } from "../view/character";
 import type { WeaponId } from "../../../core/src/weapons";
 import {
+  isFallingPose,
   selectSoldierFrame,
   soldierAccentFor,
   soldierAccentHex,
@@ -256,8 +257,8 @@ export const VICTIM_TTL = 12;
 export const MAX_SPARKS = 96;
 /** Cap on live death-burst particles (oldest dropped first). */
 export const MAX_BURSTS = 64;
-/** Sparks spawned per damage detail (above the >=3 probe floor). */
-export const SPARKS_PER_HIT = 6;
+/** Sparks spawned per damage detail (mockup tracer/spark density, issue #403). */
+export const SPARKS_PER_HIT = 10;
 /** Particles spawned per kill detail (above the >=8 probe floor). */
 export const BURST_PER_KILL = 12;
 /** Victim-hit tint in Pixi hex while a victim flash is live. */
@@ -867,6 +868,86 @@ function padImageFor(key: string): unknown {
   }
 }
 
+/** Staged atlas file per jet-flame texture key (mirrors the allowlist). */
+export const FLAME_SPRITE_FILES: Record<string, string> = {
+  "fx.flame.0": "particles/flame_01.png",
+  "fx.flame.1": "particles/flame_02.png",
+};
+
+/** File for one jet-flame texture key (null when unknown). Pure. */
+export function flameSpriteFile(key: string): string | null {
+  return FLAME_SPRITE_FILES[key] ?? null;
+}
+
+/**
+ * Jet-flame sprite key for a tick/player: alternates fx.flame.0/1 every
+ * 6 ticks (offset per player) so the vendor flame flickers instead of
+ * holding one card. Non-finite readings fall back to fx.flame.0.
+ * Pure: no DOM, no clock reads.
+ */
+export function flameSpriteKey(tick: unknown, index: unknown): string {
+  const t = Number(tick);
+  const i = Number(index);
+  const step = Number.isFinite(t) ? Math.floor(t / 6) : 0;
+  const slot = Number.isFinite(i) ? Math.floor(i) : 0;
+  return ((step + slot) % 2 + 2) % 2 === 0 ? "fx.flame.0" : "fx.flame.1";
+}
+
+/** Resolve the co-located atlas PNG URL for a jet-flame texture key. */
+function flameAtlasUrl(key: string): string | null {
+  try {
+    const file = flameSpriteFile(key);
+    if (file === null) {
+      return null;
+    }
+    const rel = `assets/atlas/${file}`;
+    if (typeof document !== "undefined" && typeof document.baseURI === "string") {
+      try {
+        return new URL(rel, document.baseURI).toString();
+      } catch {
+        return rel;
+      }
+    }
+    return rel;
+  } catch {
+    return null;
+  }
+}
+
+const flameImageCache = new Map<string, unknown>();
+const flameImageFailed = new Set<string>();
+
+/** Live Image element for a jet-flame texture key (null until loaded). */
+function flameImageFor(key: string): unknown {
+  try {
+    if (flameImageCache.has(key)) {
+      return flameImageCache.get(key) ?? null;
+    }
+    if (flameImageFailed.has(key)) {
+      return null;
+    }
+    if (typeof document === "undefined" || typeof Image === "undefined") {
+      return null;
+    }
+    const url = flameAtlasUrl(key);
+    if (url === null) {
+      return null;
+    }
+    const img = new Image();
+    (img as { decoding?: string }).decoding = "async";
+    try {
+      (img as { src: string }).src = url;
+    } catch {
+      flameImageFailed.add(key);
+      return null;
+    }
+    flameImageCache.set(key, img);
+    return img;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Palette-graded sprite caches (canvas2d backend): per-(key, theme)
  * tinted copies of the staged tile/prop/pad PNGs, built by running
@@ -1139,6 +1220,55 @@ function paintPadSprite(
 }
 
 /**
+ * Paint one jet-flame pack sprite over the vector flame: the staged
+ * `particle-pack` flame PNG drawn centered on the exhaust point (issue
+ * #403). A cache miss or an undecoded image is a silent no-op (the
+ * vector flame stays). Never throws.
+ */
+function paintFlameSprite(
+  ctx: CanvasRenderingContext2D,
+  key: string,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+): void {
+  try {
+    const img = flameImageFor(key) as
+      | {
+        complete?: boolean;
+        naturalWidth?: number;
+        naturalHeight?: number;
+        width?: number;
+        height?: number;
+      }
+      | null;
+    if (img === null || img === undefined) {
+      return;
+    }
+    const w0 = img.naturalWidth ?? img.width ?? 0;
+    const h0 = img.naturalHeight ?? img.height ?? 0;
+    const ready =
+      (img.complete === true && w0 > 0 && h0 > 0) ||
+      ((img.width ?? 0) > 0 && (img.height ?? 0) > 0);
+    if (!ready || !Number.isFinite(w0) || !Number.isFinite(h0) || w0 <= 0 || h0 <= 0) {
+      return;
+    }
+    const draw = (
+      ctx as unknown as {
+        drawImage?: (img: unknown, x: number, y: number, w: number, h: number) => void;
+      }
+    ).drawImage;
+    if (typeof draw !== "function") {
+      return;
+    }
+    draw.call(ctx, img, cx - w / 2, cy - h / 2, w, h);
+  } catch {
+    // Undecoded or hostile shims: the vector flame stays.
+  }
+}
+
+/**
  * Tinted canvas for a soldier texture + roster index. Re-colors every
  * non-outline pixel toward the roster hue (local cyan 170-200, enemies
  * warm 0-50) while dark outlines pass through, so torso samplers read
@@ -1293,6 +1423,7 @@ function liveSoldierTexture(
       ? soldierSpriteKey({
         deadPose: anim.deadPose,
         tuck: anim.tuck,
+        falling: isFallingPose(p),
         crouching: p.crouching,
         heightScale: anim.heightScale,
         legPhase: anim.legPhase,
@@ -2379,6 +2510,7 @@ function drawCharacter2D(
       ? selectSoldierFrame({
           deadPose: anim.deadPose,
           tuck: anim.tuck,
+          falling: isFallingPose(p),
           crouching: p.crouching,
           heightScale: anim.heightScale,
           legPhase: anim.legPhase,
@@ -2388,7 +2520,9 @@ function drawCharacter2D(
         ? "dead"
         : crouch
           ? "crouch"
-          : "idle";
+          : isFallingPose(p)
+            ? "fall"
+            : "idle";
   // Pack sprite texture for this pose: the local soldier renders the
   // `platformer-characters` Soldier set via liveSoldierTexture (the
   // debug override wins so
@@ -2583,6 +2717,7 @@ export function syncFramePlayers(
         ? selectSoldierFrame({
             deadPose: anim.deadPose,
             tuck: anim.tuck,
+            falling: isFallingPose(p),
             crouching: p.crouching,
             heightScale: anim.heightScale,
             legPhase: anim.legPhase,
@@ -2592,7 +2727,9 @@ export function syncFramePlayers(
           ? "dead"
           : p.crouching
             ? "crouch"
-            : "idle";
+            : isFallingPose(p)
+              ? "fall"
+              : "idle";
     syncPlayerNode(node, {
       x: at.x,
       y: at.y,
@@ -2842,6 +2979,7 @@ function publishFrameProbes(
           ? selectSoldierFrame({
               deadPose: pose.deadPose,
               tuck: pose.tuck,
+              falling: isFallingPose(p),
               crouching: p.crouching,
               heightScale: pose.heightScale,
               legPhase: pose.legPhase,
@@ -2851,7 +2989,9 @@ function publishFrameProbes(
             ? ("dead" as const)
             : p.crouching
               ? ("crouch" as const)
-              : ("idle" as const),
+              : isFallingPose(p)
+                ? ("fall" as const)
+                : ("idle" as const),
       weapon: p.weapon,
       gaitBlend: pose?.gaitBlend ?? 0,
       airBlend: pose?.airBlend ?? 0,
@@ -3023,6 +3163,22 @@ function paintFrame2D(
       ctx.beginPath();
       ctx.arc(cx, feetY + outer + 2, outer * 0.55 * boost, 0, Math.PI * 2);
       ctx.fill();
+      // Vendor flame card over the vector flame (issue #403): the
+      // committed `particle-pack` flame art reads once decoded, while
+      // the vector flame above stays the headless fallback.
+      ctx.globalAlpha = flame;
+      try {
+        paintFlameSprite(
+          ctx,
+          flameSpriteKey(frame.tick, p.index),
+          cx,
+          feetY + outer + 2,
+          outer * 2.2,
+          outer * 2.2,
+        );
+      } catch {
+        // Sprite best-effort only: the vector flame stays.
+      }
     }
     ctx.restore();
   }
@@ -4202,6 +4358,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
                 ? selectSoldierFrame({
                     deadPose: anim.deadPose,
                     tuck: anim.tuck,
+                    falling: isFallingPose(p),
                     crouching: p.crouching,
                     heightScale: anim.heightScale,
                     legPhase: anim.legPhase,
@@ -4211,7 +4368,9 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
                   ? "dead"
                   : p.crouching
                     ? "crouch"
-                    : "idle",
+                    : isFallingPose(p)
+                      ? "fall"
+                      : "idle",
             weapon: p.weapon,
           };
         }),

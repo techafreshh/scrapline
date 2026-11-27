@@ -207,7 +207,7 @@ describe("map decorations", () => {
   });
 
   it("resolves a hex/CSS palette for every micro scatter kind", () => {
-    for (const kind of ["grass-tuft", "rock", "valve", "antenna"]) {
+    for (const kind of ["grass-tuft", "rock", "valve", "antenna", "foliage", "vines"]) {
       const paint = decorPaintFor(kind);
       expect(paint.fillHex).toBeGreaterThan(0);
       expect(paint.fillCss).toMatch(/^#/);
@@ -263,7 +263,9 @@ describe("map decorations", () => {
       { kind: "rock", x: 96, y: 64, w: 20, h: 14 },
       { kind: "valve", x: 128, y: 64, w: 12, h: 18 },
       { kind: "antenna", x: 160, y: 64, w: 10, h: 24 },
-      { kind: "sandbags", x: 192, y: 64, w: 24, h: 12 },
+      { kind: "foliage", x: 192, y: 64, w: 24, h: 18 },
+      { kind: "vines", x: 224, y: 40, w: 12, h: 24 },
+      { kind: "sandbags", x: 256, y: 64, w: 24, h: 12 },
     ];
     const graphics = stubGraphics();
     expect(() =>

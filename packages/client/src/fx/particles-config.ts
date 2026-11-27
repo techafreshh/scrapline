@@ -27,7 +27,7 @@ export const FX_MANIFEST_FRAMES: Record<string, readonly string[]> = Object.free
   muzzle: Object.freeze(["fx.muzzle.0", "fx.muzzle.1", "fx.muzzle.2"]),
   spark: Object.freeze(["fx.spark.0", "fx.spark.1"]),
   fire: Object.freeze(["fx.fire.0", "fx.fire.1"]),
-  flame: Object.freeze(["fx.flame.0"]),
+  flame: Object.freeze(["fx.flame.0", "fx.flame.1"]),
   flash: Object.freeze(["fx.flash.0", "fx.flash.1"]),
   trail: Object.freeze(["fx.trail.0", "fx.trail.1"]),
   sparkle: Object.freeze(["fx.sparkle.0", "fx.sparkle.1"]),
@@ -121,7 +121,7 @@ export const MUZZLE_EMITTER_CONFIG: EmitterConfigV3 = {
   lifetime: { min: 0.18, max: 0.3 },
   frequency: 0.01,
   spawnChance: 1,
-  particlesPerWave: 6,
+  particlesPerWave: 10,
   emitterLifetime: 0.12,
   maxParticles: FX_EMITTER_CAPS.muzzle,
   pos: { x: 0, y: 0 },
@@ -156,7 +156,7 @@ export const IMPACT_EMITTER_CONFIG: EmitterConfigV3 = {
   lifetime: { min: 0.15, max: 0.3 },
   frequency: 0.01,
   spawnChance: 1,
-  particlesPerWave: 6,
+  particlesPerWave: 10,
   emitterLifetime: 0.15,
   maxParticles: FX_EMITTER_CAPS.impact,
   pos: { x: 0, y: 0 },
@@ -230,13 +230,15 @@ export const EXPLOSION_EMITTER_CONFIG: EmitterConfigV3 = {
  * head (fde047 -> f97316) carries the flame body; the trailing gray
  * stop documents the low-fuel smoke wisps the pooled path (spawnJetSmoke)
  * paints at fuelRatio < 0.25, so the Pixi twin reads consistently when
- * the tail fades. Caps and the silent initial state are untouched.
+ * the tail fades. The texture roulette wires the committed `particle-pack`
+ * flame cards into the jetpack (issue #403); caps and the silent initial
+ * state are untouched.
  */
 export const JET_EMITTER_CONFIG: EmitterConfigV3 = {
   lifetime: { min: 0.35, max: 0.55 },
   frequency: 0.016,
   spawnChance: 1,
-  particlesPerWave: 2,
+  particlesPerWave: 3,
   emitterLifetime: -1,
   maxParticles: FX_EMITTER_CAPS.jet,
   pos: { x: 0, y: 0 },
@@ -263,7 +265,7 @@ export const JET_EMITTER_CONFIG: EmitterConfigV3 = {
     },
     { type: "rotationStatic", config: { min: 240, max: 300 } },
     { type: "spawnShape", config: { type: "rect", data: { x: -3, y: 0, w: 6, h: 2 } } },
-    packTexture("fx.trail.1"),
+    packTextureRandom(["fx.trail.1", "fx.flame.0", "fx.flame.1"]),
   ],
 };
 

@@ -26,11 +26,14 @@ export interface Decoration {
 /** Shipped arena names carrying a scatter pool (all others fall back). */
 const KNOWN_MAPS = ["kilima", "dune", "frostbite"] as const;
 
-/** Per-map micro-kind pools (small w/h ranges below, all 8-28px). */
+/** Per-map micro-kind pools (small w/h ranges below, all 8-28px).
+ * Foliage clusters and hanging vines fill the terrain edges on every
+ * theme at mockup density (issue #403); kilima leans lush while dune
+ * and frostbite mix scrub with their industrial dressing. */
 const KIND_POOLS: Record<string, string[]> = {
-  kilima: ["grass-tuft", "rock", "valve", "antenna"],
-  dune: ["rock", "valve", "antenna"],
-  frostbite: ["rock", "valve", "antenna"],
+  kilima: ["grass-tuft", "rock", "valve", "antenna", "foliage", "vines"],
+  dune: ["rock", "valve", "antenna", "foliage", "vines"],
+  frostbite: ["rock", "valve", "antenna", "foliage", "vines"],
 };
 
 /** Inclusive [minW, maxW, minH, maxH] px size range per scatter kind. */
@@ -39,6 +42,8 @@ const SIZE_RANGES: Record<string, [number, number, number, number]> = {
   rock: [10, 24, 8, 18],
   valve: [8, 16, 10, 20],
   antenna: [8, 12, 16, 28],
+  foliage: [16, 28, 12, 24],
+  vines: [8, 16, 16, 28],
 };
 
 /** Fallback size range for kinds outside the pool (keeps 8-28px). */
@@ -97,8 +102,9 @@ function intersectsSolid(
 
 /**
  * Deterministic scatter rects for an arena: static-map companion to the
- * per-map `decorations` arrays. Draws a per-map count in 40-120 (safely
- * inside the 15-200 acceptance band) from the forked stream, then samples
+ * per-map `decorations` arrays. Draws a per-map count in 90-180 (safely
+ * inside the 15-200 acceptance band) at mockup foliage density
+ * (issue #403) from the forked stream, then samples
  * free tiles with rejection on solid overlap. Returns plain
  * JSON-serializable rects sorted by (kind, x, y).
  */
@@ -131,7 +137,7 @@ export function generateScatterDecorations(
   if (free.length === 0) {
     return [];
   }
-  const target = 40 + Math.floor(rng.next() * 81);
+  const target = 90 + Math.floor(rng.next() * 91);
   const arenaW = map.widthTiles * TILE_SIZE;
   const arenaH = map.heightTiles * TILE_SIZE;
   const seen = new Set<string>();

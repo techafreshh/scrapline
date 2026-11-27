@@ -16,16 +16,22 @@ export interface Decoration {
   h: number;
 }
 
-/** Kilima decorations: sandbags, antenna-mast, watchtower. */
+/** Kilima decorations: sandbags, antenna-mast, watchtower, plus foliage
+ * clusters, hanging vines, and a second sandbag line filling the sky
+ * band (rows 0-3) at mockup edge density (issue #403). */
 export const decorations: Decoration[] = [
   { kind:"sandbags", x: 64, y: 64, w: 96, h: 24 },
   { kind:"antenna-mast", x: 960, y: 0, w: 16, h: 128 },
   { kind:"watchtower", x: 576, y: 32, w: 96, h: 64 },
+  { kind:"foliage", x: 192, y: 72, w: 64, h: 32 },
+  { kind:"vines", x: 416, y: 16, w: 24, h: 48 },
+  { kind:"foliage", x: 1088, y: 72, w: 64, h: 32 },
+  { kind:"sandbags", x: 768, y: 88, w: 96, h: 24 },
 ];
 
 /**
  * Static rects plus deterministic micro-scatter for `rows`/`seed`: the
- * static array is never mutated, so the 3-rect contract stays byte-stable.
+ * static array is never mutated, so the 7-rect contract stays byte-stable.
  */
 export function decorationsWithScatter(rows: string[] | string, seed: number): Decoration[] {
   return [...decorations, ...generateScatterDecorations("kilima", rows, seed)];

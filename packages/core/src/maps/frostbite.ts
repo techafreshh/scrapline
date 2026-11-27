@@ -17,16 +17,22 @@ export interface Decoration {
   h: number;
 }
 
-/** Frostbite decorations: ice-sheen, antenna-dishes, window-lights. */
+/** Frostbite decorations: ice-sheen, antenna-dishes, window-lights,
+ * plus snowbush foliage and hanging vines filling the station sky band
+ * (rows 0-2) at mockup edge density (issue #403). */
 export const decorations: Decoration[] = [
   { kind:"ice-sheen", x: 448, y: 32, w: 192, h: 24 },
   { kind:"antenna-dishes", x: 672, y: 0, w: 64, h: 64 },
   { kind:"window-lights", x: 768, y: 32, w: 128, h: 24 },
+  { kind:"foliage", x: 96, y: 16, w: 64, h: 32 },
+  { kind:"vines", x: 1152, y: 8, w: 24, h: 48 },
+  { kind:"foliage", x: 288, y: 64, w: 64, h: 24 },
+  { kind:"vines", x: 960, y: 64, w: 24, h: 32 },
 ];
 
 /**
  * Static rects plus deterministic micro-scatter for `rows`/`seed`: the
- * static array is never mutated, so the 3-rect contract stays byte-stable.
+ * static array is never mutated, so the 7-rect contract stays byte-stable.
  */
 export function decorationsWithScatter(rows: string[] | string, seed: number): Decoration[] {
   return [...decorations, ...generateScatterDecorations("frostbite", rows, seed)];

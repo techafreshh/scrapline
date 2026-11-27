@@ -332,9 +332,10 @@ button[data-map][aria-pressed="true"] {
   border-image-width: 4px;
   border-image-repeat: stretch;
 }
-/* Scrollbars: thin overlay groove in the edge token over the track
-  token; the painted plate ships for overlay scrollbars while the
-  native thumb stays a token block so it never ghosts. */
+/* Scrollbars: thin overlay groove for .sl-panel and .menu-column in
+  the edge token over the track token; the painted plate ships for
+  overlay scrollbars while the native thumb stays a token block so
+  it never ghosts. */
 #stage .sl-panel::-webkit-scrollbar,
 .sl-panel::-webkit-scrollbar,
 #stage .menu-column::-webkit-scrollbar,
@@ -354,7 +355,9 @@ button[data-map][aria-pressed="true"] {
   background-color: var(--color-edge);
 }
 #stage .sl-panel,
-.sl-panel {
+.sl-panel,
+#stage .menu-column,
+.menu-column {
   scrollbar-color: var(--color-edge) var(--color-track);
   scrollbar-width: thin;
 }

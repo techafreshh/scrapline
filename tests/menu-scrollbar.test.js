@@ -63,9 +63,7 @@ function declarationValue(body, property) {
  */
 function standardBodies(source) {
   const bodies = [];
-  const rule = /([^{}]+)\{([^{}]*)\}/g;
-  let match = null;
-  while ((match = rule.exec(source)) !== null) {
+  for (const match of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     if (/scrollbar-width\s*:/.test(match[2])) {
       bodies.push({ selectors: match[1], body: match[2] });
     }

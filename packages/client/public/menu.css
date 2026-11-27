@@ -341,6 +341,33 @@
     row-gap: var(--spacing-4);
   }
 }
+/* Short viewports (issue #387): below ~700px the A9 stack overflows
+  the fold with no scroll affordance, so the existing column becomes
+  the internal scroller capped clear of the tip strip (the .sl-panel
+  96px reserve) with a reserved groove, the CTA pins sticky to the
+  visible top, and only the rhythm tightens one step — type sizes and
+  hit-area floors stay exactly as 720p sets them. Token variables
+  only; boxes stay owned here while stacking stays in layers.css. */
+@media (max-height: 700px) {
+  #stage #menu .menu-grid,
+  .menu-grid {
+    gap: var(--spacing-8);
+    padding: var(--spacing-12) var(--spacing-12) calc(var(--spacing-12) + var(--spacing-16));
+  }
+  #stage #menu .menu-column,
+  .menu-column {
+    max-height: calc(100vh - 96px);
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+  }
+  #stage #menu #quick-play,
+  #quick-play {
+    position: sticky;
+    top: 0;
+  }
+}
 /* Per-theme menu veils (issue #348): the live match canvas behind the
   menu already paints the selected theme (view/backdrop.ts), so the
   scrim tints per theme from the carousel selection (menu data-theme).

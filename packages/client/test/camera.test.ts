@@ -23,6 +23,7 @@ import {
   viewSize,
   visibleTileRange,
   ZOOM_LEVELS,
+  type Camera,
 } from "../src/renderer/camera";
 
 const ARENA_W = 40 * TILE_SIZE;
@@ -90,6 +91,19 @@ describe("projectCamera", () => {
     const screen = projectCamera(cam, 640, 360, cam.x, cam.y);
     expect(screen.x).toBeCloseTo(320, 9);
     expect(screen.y).toBeCloseTo(180, 9);
+  });
+
+  it("maps a known camera/viewport pair to exact logical px (issue #392)", () => {
+    // Hand-built camera (independent of the createCamera fit floors):
+    // the focus lands exactly on the canvas center, and the world
+    // origin lands one scaled focus-offset up-left of it.
+    const cam = { x: 100, y: 50, scale: 0.5 } as unknown as Camera;
+    const center = projectCamera(cam, 640, 360, 100, 50);
+    expect(center.x).toBe(320);
+    expect(center.y).toBe(180);
+    const origin = projectCamera(cam, 640, 360, 0, 0);
+    expect(origin.x).toBeCloseTo(270, 9);
+    expect(origin.y).toBeCloseTo(155, 9);
   });
 });
 

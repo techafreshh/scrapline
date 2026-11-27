@@ -6,10 +6,12 @@
 import { describe, expect, it } from "vitest";
 import {
   applyLetterbox,
+  applyOverlayScale,
   BASE_H,
   BASE_W,
   clampRendererResolution,
   computeLetterboxFit,
+  overlayScaleFor,
 } from "../src/view/resize";
 
 const ASPECT = 16 / 9;
@@ -101,6 +103,65 @@ describe("applyLetterbox", () => {
   it("no-ops on null handles", () => {
     expect(() =>
       applyLetterbox(null, undefined, { width: 800, height: 450 }),
+    ).not.toThrow();
+  });
+});
+
+describe("overlayScaleFor", () => {
+  it("maps the 1109x624 acceptance stage to the logical base", () => {
+    const { sx, sy } = overlayScaleFor({ width: 1109, height: 624 });
+    expect(sx).toBeCloseTo(1109 / 640, 9);
+    expect(sy).toBeCloseTo(624 / 360, 9);
+  });
+
+  it("maps the 1280x720 acceptance viewport to a uniform 2x", () => {
+    const { sx, sy } = overlayScaleFor({ width: 1280, height: 720 });
+    expect(sx).toBe(2);
+    expect(sy).toBe(2);
+  });
+
+  it("maps 1920x1080 to exactly 3x", () => {
+    const { sx, sy } = overlayScaleFor({ width: 1920, height: 1080 });
+    expect(sx).toBe(3);
+    expect(sy).toBe(3);
+  });
+
+  it("falls back to 1 per axis for non-finite or non-positive inputs", () => {
+    // Bad CSS sizes fall back to the logical size on that axis.
+    expect(overlayScaleFor({ width: 0, height: 0 })).toEqual({
+      sx: 1,
+      sy: 1,
+    });
+    const nanW = overlayScaleFor({ width: NaN, height: 624 });
+    expect(nanW.sx).toBe(1);
+    expect(nanW.sy).toBeCloseTo(624 / 360, 9);
+    // Bad logical dims fall back to 1px on that axis.
+    const badBase = overlayScaleFor({ width: 1109, height: 624 }, 0, -1);
+    expect(badBase.sx).toBe(1109);
+    expect(badBase.sy).toBe(624);
+  });
+});
+
+describe("applyOverlayScale", () => {
+  function fakeEl(): { style: Record<string, unknown> } {
+    return { style: {} };
+  }
+
+  it("writes the scaled transform with a top-left origin", () => {
+    const el = fakeEl();
+    applyOverlayScale(el, { width: 1109, height: 624 });
+    expect(el.style["transform"]).toBe(
+      `scale(${1109 / 640}, ${624 / 360})`,
+    );
+    expect(el.style["transformOrigin"]).toBe("0 0");
+  });
+
+  it("no-ops on null or style-less handles", () => {
+    expect(() =>
+      applyOverlayScale(null, { width: 1109, height: 624 }),
+    ).not.toThrow();
+    expect(() =>
+      applyOverlayScale({}, { width: 1109, height: 624 }),
     ).not.toThrow();
   });
 });

@@ -347,7 +347,11 @@
   96px reserve) with a reserved groove, the CTA pins sticky to the
   visible top, and only the rhythm tightens one step — type sizes and
   hit-area floors stay exactly as 720p sets them. Token variables
-  only; boxes stay owned here while stacking stays in layers.css. */
+  only; boxes stay owned here while stacking stays in layers.css.
+  Sticky CTA backdrop + fade affordance (issue #391): the pinned CTA
+  re-affirms its opaque accent face with a hard-stop halo so scrolled
+  rows pass cleanly underneath, and the column fades its last spacing
+  unit as the always-painted scroll affordance. */
 @media (max-height: 700px) {
   #stage #menu .menu-grid,
   .menu-grid {
@@ -361,11 +365,15 @@
     overflow-y: auto;
     scrollbar-gutter: stable;
     overscroll-behavior: contain;
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - var(--spacing-24)), transparent);
+    mask-image: linear-gradient(to bottom, black calc(100% - var(--spacing-24)), transparent);
   }
   #stage #menu #quick-play,
   #quick-play {
     position: sticky;
     top: 0;
+    background: var(--accent);
+    box-shadow: 0 0 0 var(--spacing-12) var(--color-bg), 0 0 24px rgba(0, 229, 255, 0.75);
   }
 }
 /* Per-theme menu veils (issue #348): the live match canvas behind the

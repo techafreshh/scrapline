@@ -88,3 +88,15 @@ body .menu-root {
 #stage #loading {
   background: var(--color-bg);
 }
+/* Short-viewport sticky CTA (issue #391): below ~700px the menu column
+  scrolls with a sticky #quick-play, but the legacy inline block gives
+  #menu button and #profile-row z-index 1, so the sticky CTA (z-index
+  auto) paints below its siblings and rows show through. One step above
+  the legacy siblings keeps the CTA face on top; the opaque halo lives
+  in menu.css, stacking stays owned here. */
+@media (max-height: 700px) {
+  #stage #menu #quick-play,
+  #quick-play {
+    z-index: 2;
+  }
+}

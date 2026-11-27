@@ -10,6 +10,7 @@
 // Node + puppeteer-core only (no repo imports): stays out of `npm test`
 // and CI on purpose, mirroring scripts/capture-themes.mjs. Regenerate
 // with `node scripts/capture-world-parity.mjs`.
+/* global window:readonly */
 import { spawn, execSync } from "node:child_process";
 import net from "node:net";
 import fs from "node:fs";

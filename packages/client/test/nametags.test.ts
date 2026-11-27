@@ -252,3 +252,51 @@ describe("updateNametags hidden", () => {
     expect(() => updateNametags({ container: null }, frame)).not.toThrow();
   });
 });
+
+describe("updateNametags HUD guard scaling (issue #392)", () => {
+  it("hides a tag inside the scaled cluster band while keeping others visible", () => {
+    // 1109x624 stage over the 640x360 logical base: the guard maps
+    // anchors with the overlay scale (issue #392), so the bot anchor at
+    // logical (433, 224) reads viewport (850, 438) — inside the
+    // padded cluster — while the old 1:1 mapping would read (533, 274)
+    // and show both tags. The local anchor at logical (333, 174) reads
+    // viewport (677, 352), clear of the band, and stays visible.
+    const elements = new Map<string, FakeEl>();
+    const doc: FakeDoc = {
+      elements,
+      createElement: (): FakeEl => makeEl(doc),
+    };
+    const cluster = { left: 820, top: 400, right: 880, bottom: 470 };
+    (doc as unknown as Record<string, unknown>)["getElementById"] = (
+      id: string,
+    ): FakeEl | null => {
+      if (id !== "hud-status") {
+        return null;
+      }
+      const el = makeEl(doc);
+      (el as unknown as Record<string, unknown>)["getBoundingClientRect"] =
+        () => ({ ...cluster });
+      return el;
+    };
+    const container = makeEl(doc);
+    Object.defineProperty(container, "ownerDocument", {
+      value: doc,
+      enumerable: true,
+    });
+    (container as unknown as Record<string, unknown>)[
+      "getBoundingClientRect"
+    ] = () => ({ left: 100, top: 50, width: 1109, height: 624 });
+    const handles: NametagHandles = {
+      container: container as unknown as HTMLElement,
+    };
+    updateNametags(handles, {
+      players: twoPlayers(),
+      camera: headOnCamera(),
+      canvasW: 640,
+      canvasH: 360,
+      show: true,
+    });
+    expect(container.children).toHaveLength(1);
+    expect(container.children[0].getAttribute("data-player")).toBe("0");
+  });
+});

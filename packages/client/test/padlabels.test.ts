@@ -8,6 +8,7 @@ import {
   isHeldWeaponPad,
   labelTextFor,
   normalizePadWeaponId,
+  selectVisiblePadlabels,
   PADLABEL_FADE_FLOOR,
   PADLABEL_FADE_START_PX,
   PADLABEL_LIFT_PX,
@@ -586,5 +587,144 @@ describe("updatePadlabels HUD guard scaling (issue #398)", () => {
     });
     expect(container.children).toHaveLength(1);
     expect(container.children[0].getAttribute("data-pickup")).toBe("0");
+  });
+});
+
+describe("selectVisiblePadlabels probe parity (issue #401)", () => {
+  /** Drive the DOM reconciler and the headless selector on one frame. */
+  function parityTexts(frame: PadlabelsFrame): {
+    dom: string[];
+    probe: string[];
+  } {
+    const { handles, container } = makeHarness();
+    updatePadlabels(handles, frame);
+    const dom = container.children.map((kid) => kid.textContent);
+    const probe = selectVisiblePadlabels(frame.pickups, {
+      camera: frame.camera,
+      canvasW: frame.canvasW,
+      canvasH: frame.canvasH,
+      focusX: frame.focusX,
+      focusY: frame.focusY,
+      heldWeapon: frame.heldWeapon,
+    }).map((selection) => selection.text);
+    return { dom, probe };
+  }
+
+  it("caps 5 in-radius pads at the 3 nearest ids on both surfaces", () => {
+    const frame = focusedFrame(
+      [
+        { id: 0, kind: "health", x: 0, y: 0, active: true },
+        { id: 1, kind: "health", x: 50, y: 0, active: true },
+        { id: 2, kind: "health", x: 100, y: 0, active: true },
+        { id: 3, kind: "health", x: 150, y: 0, active: true },
+        { id: 4, kind: "health", x: 200, y: 0, active: true },
+      ],
+      0,
+      0,
+    );
+    const { dom, probe } = parityTexts(frame);
+    expect(dom).toHaveLength(3);
+    expect(probe).toEqual(dom);
+    const ids = selectVisiblePadlabels(frame.pickups, {
+      camera: frame.camera,
+      canvasW: frame.canvasW,
+      canvasH: frame.canvasH,
+      focusX: 0,
+      focusY: 0,
+    }).map((selection) => selection.pickup.id);
+    expect(ids).toEqual([0, 1, 2]);
+  });
+
+  it("orders nearest-first with identical text sets on both surfaces", () => {
+    const frame = focusedFrame(
+      [
+        { id: 0, kind: "weapon", weapon: "rifle", x: 150, y: 0, active: true },
+        { id: 1, kind: "grenades", x: 100, y: 0, active: true },
+        { id: 2, kind: "weapon", weapon: "rocket", x: 50, y: 0, active: true },
+        { id: 3, kind: "health", x: 0, y: 0, active: true },
+      ],
+      0,
+      0,
+    );
+    const { dom, probe } = parityTexts(frame);
+    expect(dom).toEqual(["HP", "Rocket", "GREN"]);
+    expect(probe).toEqual(dom);
+  });
+
+  it("excludes far pads from both surfaces", () => {
+    const frame = focusedFrame(
+      [
+        { id: 0, kind: "weapon", weapon: "rocket", x: 0, y: 0, active: true },
+        // Onscreen (projects to x=620) yet past the 260px radius.
+        { id: 1, kind: "weapon", weapon: "rifle", x: 300, y: 0, active: true },
+      ],
+      0,
+      0,
+    );
+    const { dom, probe } = parityTexts(frame);
+    expect(dom).toEqual(["Rocket"]);
+    expect(probe).toEqual(dom);
+  });
+
+  it("excludes held-weapon pads from both surfaces", () => {
+    const frame = focusedFrame(
+      [
+        { id: 0, kind: "weapon", weapon: "hornet", x: 0, y: 0, active: true },
+        { id: 1, kind: "health", x: 50, y: 0, active: true },
+        { id: 2, kind: "grenades", x: 100, y: 0, active: true },
+      ],
+      0,
+      0,
+      "smg",
+    );
+    const { dom, probe } = parityTexts(frame);
+    expect(dom).toEqual(["HP", "GREN"]);
+    expect(probe).toEqual(dom);
+  });
+
+  it("excludes offscreen pads from both surfaces", () => {
+    const frame = focusedFrame(
+      [
+        { id: 0, kind: "weapon", weapon: "hornet", x: 0, y: 0, active: true },
+        { id: 1, kind: "weapon", weapon: "rocket", x: 100000, y: 50000, active: true },
+      ],
+      0,
+      0,
+    );
+    const { dom, probe } = parityTexts(frame);
+    expect(dom).toEqual(["Hornet"]);
+    expect(probe).toEqual(dom);
+  });
+
+  it("tracks Hornet->Rocket swaps and collect/respawn on both surfaces", () => {
+    const pickups: PadlabelPickup[] = [
+      { id: 0, kind: "weapon", weapon: "hornet", x: 0, y: 0, active: true },
+    ];
+    expect(parityTexts(focusedFrame(pickups, 0, 0)).dom).toEqual(["Hornet"]);
+    expect(parityTexts(focusedFrame(pickups, 0, 0)).probe).toEqual(["Hornet"]);
+    pickups[0].weapon = "rocket";
+    const swapped = parityTexts(focusedFrame(pickups, 0, 0));
+    expect(swapped.dom).toEqual(["Rocket"]);
+    expect(swapped.probe).toEqual(swapped.dom);
+    pickups[0].active = false;
+    const collected = parityTexts(focusedFrame(pickups, 0, 0));
+    expect(collected.dom).toEqual([]);
+    expect(collected.probe).toEqual([]);
+    pickups[0].active = true;
+    const respawned = parityTexts(focusedFrame(pickups, 0, 0));
+    expect(respawned.dom).toEqual(["Rocket"]);
+    expect(respawned.probe).toEqual(respawned.dom);
+  });
+
+  it("reads no labels without a camera on both surfaces", () => {
+    const frame: PadlabelsFrame = {
+      pickups: threePads(),
+      camera: null,
+      canvasW: 640,
+      canvasH: 360,
+    };
+    const { dom, probe } = parityTexts(frame);
+    expect(dom).toEqual([]);
+    expect(probe).toEqual([]);
   });
 });

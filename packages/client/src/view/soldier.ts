@@ -21,13 +21,16 @@ import {
   soldierSpriteKey as spriteTextureKey,
 } from "../render/soldier";
 
-/** Animated soldier frame ids (one atlas card each). */
+/** Animated soldier frame ids (one atlas card each). The fall card is
+ * the committed soldier.fall art, shared with the hurt flinch: airborne
+ * non-jetting players dangle instead of floating idle (issue #403). */
 export const SOLDIER_FRAME_IDS = [
   "idle",
   "run-a",
   "run-b",
   "jet",
   "crouch",
+  "fall",
   "dead",
 ] as const;
 
@@ -41,6 +44,7 @@ export const SOLDIER_FRAME_FILES: Record<SoldierFrameId, string> = {
   "run-b": "soldier-run-b",
   jet: "soldier-jet",
   crouch: "soldier-crouch",
+  fall: "soldier-fall",
   dead: "soldier-dead",
 };
 
@@ -55,6 +59,7 @@ export const SOLDIER_MANIFEST_FRAMES: Record<SoldierFrameId, string> = {
   "run-b": "soldier.run.1",
   jet: "soldier.jet",
   crouch: "soldier.crouch",
+  fall: "soldier.fall",
   dead: "soldier.dead",
 };
 
@@ -86,12 +91,36 @@ export function soldierManifestFrame(frame: SoldierFrameId): string {
   return SOLDIER_MANIFEST_FRAMES[frame] ?? SOLDIER_MANIFEST_FRAMES["idle"];
 }
 
+/** Downward speed in world px/s above which an airborne player dangles. */
+export const FALLING_VY = 160;
+
+/**
+ * True while a live player dangles airborne: alive, off the ground,
+ * not jetting, and falling faster than FALLING_VY. Drives the fall
+ * frame at every selectSoldierFrame call site so the committed
+ * soldier.fall card reads mid-match (issue #403). Pure: no DOM.
+ */
+export function isFallingPose(input: {
+  alive?: boolean;
+  onGround?: boolean;
+  jetting?: boolean;
+  vy?: number;
+}): boolean {
+  if (input.alive !== true || input.onGround !== false || input.jetting === true) {
+    return false;
+  }
+  const vy = Number(input.vy);
+  return Number.isFinite(vy) && vy > FALLING_VY;
+}
+
 /** Pose fields the frame selector reads (AnimPose-compatible). */
 export interface SoldierPoseInput {
   /** Burst pose wins over every other frame. */
   deadPose?: boolean;
   /** Tucked legs while alive and jetting. */
   tuck?: boolean;
+  /** Dangling legs while airborne and falling (not jetting). */
+  falling?: boolean;
   /** Explicit crouch flag (describeFrame row). */
   crouching?: boolean;
   /** Vertical squash (crouch ratio, else 1); < 1 reads as crouch. */
@@ -104,8 +133,9 @@ export interface SoldierPoseInput {
 
 /**
  * Select the soldier frame for a pose. Dead wins, then crouch, then the
- * jet tuck, then run-a/run-b by legPhase quadrant while the legs swing,
- * else idle. Pure: no DOM, no clock reads.
+ * jet tuck, then the airborne fall dangle, then run-a/run-b by
+ * legPhase quadrant while the legs swing, else idle. Pure: no DOM,
+ * no clock reads.
  */
 export function selectSoldierFrame(pose: SoldierPoseInput): SoldierFrameId {
   if (pose.deadPose === true) {
@@ -119,6 +149,9 @@ export function selectSoldierFrame(pose: SoldierPoseInput): SoldierFrameId {
   }
   if (pose.tuck === true) {
     return "jet";
+  }
+  if (pose.falling === true) {
+    return "fall";
   }
   if (Math.abs(pose.swing ?? 0) < 0.5) {
     return "idle";
@@ -301,7 +334,7 @@ export function soldierLegOffsetBlended(
   airBlend?: number,
 ): { dx: number; dy: number } {
   const base = soldierLegOffset(frame, swing, side);
-  if (frame === "dead" || frame === "jet") {
+  if (frame === "dead" || frame === "jet" || frame === "fall") {
     return base;
   }
   const gait = clampBlend(gaitBlend, 1);
@@ -331,6 +364,9 @@ export function soldierLegOffset(
       return { dx: side * DEAD_SPLAY_PX, dy: -DEAD_LIFT_PX };
     case "jet":
       return { dx: side * -TUCK_IN_PX, dy: -TUCK_UP_PX };
+    case "fall":
+      // Dangling legs: slight outward splay, trailing below the torso.
+      return { dx: side * 2, dy: 3 };
     case "run-b":
       return { dx: 0, dy: -side * swing };
     case "crouch":

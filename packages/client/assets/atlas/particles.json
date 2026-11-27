@@ -89,6 +89,13 @@
       "w": 512,
       "h": 512
     },
+    "fx.flame.1": {
+      "file": "particles/flame_02.png",
+      "x": 0,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
     "fx.flash.0": {
       "file": "particles/flare_01.png",
       "x": 0,

@@ -162,6 +162,7 @@ export function soldierRunKey(legPhase: number): SoldierRunKey {
 export interface SoldierSpritePose {
   deadPose?: boolean;
   tuck?: boolean;
+  falling?: boolean;
   crouching?: boolean;
   heightScale?: number;
   legPhase?: number;
@@ -171,10 +172,11 @@ export interface SoldierSpritePose {
 
 /**
  * Resolve the manifest texture key for a pose. Dead wins, then crouch,
- * then the jet tuck, then the 4-frame run cycle while the legs swing
- * (hurt flashes ride soldier.fall), else idle. The returned key always
- * contains its family (soldier.run.* for running) so probes can match
- * on the soldier run prefix. Pure.
+ * then the jet tuck, then the airborne fall dangle, then the 4-frame
+ * run cycle while the legs swing (hurt flashes ride soldier.fall),
+ * else idle. The returned key always contains its family
+ * (soldier.run.* for running) so probes can match on the soldier run
+ * prefix. Pure.
  */
 export function soldierSpriteKey(pose: SoldierSpritePose): string {
   if (pose.deadPose === true) {
@@ -188,6 +190,9 @@ export function soldierSpriteKey(pose: SoldierSpritePose): string {
   }
   if (pose.tuck === true) {
     return SOLDIER_SPRITE_KEYS.jet;
+  }
+  if (pose.falling === true) {
+    return SOLDIER_SPRITE_KEYS.hurt;
   }
   if (Math.abs(pose.swing ?? 0) < 0.5) {
     if (pose.hurtFlash === true) {

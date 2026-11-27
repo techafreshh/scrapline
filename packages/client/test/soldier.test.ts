@@ -47,13 +47,14 @@ function fireOnce(weapon: WeaponId): { frame: Frame; details: ShotDetail[] } {
 }
 
 describe("frame selector", () => {
-  it("lists six frames with one atlas card each", () => {
+  it("lists seven frames with one atlas card each", () => {
     expect([...SOLDIER_FRAME_IDS]).toEqual([
       "idle",
       "run-a",
       "run-b",
       "jet",
       "crouch",
+      "fall",
       "dead",
     ]);
     for (const id of SOLDIER_FRAME_IDS) {

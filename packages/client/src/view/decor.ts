@@ -55,6 +55,8 @@ const DECOR_PALETTE: Record<string, DecorPaint> = {
   "antenna-dishes": { fillHex: 0xe0f2fe, fillCss: "#e0f2fe", accentHex: 0x0284c7, accentCss: "#0284c7" },
   "window-lights": { fillHex: 0x1f2937, fillCss: "#1f2937", accentHex: 0xfde68a, accentCss: "#fde68a" },
   "grass-tuft": { fillHex: 0x4d7c0f, fillCss: "#4d7c0f", accentHex: 0x65a30d, accentCss: "#65a30d" },
+  "foliage": { fillHex: 0x3f6212, fillCss: "#3f6212", accentHex: 0x84cc16, accentCss: "#84cc16" },
+  "vines": { fillHex: 0x166534, fillCss: "#166534", accentHex: 0x4ade80, accentCss: "#4ade80" },
   "rock": { fillHex: 0x78716c, fillCss: "#78716c", accentHex: 0x57534e, accentCss: "#57534e" },
   "valve": { fillHex: 0xc2410c, fillCss: "#c2410c", accentHex: 0x7c2d12, accentCss: "#7c2d12" },
   "antenna": { fillHex: 0x94a3b8, fillCss: "#94a3b8", accentHex: 0xef4444, accentCss: "#ef4444" },
@@ -340,6 +342,31 @@ function paintOnePixi(
       graphics.lineTo(bx + (i - 1) * bar * 0.5, sy);
       graphics.stroke({ width: bar, color: paint.fillHex });
     }
+  } else if (kind === "foliage") {
+    // Bush cluster: dark leaf bed with three light canopy discs so the
+    // terrain edge reads as foliage at mockup density (issue #403).
+    graphics.rect(sx, sy + h - bar, w, bar);
+    graphics.fill(paint.fillHex);
+    for (let i = 0; i < 3; i += 1) {
+      const cx = sx + (w * (i + 0.5)) / 3;
+      const cy = sy + h * (0.35 + (i % 2) * 0.15);
+      const r = Math.max(2, Math.min(w / 3, h * 0.45));
+      graphics.circle(cx, cy, r);
+      graphics.fill(i % 2 === 0 ? paint.accentHex : paint.fillHex);
+    }
+  } else if (kind === "vines") {
+    // Hanging vines: top anchor bar with three swaying strands ending
+    // in leaf dots (terrain-edge dressing, issue #403).
+    graphics.rect(sx, sy, w, bar);
+    graphics.fill(paint.fillHex);
+    for (let i = 0; i < 3; i += 1) {
+      const bx = sx + (w * (i + 0.5)) / 3;
+      graphics.moveTo(bx, sy + bar);
+      graphics.lineTo(bx + (i - 1) * bar * 0.4, sy + h);
+      graphics.stroke({ width: bar, color: paint.fillHex });
+      graphics.circle(bx + (i - 1) * bar * 0.4, sy + h, Math.max(1.5, bar));
+      graphics.fill(paint.accentHex);
+    }
   } else if (kind === "rock") {
     graphics.circle(sx + w / 2, sy + h * 0.55, Math.max(1.5, Math.min(w, h) / 2));
     graphics.fill(paint.fillHex);
@@ -530,6 +557,37 @@ function paintOne2D(
       ctx.moveTo(bx, sy + h);
       ctx.lineTo(bx + (i - 1) * bar * 0.5, sy);
       ctx.stroke();
+    }
+  } else if (kind === "foliage") {
+    // Bush cluster (mirrors paintOnePixi).
+    ctx.fillStyle = paint.fillCss;
+    ctx.fillRect(sx, sy + h - bar, w, bar);
+    for (let i = 0; i < 3; i += 1) {
+      const cx = sx + (w * (i + 0.5)) / 3;
+      const cy = sy + h * (0.35 + (i % 2) * 0.15);
+      const r = Math.max(2, Math.min(w / 3, h * 0.45));
+      ctx.fillStyle = i % 2 === 0 ? paint.accentCss : paint.fillCss;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (kind === "vines") {
+    // Hanging vines (mirrors paintOnePixi).
+    ctx.fillStyle = paint.fillCss;
+    ctx.fillRect(sx, sy, w, bar);
+    ctx.strokeStyle = paint.fillCss;
+    ctx.lineWidth = bar;
+    ctx.fillStyle = paint.accentCss;
+    for (let i = 0; i < 3; i += 1) {
+      const bx = sx + (w * (i + 0.5)) / 3;
+      const tipX = bx + (i - 1) * bar * 0.4;
+      ctx.beginPath();
+      ctx.moveTo(bx, sy + bar);
+      ctx.lineTo(tipX, sy + h);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(tipX, sy + h, Math.max(1.5, bar), 0, Math.PI * 2);
+      ctx.fill();
     }
   } else if (kind === "rock") {
     ctx.fillStyle = paint.fillCss;

@@ -429,6 +429,7 @@ const ATLAS_ALLOWLIST = [
   { name: "fx.fire.0", from: `${PARTICLES}/fire_01.png` },
   { name: "fx.fire.1", from: `${PARTICLES}/fire_02.png` },
   { name: "fx.flame.0", from: `${PARTICLES}/flame_01.png` },
+  { name: "fx.flame.1", from: `${PARTICLES}/flame_02.png` },
   { name: "fx.flash.0", from: `${PARTICLES}/flare_01.png` },
   { name: "fx.flash.1", from: `${PARTICLES}/light_01.png` },
   { name: "fx.trail.0", from: `${PARTICLES}/trace_01.png` },

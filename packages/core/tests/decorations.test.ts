@@ -124,9 +124,22 @@ describe("map decorations", () => {
   });
 
   it("scatter output is sorted by (kind, x, y) with per-map kind pools", () => {
-    expect(scatterKindsFor("kilima")).toEqual(["grass-tuft", "rock", "valve", "antenna"]);
-    expect(scatterKindsFor("dune")).toEqual(["rock", "valve", "antenna"]);
-    expect(scatterKindsFor("frostbite")).toEqual(["rock", "valve", "antenna"]);
+    expect(scatterKindsFor("kilima")).toEqual([
+      "grass-tuft",
+      "rock",
+      "valve",
+      "antenna",
+      "foliage",
+      "vines",
+    ]);
+    expect(scatterKindsFor("dune")).toEqual(["rock", "valve", "antenna", "foliage", "vines"]);
+    expect(scatterKindsFor("frostbite")).toEqual([
+      "rock",
+      "valve",
+      "antenna",
+      "foliage",
+      "vines",
+    ]);
     expect(scatterKindsFor("bogus")).toEqual(scatterKindsFor("kilima"));
     for (const key of Object.keys(mapModules).sort()) {
       const base = key.split("/").pop()?.replace(/\.txt$/, "") ?? "";

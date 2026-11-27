@@ -59,9 +59,10 @@ describe("platformer-characters pack wiring", () => {
     expect(seen.size).toBe(4);
   });
 
-  it("resolves idle, jet, crouch, hurt, and death textures", () => {
+  it("resolves idle, jet, crouch, fall, hurt, and death textures", () => {
     expect(soldierSpriteKey({})).toBe("soldier.idle");
     expect(soldierSpriteKey({ tuck: true })).toBe("soldier.jet");
+    expect(soldierSpriteKey({ falling: true })).toBe("soldier.fall");
     expect(soldierSpriteKey({ crouching: true })).toBe("soldier.crouch");
     expect(soldierSpriteKey({ heightScale: 0.7 })).toBe("soldier.crouch");
     expect(soldierSpriteKey({ deadPose: true })).toBe("soldier.dead");

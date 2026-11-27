@@ -375,6 +375,16 @@
     background: var(--accent);
     box-shadow: 0 0 0 var(--spacing-12) var(--color-bg), 0 0 24px rgba(0, 229, 255, 0.75);
   }
+  /* Pressed-state nuance at short heights (issue #396): the sticky
+    base above (3 IDs) outranks the base press rule (2 IDs), so below
+    700px pressing the CTA kept the halo-plus-glow shadow instead of
+    the inset press shadow. This :active override (3 IDs +
+    pseudo-class) wins back the inset press layer while keeping the
+    opaque halo so rows still pass cleanly underneath. */
+  #stage #menu #quick-play:active,
+  #quick-play:active {
+    box-shadow: 0 0 0 var(--spacing-12) var(--color-bg), inset 0 2px 8px rgba(0, 0, 0, 0.45);
+  }
 }
 /* Per-theme menu veils (issue #348): the live match canvas behind the
   menu already paints the selected theme (view/backdrop.ts), so the

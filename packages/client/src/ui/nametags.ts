@@ -45,7 +45,7 @@ interface HudGuardBox {
  * straight as CSS px inside the scaled stage container (placeTag writes
  * logical values untouched: the #nametags transform scale stretches
  * them onto CSS px), so the guard derives the
- * live logical-to-CSS scale from the container rect and maps anchors
+ * live logical-to-CSS scale from the container layout size and maps anchors
  * into viewport CSS px for the cluster comparison; null when the DOM
  * surface is missing (fake docs, hidden HUD)
  * so the reconciler shows tags exactly like before. Never throws.
@@ -161,10 +161,32 @@ function buildHudGuard(
     const originTop = cr.top as number;
     // Logical-to-CSS scale (issue #392): the #nametags transform
     // stretches logical anchor px onto the CSS-sized stage, so the
-    // guard maps with the same scale. Defensive: non-finite ratios
-    // fall back to 1 (anchors compare unscaled, like before).
-    const rawSx = (cr.width as number) / canvasW;
-    const rawSy = (cr.height as number) / canvasH;
+    // guard maps with the same scale. The rect width/height is the
+    // post-transform box once applyOverlayScale stamps scale() on the
+    // container, so the scale reads the layout (untransformed) size
+    // via offsetWidth/offsetHeight, falling back to the rect only when
+    // the layout size is missing. Defensive: non-finite ratios fall
+    // back to 1 (anchors compare unscaled, like before).
+    const layoutBox = box as {
+      offsetWidth?: unknown;
+      offsetHeight?: unknown;
+    };
+    const layoutW = layoutBox.offsetWidth;
+    const layoutH = layoutBox.offsetHeight;
+    const cssW =
+      typeof layoutW === "number" &&
+      Number.isFinite(layoutW) &&
+      layoutW > 0
+        ? layoutW
+        : (cr.width as number);
+    const cssH =
+      typeof layoutH === "number" &&
+      Number.isFinite(layoutH) &&
+      layoutH > 0
+        ? layoutH
+        : (cr.height as number);
+    const rawSx = cssW / canvasW;
+    const rawSy = cssH / canvasH;
     const sx = Number.isFinite(rawSx) && rawSx > 0 ? rawSx : 1;
     const sy = Number.isFinite(rawSy) && rawSy > 0 ? rawSy : 1;
     return (bx: number, by: number): boolean => {

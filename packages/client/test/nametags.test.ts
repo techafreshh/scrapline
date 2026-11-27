@@ -299,4 +299,64 @@ describe("updateNametags HUD guard scaling (issue #392)", () => {
     expect(container.children).toHaveLength(1);
     expect(container.children[0].getAttribute("data-player")).toBe("0");
   });
+
+  it("still hides over the cluster when the rect is post-transform scaled", () => {
+    // Live at 1109x624 the stamped scale(1.7328, 1.7333) makes
+    // getBoundingClientRect return the post-transform box (~1921x1081).
+    // The guard must read the layout size via offsetWidth/offsetHeight
+    // (1109x624, unaffected by transforms) so the bot anchor still maps
+    // to viewport (850, 438) — inside the padded cluster — and hides.
+    // Reading the rect width would yield sx ~3.0, fling the anchor to
+    // ~(1407, 724) outside the band, and wrongly show both tags.
+    const elements = new Map<string, FakeEl>();
+    const doc: FakeDoc = {
+      elements,
+      createElement: (): FakeEl => makeEl(doc),
+    };
+    const cluster = { left: 820, top: 400, right: 880, bottom: 470 };
+    (doc as unknown as Record<string, unknown>)["getElementById"] = (
+      id: string,
+    ): FakeEl | null => {
+      if (id !== "hud-status") {
+        return null;
+      }
+      const el = makeEl(doc);
+      (el as unknown as Record<string, unknown>)["getBoundingClientRect"] =
+        () => ({ ...cluster });
+      return el;
+    };
+    const container = makeEl(doc);
+    Object.defineProperty(container, "ownerDocument", {
+      value: doc,
+      enumerable: true,
+    });
+    (container as unknown as Record<string, unknown>)[
+      "getBoundingClientRect"
+    ] = () => ({
+      left: 100,
+      top: 50,
+      width: (1109 * 1109) / 640,
+      height: (624 * 624) / 360,
+    });
+    Object.defineProperty(container, "offsetWidth", {
+      value: 1109,
+      enumerable: true,
+    });
+    Object.defineProperty(container, "offsetHeight", {
+      value: 624,
+      enumerable: true,
+    });
+    const handles: NametagHandles = {
+      container: container as unknown as HTMLElement,
+    };
+    updateNametags(handles, {
+      players: twoPlayers(),
+      camera: headOnCamera(),
+      canvasW: 640,
+      canvasH: 360,
+      show: true,
+    });
+    expect(container.children).toHaveLength(1);
+    expect(container.children[0].getAttribute("data-player")).toBe("0");
+  });
 });

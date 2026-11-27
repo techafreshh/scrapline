@@ -428,6 +428,13 @@ describe("updatePadlabels proximity gating (issue #393)", () => {
     expect(normalizePadWeaponId("hornet")).toBe("smg");
     expect(normalizePadWeaponId(" SMG ")).toBe("smg");
     expect(normalizePadWeaponId(undefined)).toBe("");
+    expect(normalizePadWeaponId("hornet-x")).toBe("hornet-x");
+    expect(normalizePadWeaponId("hornet smg")).toBe("hornet smg");
+    expect(normalizePadWeaponId(" HORNET-X ")).toBe("hornet-x");
+    expect(normalizePadWeaponId("superhornet")).toBe("superhornet");
+    expect(isHeldWeaponPad("weapon", "hornet-x", "smg")).toBe(false);
+    expect(isHeldWeaponPad("weapon", "smg", "hornet-x")).toBe(false);
+    expect(isHeldWeaponPad("weapon", "smg", "hornet")).toBe(true);
   });
 
   it("hides a held-weapon pad while HP/GREN pads stay visible", () => {

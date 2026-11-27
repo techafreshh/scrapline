@@ -374,8 +374,10 @@ export function padDistancePx(
 
 /**
  * Normalized weapon id for held-weapon comparison (issue #393):
- * trimmed lowercase, with the Hornet art alias folded to "smg" so
- * `hornet` and `smg` compare equal. Non-strings read "". Pure.
+ * trimmed lowercase, with the exact Hornet art alias folded to "smg" so
+ * `hornet` and `smg` compare equal while any other `hornet-*` reading
+ * (`hornet-x`, `hornet smg`, `superhornet`) stays distinct. Non-strings
+ * read "". Pure.
  */
 export function normalizePadWeaponId(value: unknown): string {
   if (typeof value !== "string") {
@@ -385,7 +387,7 @@ export function normalizePadWeaponId(value: unknown): string {
   if (key === "") {
     return "";
   }
-  if (key.includes("hornet")) {
+  if (key === "hornet") {
     return "smg";
   }
   return key;

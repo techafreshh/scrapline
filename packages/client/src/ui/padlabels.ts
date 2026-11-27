@@ -410,6 +410,162 @@ export function isHeldWeaponPad(
 }
 
 /**
+ * One DOM-visible pad label (issue #401): the source pickup, its
+ * projected anchor, the focus distance that ordered it, and the
+ * label text the overlay paints. Pure data, no DOM.
+ */
+export interface VisiblePadlabel {
+  pickup: PadlabelPickup;
+  point: { x: number; y: number };
+  dist: number;
+  text: string;
+}
+
+/** Inputs for the shared pad-label selector (issue #401). The
+ * `hiddenAt` predicate is the DOM-only HUD corner-band guard
+ * (built from live `getBoundingClientRect` layout, unavailable
+ * headless): the overlay passes it, the renderer probe passes none
+ * so the probe and the DOM agree everywhere else by construction. */
+export interface SelectVisiblePadlabelsOptions {
+  camera: Camera | null;
+  canvasW: number;
+  canvasH: number;
+  focusX?: number | null;
+  focusY?: number | null;
+  heldWeapon?: unknown;
+  hiddenAt?: ((bx: number, by: number) => boolean) | null;
+}
+
+/**
+ * Shared DOM/probe pad-label selector (issue #401): the
+ * `updatePadlabels` candidate pipeline minus the HUD-guard build —
+ * active/camera gate, lift projection, offscreen cull, HUD-guard
+ * predicate, held-weapon suppression, radius cull, id dedupe, sort
+ * by (dist, id), cap at `PADLABEL_MAX_VISIBLE`, text mapping. Pure
+ * and no-throw; hostile inputs read as no labels. The overlay
+ * consumes this for ordering/identity (then reconciles nodes) while
+ * the renderer probe maps it to label strings, so the two surfaces
+ * cannot drift.
+ */
+export function selectVisiblePadlabels(
+  pickups: readonly PadlabelPickup[],
+  opts: SelectVisiblePadlabelsOptions,
+): VisiblePadlabel[] {
+  try {
+    const cam = opts?.camera ?? null;
+    if (cam === null) {
+      return [];
+    }
+    const canvasW =
+      typeof opts?.canvasW === "number" ? opts.canvasW : Number.NaN;
+    const canvasH =
+      typeof opts?.canvasH === "number" ? opts.canvasH : Number.NaN;
+    const list = Array.isArray(pickups) ? pickups : [];
+    if (list.length === 0) {
+      return [];
+    }
+    const focusX =
+      typeof opts?.focusX === "number" && Number.isFinite(opts.focusX)
+        ? opts.focusX
+        : null;
+    const focusY =
+      typeof opts?.focusY === "number" && Number.isFinite(opts.focusY)
+        ? opts.focusY
+        : null;
+    const anchorX = focusX !== null && focusY !== null ? focusX : cam.x;
+    const anchorY = focusX !== null && focusY !== null ? focusY : cam.y;
+    const hidden =
+      typeof opts?.hiddenAt === "function" ? opts.hiddenAt : null;
+    interface Candidate {
+      pickup: PadlabelPickup;
+      point: { x: number; y: number };
+      dist: number;
+    }
+    const candidates: Candidate[] = [];
+    for (const pickup of list) {
+      if (pickup === undefined || !shouldShowLabel(pickup.active, cam)) {
+        continue;
+      }
+      let point: { x: number; y: number };
+      try {
+        point = projectCamera(
+          cam,
+          canvasW,
+          canvasH,
+          pickup.x,
+          pickup.y - PADLABEL_LIFT_PX,
+        );
+      } catch {
+        continue;
+      }
+      if (
+        !Number.isFinite(point.x) ||
+        !Number.isFinite(point.y) ||
+        point.x < -50 ||
+        point.y < -50 ||
+        point.x > canvasW + 50 ||
+        point.y > canvasH + 50
+      ) {
+        continue;
+      }
+      if (hidden !== null) {
+        let inside = false;
+        try {
+          inside = hidden(point.x, point.y) === true;
+        } catch {
+          // Hostile guard: keep the anchor visible like before.
+        }
+        if (inside) {
+          continue;
+        }
+      }
+      let suppressed = false;
+      try {
+        suppressed =
+          isHeldWeaponPad(pickup.kind, pickup.weapon, opts?.heldWeapon) ===
+          true;
+      } catch {
+        // Hostile kinds: keep the anchor visible like before.
+      }
+      if (suppressed) {
+        continue;
+      }
+      const dist = padDistancePx(pickup.x, pickup.y, anchorX, anchorY);
+      if (!(dist <= PADLABEL_RADIUS_PX)) {
+        continue;
+      }
+      candidates.push({ pickup, point, dist });
+    }
+    const deduped = new Map<string, Candidate>();
+    for (const candidate of candidates) {
+      const key = String(candidate.pickup.id);
+      if (!deduped.has(key)) {
+        deduped.set(key, candidate);
+      }
+    }
+    return [...deduped.values()]
+      .sort((a, b) => {
+        if (a.dist !== b.dist) {
+          return a.dist - b.dist;
+        }
+        return a.pickup.id - b.pickup.id;
+      })
+      .slice(0, PADLABEL_MAX_VISIBLE)
+      .map((candidate) => {
+        let text: string;
+        try {
+          text = labelTextFor(candidate.pickup.kind, candidate.pickup.weapon);
+        } catch {
+          text = "";
+        }
+        return { ...candidate, text };
+      });
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Distance-faded label opacity (issue #393): full at or inside the
  * fade start, linear down to the floor at the radius edge, clamped.
  * Non-finite distances read fully opaque. Pure.
@@ -760,7 +916,6 @@ export function updatePadlabels(
     return;
   }
   setDisplay(container, "");
-  const cam = frame.camera as Camera;
   const box = container as {
     children?: { length?: unknown; [index: number]: unknown } | null;
     ownerDocument?: { createElement?: unknown } | null;
@@ -802,106 +957,19 @@ export function updatePadlabels(
       ? (box.removeChild as (kid: unknown) => void).bind(box)
       : null;
   const seen = new Set<string>();
-  // HUD corner-band guard (issue #385): anchors inside an expanded
-  // cluster rect stay hidden so labels never overlap the status plate.
-  // Null on fake docs or a hidden HUD, where labels show like before.
+  // Shared selector (issue #401) for ordering/identity: the DOM and
+  // the renderer probe run the same pipeline, minus the HUD-guard
+  // build which stays here (it needs live layout, unavailable headless).
   const hudGuard = buildHudGuard(container, frame.canvasW, frame.canvasH);
-  // Radius anchor (issue #393): the local-player focus when finite,
-  // else the camera center so old callers keep working.
-  const focusX =
-    typeof frame.focusX === "number" && Number.isFinite(frame.focusX)
-      ? frame.focusX
-      : null;
-  const focusY =
-    typeof frame.focusY === "number" && Number.isFinite(frame.focusY)
-      ? frame.focusY
-      : null;
-  const anchorX = focusX !== null && focusY !== null ? focusX : cam.x;
-  const anchorY = focusX !== null && focusY !== null ? focusY : cam.y;
-  interface PadCandidate {
-    pickup: PadlabelPickup;
-    point: { x: number; y: number };
-    dist: number;
-  }
-  const candidates: PadCandidate[] = [];
-  for (const pickup of frame.pickups) {
-    if (
-      pickup === undefined ||
-      !shouldShowLabel(pickup.active, frame.camera)
-    ) {
-      continue;
-    }
-    // Held-weapon suppression (issue #393): a weapon pad matching the
-    // held weapon earns no label; health/grenade pads never suppress.
-    const point = projectCamera(
-      cam,
-      frame.canvasW,
-      frame.canvasH,
-      pickup.x,
-      pickup.y - PADLABEL_LIFT_PX,
-    );
-    // Cull labels projected outside the view (plus a small margin so
-    // edge-hugging pads keep their label until fully out).
-    if (
-      !Number.isFinite(point.x) ||
-      !Number.isFinite(point.y) ||
-      point.x < -50 ||
-      point.y < -50 ||
-      point.x > frame.canvasW + 50 ||
-      point.y > frame.canvasH + 50
-    ) {
-      continue;
-    }
-    // HUD corner-band cull (issue #385): drop the anchor instead of
-    // painting over the status plate. Fake docs and hidden HUDs guard
-    // null.
-    if (hudGuard !== null) {
-      let inside = false;
-      try {
-        inside = hudGuard(point.x, point.y) === true;
-      } catch {
-        // Hostile guard: keep the anchor visible like before.
-      }
-      if (inside) {
-        continue;
-      }
-    }
-    let suppressed = false;
-    try {
-      suppressed = isHeldWeaponPad(pickup.kind, pickup.weapon, frame.heldWeapon) === true;
-    } catch {
-      // Hostile kinds: keep the anchor visible like before.
-    }
-    if (suppressed) {
-      continue;
-    }
-    // Radius cull (issue #393): pads beyond the readable radius earn
-    // no node; their canvas sprite stays untouched (the affordance).
-    const dist = padDistancePx(pickup.x, pickup.y, anchorX, anchorY);
-    if (!(dist <= PADLABEL_RADIUS_PX)) {
-      continue;
-    }
-    candidates.push({ pickup, point, dist });
-  }
-  // Nearest-first cap (issue #393): sort by world distance
-  // (tie-break: pickup id) and reconcile only the first slice; the
-  // seen-set removal pass below drops the rest in the same frame.
-  // Dedupe repeated ids first so one id cannot claim two slots.
-  const deduped = new Map<string, PadCandidate>();
-  for (const candidate of candidates) {
-    const key = String(candidate.pickup.id);
-    if (!deduped.has(key)) {
-      deduped.set(key, candidate);
-    }
-  }
-  const winners = [...deduped.values()]
-    .sort((a, b) => {
-      if (a.dist !== b.dist) {
-        return a.dist - b.dist;
-      }
-      return a.pickup.id - b.pickup.id;
-    })
-    .slice(0, PADLABEL_MAX_VISIBLE);
+  const winners = selectVisiblePadlabels(frame.pickups, {
+    camera: frame.camera,
+    canvasW: frame.canvasW,
+    canvasH: frame.canvasH,
+    focusX: frame.focusX,
+    focusY: frame.focusY,
+    heldWeapon: frame.heldWeapon,
+    hiddenAt: hudGuard,
+  });
   for (const { pickup, point, dist } of winners) {
     const key = String(pickup.id);
     if (seen.has(key)) {

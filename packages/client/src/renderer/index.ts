@@ -209,7 +209,7 @@ import {
   propSpriteFile,
   propSpriteKey,
 } from "../render/props";
-import { labelTextFor } from "../ui/padlabels";
+import { selectVisiblePadlabels } from "../ui/padlabels";
 import {
   updateAnimState,
   type AnimInput,
@@ -1536,6 +1536,9 @@ function publishSoldierSpriteProbes(
   map?: TileProbeMap | null,
   padSquash?: number,
   nowMs?: number,
+  cam?: Camera | null,
+  canvasW?: number,
+  canvasH?: number,
 ): { activeTexture: string; liveKey: string } {
   let liveKey = "soldier.idle";
   try {
@@ -1601,19 +1604,25 @@ function publishSoldierSpriteProbes(
       return propFramesFor(null, null, 1);
     }
   };
-  // Live pad labels (issue #267): one floating label per active pickup
-  // via the same labelTextFor the overlay reconciler uses, so the probe
-  // reads HP, GREN, and the weapon name exactly as the pads show them.
+  // Live pad labels (issue #401): the DOM-visible label set via the
+  // shared selectVisiblePadlabels selector (cap-3 nearest-first,
+  // radius/held/offscreen culled), so the probe reads exactly what
+  // the overlay paints. Focus is the local player (frame.players[0])
+  // center plus held weapon, falling back to the camera center like
+  // main.ts does; the HUD corner-band guard stays DOM-only.
   const padLabels = (): string[] => {
     try {
-      const labels: string[] = [];
-      for (const pickup of frame.pickups) {
-        if (pickup === undefined || pickup.active !== true) {
-          continue;
-        }
-        labels.push(labelTextFor(pickup.kind, pickup.weapon));
-      }
-      return labels;
+      const first = frame.players[0];
+      return selectVisiblePadlabels(frame.pickups, {
+        camera: cam ?? null,
+        canvasW: typeof canvasW === "number" ? canvasW : 0,
+        canvasH: typeof canvasH === "number" ? canvasH : 0,
+        focusX:
+          first !== undefined ? first.x + first.w / 2 : null,
+        focusY:
+          first !== undefined ? first.y + first.h / 2 : null,
+        heldWeapon: first?.weapon,
+      }).map((selection) => selection.text);
     } catch {
       return [];
     }
@@ -4415,7 +4424,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
     // above and owns window.__scrapline.debugFrame. Also owns the
     // prop/pad probe surface (issue #267): propFrames, padLabels, and
     // the glow pulse alpha, all read per call from the latest frame.
-    publishSoldierSpriteProbes(frame, anims, tileMapForDecor, padSquash, now);
+    publishSoldierSpriteProbes(frame, anims, tileMapForDecor, padSquash, now, cam, logicalW, logicalH);
     // Particle-pack emitter probe (issue #269): cumulative pooled-path
     // counts plus the last wall tint, read per call so grenade and
     // wall-hit totals are visible within a frame of the blast.

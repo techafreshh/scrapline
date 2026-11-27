@@ -64,11 +64,13 @@ interface HudGuardBox {
  * Build a HUD-band guard for one frame (issue #385): labels whose
  * anchor projects inside an expanded HUD cluster rect stay hidden so
  * no `.padlabel` rect can overlap the status plate (or the other
- * corner clusters). The overlay positions anchors in canvas backing px
- * written straight as CSS px inside the stage container (placeLabel has
- * no backing-to-CSS scaling), so the guard adds the container origin
- * with no scale factor and compares directly to the live cluster
- * rects; null when the DOM surface is missing (fake docs, hidden HUD)
+ * corner clusters). The overlay positions anchors in logical px written
+ * straight as CSS px inside the scaled stage container (placeLabel writes
+ * logical values untouched: the #padlabels transform scale stretches
+ * them onto CSS px), so the guard derives the
+ * live logical-to-CSS scale from the container layout size and maps anchors
+ * into viewport CSS px for the cluster comparison; null when the DOM
+ * surface is missing (fake docs, hidden HUD)
  * so the reconciler shows labels exactly like before. Never throws.
  */
 function buildHudGuard(
@@ -180,16 +182,46 @@ function buildHudGuard(
     }
     const originLeft = cr.left as number;
     const originTop = cr.top as number;
+    // Logical-to-CSS scale (issue #398): the #padlabels transform
+    // stretches logical anchor px onto the CSS-sized stage, so the
+    // guard maps with the same scale. The rect width/height is the
+    // post-transform box once applyOverlayScale stamps scale() on the
+    // container, so the scale reads the layout (untransformed) size
+    // via offsetWidth/offsetHeight, falling back to the rect only when
+    // the layout size is missing. Defensive: non-finite ratios fall
+    // back to 1 (anchors compare unscaled, like before).
+    const layoutBox = box as {
+      offsetWidth?: unknown;
+      offsetHeight?: unknown;
+    };
+    const layoutW = layoutBox.offsetWidth;
+    const layoutH = layoutBox.offsetHeight;
+    const cssW =
+      typeof layoutW === "number" &&
+      Number.isFinite(layoutW) &&
+      layoutW > 0
+        ? layoutW
+        : (cr.width as number);
+    const cssH =
+      typeof layoutH === "number" &&
+      Number.isFinite(layoutH) &&
+      layoutH > 0
+        ? layoutH
+        : (cr.height as number);
+    const rawSx = cssW / canvasW;
+    const rawSy = cssH / canvasH;
+    const sx = Number.isFinite(rawSx) && rawSx > 0 ? rawSx : 1;
+    const sy = Number.isFinite(rawSy) && rawSy > 0 ? rawSy : 1;
     return (bx: number, by: number): boolean => {
       try {
         if (!Number.isFinite(bx) || !Number.isFinite(by)) {
           return false;
         }
-        // No backing-to-CSS scaling: anchors land 1:1 inside the
-        // stage container, so the container origin alone maps them
-        // into viewport CSS px for the cluster comparison.
-        const cx = originLeft + bx;
-        const cy = originTop + by;
+        // Scaled mapping: logical anchors land on the CSS-sized stage
+        // through the container origin plus the overlay scale, matching
+        // the rendered label position for the cluster comparison.
+        const cx = originLeft + bx * sx;
+        const cy = originTop + by * sy;
         for (const guard of boxes) {
           if (
             cx >= guard.left - HUD_GUARD_PAD_PX &&

@@ -761,6 +761,8 @@ function applyResponsiveSize(): void {
   // Logical-px overlays stretch onto the CSS-sized stage (issue #392):
   // skipped when the node is missing, like the renderer null guard.
   applyOverlayScale(document.getElementById("nametags"), size);
+  // Sibling overlay drifts the same way (issue #398): same scale stamp.
+  applyOverlayScale(document.getElementById("padlabels"), size);
   cachedRect = null;
   if (renderer !== null) {
     renderer.setResolution(currentRendererResolution());

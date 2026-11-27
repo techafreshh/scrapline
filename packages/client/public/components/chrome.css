@@ -380,6 +380,85 @@ button[data-map][aria-pressed="true"] {
   border-image-repeat: stretch;
   image-rendering: pixelated;
 }
+/* In-match floating surfaces (issue #394): the four live surfaces
+  whose generated art still rendered as plain CSS — name tags
+  (HU-12), pad labels (HU-13), kill-feed rows (HU-08), and the toast
+  stack (HU-15/CH-18). Each rides its sliced plate as a 9-slice frame
+  with stretch repeat and pixelated rendering, mirroring the
+  .sl-tooltip / .challenge-row / .sl-panel idioms above; the plates
+  carry the frame while the code keeps carrying the colour (the team
+  rails, the pickup underlines, and the entry text all stay on the
+  code-owned layers the binders already paint). Boxes and rhythm stay
+  owned by the per-sheet stylesheets; this section only skins them.
+  Nametags ride the tailed tooltip plate at full scale (the
+  .sl-tooltip idiom verbatim: every slice and width sits on the 4px
+  grid), so the rail, checker, and pointer tail render exactly as
+  sliced; the team rail the plate covers returns as an inset
+  currentColor shadow (no binder change: paintTag already paints
+  style.color per teamCss). Pad labels and kill rows ride the plain
+  row band at 1x so the pickup underline (inline box-shadow) and the
+  killer/victim span colours keep painting over it; local-player rows
+  swap to the selected band, mirroring the standings winner idiom. */
+#stage #nametags > div,
+#nametags > div {
+  border: 4px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/tooltip.png");
+  border-image-slice: 8 8 20 8 fill;
+  border-image-width: 8px 8px 20px 8px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+  box-shadow: inset 3px 0;
+}
+#stage #nametags > div.own,
+#nametags > div.own {
+  box-shadow:
+    inset 3px 0,
+    0 0 8px rgba(0, 229, 255, 0.9);
+}
+#stage #padlabels > div,
+#padlabels > div {
+  border: 4px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/row.png");
+  border-image-slice: 4 fill;
+  border-image-width: 4px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage #killfeed .kill-entry,
+#killfeed .kill-entry {
+  border: 4px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/row.png");
+  border-image-slice: 4 fill;
+  border-image-width: 4px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage #killfeed .kill-entry.own,
+#killfeed .kill-entry.own {
+  border: 4px solid var(--color-cyan);
+  border-image-source: url("../assets/atlas/ui/row.selected.png");
+  border-image-slice: 4 fill;
+  border-image-width: 4px;
+  border-image-repeat: stretch;
+}
+/* Toast stack frame (issue #394): the entries already ride the
+  toast strip above, but the #toast container itself resolved no
+  image. It takes the 12px panel frame (the .sl-panel idiom) so the
+  stack reads as one card; :empty drops the border so the idle
+  container stays invisible (no stray frame with zero entries). */
+#stage #toast,
+#toast {
+  border: 12px solid var(--color-edge);
+  border-image-source: url("../assets/atlas/ui/panel.png");
+  border-image-slice: 12 fill;
+  border-image-width: 12px;
+  border-image-repeat: stretch;
+  image-rendering: pixelated;
+}
+#stage #toast:empty,
+#toast:empty {
+  border: 0;
+}
 /* Keycap plate for control labels. */
 #stage .sl-keycap,
 .sl-keycap {

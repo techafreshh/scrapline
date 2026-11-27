@@ -5,8 +5,16 @@ import { describe, expect, it } from "vitest";
 import type { Camera } from "../src/renderer/camera";
 import {
   buildPadlabels,
+  isHeldWeaponPad,
   labelTextFor,
+  normalizePadWeaponId,
+  PADLABEL_FADE_FLOOR,
+  PADLABEL_FADE_START_PX,
   PADLABEL_LIFT_PX,
+  PADLABEL_MAX_VISIBLE,
+  PADLABEL_RADIUS_PX,
+  padDistancePx,
+  padLabelOpacity,
   shouldShowLabel,
   updatePadlabels,
   type PadlabelPickup,
@@ -100,6 +108,21 @@ function frameFor(pickups: PadlabelPickup[]): PadlabelsFrame {
     camera: headOnCamera(),
     canvasW: 640,
     canvasH: 360,
+  };
+}
+
+/** Frame variant carrying the issue #393 focus plus held weapon. */
+function focusedFrame(
+  pickups: PadlabelPickup[],
+  focusX: number,
+  focusY: number,
+  heldWeapon?: unknown,
+): PadlabelsFrame {
+  return {
+    ...frameFor(pickups),
+    focusX,
+    focusY,
+    heldWeapon,
   };
 }
 
@@ -284,5 +307,168 @@ describe("updatePadlabels hidden", () => {
     const frame = frameFor(threePads());
     expect(() => updatePadlabels(null, frame)).not.toThrow();
     expect(() => updatePadlabels({ container: null }, frame)).not.toThrow();
+  });
+});
+
+describe("updatePadlabels proximity gating (issue #393)", () => {
+  it("exposes the radius/cap/fade contract constants", () => {
+    expect(PADLABEL_RADIUS_PX).toBe(260);
+    expect(PADLABEL_MAX_VISIBLE).toBe(3);
+    expect(PADLABEL_FADE_START_PX).toBe(100);
+    expect(PADLABEL_FADE_FLOOR).toBe(0.25);
+  });
+
+  it("culls pads beyond the readable radius from the focus", () => {
+    const { handles, container } = makeHarness();
+    updatePadlabels(
+      handles,
+      focusedFrame(
+        [
+          { id: 0, kind: "weapon", weapon: "rocket", x: 0, y: 0, active: true },
+          // Onscreen (projects to x=620) yet past the 260px radius.
+          { id: 1, kind: "weapon", weapon: "rifle", x: 300, y: 0, active: true },
+          { id: 2, kind: "health", x: 1000, y: 0, active: true },
+        ],
+        0,
+        0,
+      ),
+    );
+    expect(container.children).toHaveLength(1);
+    expect(container.children[0].getAttribute("data-pickup")).toBe("0");
+  });
+
+  it("caps visible labels at the 3 nearest pads", () => {
+    const { handles, container } = makeHarness();
+    updatePadlabels(
+      handles,
+      focusedFrame(
+        [
+          { id: 0, kind: "health", x: 0, y: 0, active: true },
+          { id: 1, kind: "health", x: 50, y: 0, active: true },
+          { id: 2, kind: "health", x: 100, y: 0, active: true },
+          { id: 3, kind: "health", x: 150, y: 0, active: true },
+          { id: 4, kind: "health", x: 200, y: 0, active: true },
+        ],
+        0,
+        0,
+      ),
+    );
+    expect(container.children).toHaveLength(3);
+    const ids = container.children
+      .map((kid) => kid.getAttribute("data-pickup"))
+      .sort();
+    expect(ids).toEqual(["0", "1", "2"]);
+  });
+
+  it("fades opacity with distance and mirrors rounded data-dist", () => {
+    const { handles, container } = makeHarness();
+    updatePadlabels(
+      handles,
+      focusedFrame(
+        [
+          { id: 0, kind: "health", x: 0, y: 0, active: true },
+          { id: 1, kind: "health", x: 200, y: 0, active: true },
+        ],
+        0,
+        0,
+      ),
+    );
+    expect(container.children).toHaveLength(2);
+    const near = container.children.find(
+      (kid) => kid.getAttribute("data-pickup") === "0",
+    ) as FakeEl;
+    const far = container.children.find(
+      (kid) => kid.getAttribute("data-pickup") === "1",
+    ) as FakeEl;
+    expect(Number.parseFloat(near.style["opacity"] ?? "NaN")).toBe(1);
+    expect(near.getAttribute("data-dist")).toBe("0");
+    const farOpacity = Number.parseFloat(far.style["opacity"] ?? "NaN");
+    expect(farOpacity).toBeGreaterThan(0.25);
+    expect(farOpacity).toBeLessThan(1);
+    expect(far.getAttribute("data-dist")).toBe("200");
+  });
+
+  it("grades the opacity helper from full to the floor", () => {
+    expect(padLabelOpacity(0)).toBe(1);
+    expect(padLabelOpacity(100)).toBe(1);
+    const mid = padLabelOpacity(200);
+    expect(mid).toBeGreaterThan(0.25);
+    expect(mid).toBeLessThan(1);
+    expect(padLabelOpacity(260)).toBe(0.25);
+    expect(padLabelOpacity(1000)).toBe(0.25);
+    expect(padLabelOpacity(Number.NaN)).toBe(1);
+  });
+
+  it("reads non-finite distances as infinitely far", () => {
+    expect(padDistancePx(0, 0, Number.NaN, 0)).toBe(
+      Number.POSITIVE_INFINITY,
+    );
+    expect(padDistancePx(3, 4, 0, 0)).toBe(5);
+  });
+
+  it("suppresses only weapon pads matching the held weapon", () => {
+    expect(isHeldWeaponPad("weapon", "rocket", "rocket")).toBe(true);
+    expect(isHeldWeaponPad("weapon", "Hornet", "smg")).toBe(true);
+    expect(isHeldWeaponPad("weapon", "smg", "hornet")).toBe(true);
+    expect(isHeldWeaponPad("weapon", "SMG", "Hornet")).toBe(true);
+    expect(isHeldWeaponPad("weapon", "rocket", "rifle")).toBe(false);
+    expect(isHeldWeaponPad("health", undefined, "health")).toBe(false);
+    expect(isHeldWeaponPad("grenades", undefined, "grenades")).toBe(false);
+    expect(normalizePadWeaponId("hornet")).toBe("smg");
+    expect(normalizePadWeaponId(" SMG ")).toBe("smg");
+    expect(normalizePadWeaponId(undefined)).toBe("");
+  });
+
+  it("hides a held-weapon pad while HP/GREN pads stay visible", () => {
+    const { handles, container } = makeHarness();
+    updatePadlabels(
+      handles,
+      focusedFrame(
+        [
+          { id: 0, kind: "weapon", weapon: "hornet", x: 0, y: 0, active: true },
+          { id: 1, kind: "health", x: 50, y: 0, active: true },
+          { id: 2, kind: "grenades", x: 100, y: 0, active: true },
+        ],
+        0,
+        0,
+        "smg",
+      ),
+    );
+    expect(container.children).toHaveLength(2);
+    expect(
+      container.children.find(
+        (kid) => kid.getAttribute("data-pickup") === "0",
+      ),
+    ).toBeUndefined();
+    expect(
+      container.children.find(
+        (kid) => kid.getAttribute("data-pickup") === "1",
+      )?.textContent,
+    ).toBe("HP");
+    expect(
+      container.children.find(
+        (kid) => kid.getAttribute("data-pickup") === "2",
+      )?.textContent,
+    ).toBe("GREN");
+  });
+
+  it("falls back to the camera center without a focus", () => {
+    const { handles, container } = makeHarness();
+    updatePadlabels(handles, frameFor(threePads()));
+    expect(container.children).toHaveLength(3);
+  });
+
+  it("removes a collected pad label in the same frame with focus", () => {
+    const { handles, container } = makeHarness();
+    const pickups: PadlabelPickup[] = [
+      { id: 0, kind: "weapon", weapon: "rocket", x: 0, y: 0, active: true },
+      { id: 1, kind: "health", x: 50, y: 0, active: true },
+    ];
+    updatePadlabels(handles, focusedFrame(pickups, 0, 0));
+    expect(container.children).toHaveLength(2);
+    pickups[0].active = false;
+    updatePadlabels(handles, focusedFrame(pickups, 0, 0));
+    expect(container.children).toHaveLength(1);
+    expect(container.children[0].getAttribute("data-pickup")).toBe("1");
   });
 });

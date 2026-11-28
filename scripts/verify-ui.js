@@ -36,7 +36,19 @@
 //   after-menu-return -> ME-01-menu-v1.jpg
 // Emits `art:atlas:ok`, per-view `art:<view>-<label>:ok (diff=N.N)`,
 // and final `art:ok` tokens into captures/verify.log.
-/* global window, document, getComputedStyle:readonly */
+//
+// Determinism (issue #412): every navigation carries a fixed `?seed=` so
+// the auto-joined match (scatter, bots, kill-feed, standings) replays
+// identically, every screenshot is preceded by stabilizeForCapture
+// (CSS animations off, menu hover/flame pinned, challenges countdown
+// pinned, fonts + two frames settled), and the match-state waits are
+// tick-anchored (`__scraplineTick`) rather than wall sleeps — so a lap
+// that touches only endscreen.css leaves the menu/setup/how-to/
+// challenges/locker PNG bytes untouched instead of churning them with
+// render noise. The log records `server healthy at local` (no ephemeral
+// port) and `fps:ok` without the exact mean, and the snapshot URL reads
+// `local`, so neither file churns run to run.
+/* global window, document, getComputedStyle, requestAnimationFrame:readonly */
 // (Browser globals above appear only inside page.evaluate /
 // waitForFunction callbacks, which execute in Chromium, not in node.
 const { spawn, execSync } = require("node:child_process");
@@ -51,6 +63,27 @@ const artGate = require("./verify/art-gate");
 const CAPTURES_DIR = path.join(ROOT, "captures");
 const VERIFY_LOG = path.join(CAPTURES_DIR, "verify.log");
 const SNAPSHOT_JSON = path.join(CAPTURES_DIR, "after-menu-return.json");
+// Fixed match seed for every verify navigation (issue #412): the client
+// honors `?seed=` (matchSeedFromUrl) and rides it on the URL, so the
+// auto-joined match plus every Quick-Play cycle replays the same scatter
+// layout, bot plan, kill-feed and standings instead of rolling
+// Math.random() per run and churning every sibling PNG.
+const VERIFY_SEED = 20261128;
+// Pinned countdown readout while capturing (issue #412): the live chip
+// reads the time to local midnight, so its text drifts with the wall
+// clock and churns both the challenges PNG and the snapshot body HTML.
+const VERIFY_COUNTDOWN_TEXT = "Resets in 6h 0m";
+// Pinned menu-tip readout while capturing (issue #412): the tip line
+// rotates every 10 s while the menu is visible, so its text (and the
+// mid-fade opacity) drifts with wall-clock time and churns the menu
+// PNGs plus the snapshot body text/HTML. The pinned value is the
+// canonical first tip (tipTextFor(0)), also the static HTML default.
+const VERIFY_TIP_TEXT = "Grab a shield pickup to survive an extra hit.";
+// loop and flame flicker are wall-clock driven (Date.now phase), so an
+// unpinned menu capture lands on a different hover offset/opacity every
+// run and churns the menu/after-menu-return PNG bytes and snapshot HTML.
+const VERIFY_SOLDIER_TRANSFORM = "translate(-50%, 0px)";
+const VERIFY_FLAME_OPACITY = "0.75";
 // Non-trivial frame budget: blank/black captures stay far below it.
 const MIN_PNG_BYTES = 10 * 1024;
 // Runtime fps floor: healthy SwiftShader runs report ~60 via __game.fps,
@@ -202,6 +235,137 @@ async function waitForVisible(page, selector) {
   );
 }
 
+/** Fixed-seed URL for every verify navigation (issue #412). */
+function seededUrl(base) {
+  return `${base}/?seed=${VERIFY_SEED}`;
+}
+
+/** Sim-tick wait: the match state after exactly N ticks is identical run
+ * to run for a fixed seed, while a wall sleep lands on a different tick
+ * count under fps jitter and churns the canvas pixels (issue #412). */
+async function waitForSimTicks(page, ticks, timeoutMs) {
+  await page.waitForFunction((n) => typeof window.__scraplineTick === "number" && window.__scraplineTick >= n, {
+    timeout: timeoutMs,
+    polling: 100,
+  }, ticks);
+}
+
+/**
+ * Freeze wall-clock-driven DOM before each capture (issue #412): kill
+ * CSS animations/transitions, pin the menu hover pose + flame opacity +
+ * challenges countdown to fixed values, settle fonts and two frames,
+ * then re-pin (the hover rAF loop may have overwritten the inline pose
+ * during the settle). Menu/overlay PNGs and the snapshot HTML then read
+ * identically run to run; the live match canvas is already deterministic
+ * via the fixed seed + tick-anchored waits above.
+ */
+async function stabilizeForCapture(page) {
+  await page.evaluate(
+    (fixed) => {
+      try {
+        let style = document.getElementById("verify-freeze");
+        if (style === null) {
+          style = document.createElement("style");
+          style.id = "verify-freeze";
+          style.textContent =
+            "*,*::before,*::after{animation:none!important;transition:none!important}" +
+            `#menu-soldier{transform:${fixed.soldier}!important}` +
+            `#menu-flame{opacity:${fixed.flame}!important}`;
+          const head = document.head || document.documentElement;
+          if (head !== null) {
+            head.appendChild(style);
+          }
+        }
+        const soldier = document.getElementById("menu-soldier");
+        if (soldier !== null) {
+          soldier.style.transform = fixed.soldier;
+        }
+        const flame = document.getElementById("menu-flame");
+        if (flame !== null) {
+          flame.style.opacity = fixed.flame;
+        }
+        const countdown = document.getElementById("challenges-countdown");
+        if (countdown !== null) {
+          countdown.textContent = fixed.countdown;
+        }
+        const tip = document.getElementById("menu-tip");
+        if (tip !== null) {
+          tip.textContent = fixed.tip;
+          try {
+            tip.style.opacity = "1";
+          } catch {
+            // Opacity pin best-effort: the text still lands.
+          }
+        }
+      } catch {
+        // Pinning best-effort: the capture still lands, only less stable.
+      }
+    },
+    {
+      soldier: VERIFY_SOLDIER_TRANSFORM,
+      flame: VERIFY_FLAME_OPACITY,
+      countdown: VERIFY_COUNTDOWN_TEXT,
+      tip: VERIFY_TIP_TEXT,
+    },
+  );
+  try {
+    await page.evaluate(() => {
+      try {
+        if (document.fonts !== undefined && typeof document.fonts.ready.then === "function") {
+          return document.fonts.ready.then(() => 0, () => 0);
+        }
+      } catch {
+        // Font settle best-effort only.
+      }
+      return 0;
+    });
+  } catch {
+    // No font API in this harness: the frame settle below still applies.
+  }
+  try {
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+  } catch {
+    // rAF shorn: fall through to the re-pin with no settle.
+  }
+  await page.evaluate(
+    (fixed) => {
+      try {
+        const soldier = document.getElementById("menu-soldier");
+        if (soldier !== null) {
+          soldier.style.transform = fixed.soldier;
+        }
+        const flame = document.getElementById("menu-flame");
+        if (flame !== null) {
+          flame.style.opacity = fixed.flame;
+        }
+        const countdown = document.getElementById("challenges-countdown");
+        if (countdown !== null) {
+          countdown.textContent = fixed.countdown;
+        }
+        const tip = document.getElementById("menu-tip");
+        if (tip !== null) {
+          tip.textContent = fixed.tip;
+          try {
+            tip.style.opacity = "1";
+          } catch {
+            // Opacity re-pin best-effort only.
+          }
+        }
+      } catch {
+        // Re-pin best-effort only.
+      }
+    },
+    {
+      soldier: VERIFY_SOLDIER_TRANSFORM,
+      flame: VERIFY_FLAME_OPACITY,
+      countdown: VERIFY_COUNTDOWN_TEXT,
+      tip: VERIFY_TIP_TEXT,
+    },
+  );
+}
+
 /** Non-trivial screenshot on disk (guards against blank captures). */
 function assertShot(file) {
   assert(fs.existsSync(file), `missing screenshot ${file}`);
@@ -218,12 +382,14 @@ function pngDimensions(file) {
 
 /** Screenshot with one plain re-take when the first frame is thin. */
 async function shoot(page, file) {
+  await stabilizeForCapture(page);
   await page.screenshot({ path: file });
   let bytes = fs.statSync(file).size;
   if (bytes > MIN_PNG_BYTES) {
     return bytes;
   }
   await sleep(800);
+  await stabilizeForCapture(page);
   await page.screenshot({ path: file });
   bytes = fs.statSync(file).size;
   return bytes;
@@ -248,6 +414,7 @@ async function shootHud(page, file) {
   await page.mouse.down();
   try {
     await sleep(2000);
+    await stabilizeForCapture(page);
     await page.screenshot({ path: file });
   } finally {
     await page.mouse.up();
@@ -459,7 +626,7 @@ async function run() {
   let browser = null;
   try {
     await waitForHealth(base, 10000);
-    note(`server healthy at ${base}`);
+    note(`server healthy at local`);
 
     // Prior scenario probes: the skeleton contract still passes, every
     // stylesheet route answers 200, and the menu page carries the
@@ -532,14 +699,18 @@ async function run() {
         height: viewport.height,
         deviceScaleFactor: 1,
       });
-      await page.goto(`${base}/`, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await page.goto(seededUrl(base), { waitUntil: "domcontentloaded", timeout: 30000 });
       await waitForClientReady(page);
-      // Boot auto-joins a match: wait for drawn tiles before capturing.
+      // Boot auto-joins a match: wait for drawn tiles, then for a fixed
+      // sim-tick count so the canvas holds the same match state every
+      // run for the fixed seed (issue #412) — a wall sleep alone lands
+      // on a different tick under fps jitter and churns every PNG.
       await page.waitForFunction(
         () => window.__game !== undefined && window.__game !== null && window.__game.tilesDrawn > 0,
         { timeout: 20000, polling: 100 },
       );
-      await sleep(2500);
+      await waitForSimTicks(page, 120, 20000);
+      await sleep(300);
 
       // Mid-match HUD leg: the playing state with HUD modules up.
       const hudState = await page.evaluate(() => ({
@@ -711,7 +882,12 @@ async function run() {
         () => window.__game !== undefined && window.__game !== null && window.__game.tilesDrawn > 0,
         { timeout: 20000, polling: 100 },
       );
-      await sleep(1500);
+      // Same fixed-tick settle as the boot leg (issue #412): the
+      // Quick-Play cycle reuses the seeded URL match, so waiting for
+      // N ticks replays the same pre-end state instead of a wall-sleep
+      // frame that drifts with fps.
+      await waitForSimTicks(page, 90, 20000);
+      await sleep(300);
       await forceMatchEnd(page);
       await waitForVisible(page, "#end-screen");
       await page.click("#end-menu");
@@ -722,7 +898,13 @@ async function run() {
       const returnBytes = await shoot(page, returnFile);
       assert(returnBytes > MIN_PNG_BYTES, `${returnFile} is ${returnBytes} bytes, expected >10KB`);
       note(`${viewport.label} after-menu-return ok (${(returnBytes / 1024).toFixed(1)}KB)`);
-      snapshot = await readAfterReturnSnapshot(page, `${base}/`, viewport.label);
+      // Fixed snapshot URL (issue #412): the live base carries an
+      // ephemeral free port, so recording it churns the JSON every run.
+      // Re-pin first: the hover/tip loops kept running after the last
+      // capture, so the serialized inline styles/text would otherwise
+      // drift between the screenshot and the snapshot read.
+      await stabilizeForCapture(page);
+      snapshot = await readAfterReturnSnapshot(page, "local", viewport.label);
       assertSnapshot(snapshot);
     }
 
@@ -734,7 +916,9 @@ async function run() {
     );
     const fpsMean = fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length;
     assert(fpsMean >= MIN_FPS, `fps mean ${fpsMean.toFixed(1)} below floor ${MIN_FPS}`);
-    note(`fps:ok (mean=${fpsMean.toFixed(1)} over ${fpsSamples.length} samples)`);
+    // No exact mean in the log (issue #412): SwiftShader fps jitters run
+    // to run, so recording it churns verify.log without signaling value.
+    note(`fps:ok (${fpsSamples.length} samples clear floor ${MIN_FPS})`);
 
     // Budget verdict: the staged root bundle when present, else the
     // workspace dist (the tools/check-budget.js target twin).

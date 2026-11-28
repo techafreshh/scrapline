@@ -168,6 +168,43 @@ test("static script emits every required verify.log token", () => {
   }
 });
 
+test("static script pins a fixed match seed for every navigation (issue #412)", () => {
+  const source = fs.readFileSync(SCRIPT, "utf8");
+  assert.match(source, /VERIFY_SEED\s*=\s*\d+/);
+  assert.ok(source.includes("?seed="), "expected a ?seed= navigation in verify-ui.js");
+  assert.match(source, /seededUrl\(base\)/);
+  // Both viewport navigations must ride the seed — a bare `/` load
+  // rolls Math.random() per run and churns every sibling PNG.
+  assert.doesNotMatch(source, /page\.goto\(`\$\{base\}\/`/);
+});
+
+test("static script stabilizes animated DOM before every capture (issue #412)", () => {
+  const source = fs.readFileSync(SCRIPT, "utf8");
+  assert.match(source, /stabilizeForCapture/);
+  assert.match(source, /verify-freeze/);
+  assert.match(source, /menu-soldier/);
+  assert.match(source, /menu-flame/);
+  assert.match(source, /challenges-countdown/);
+  assert.match(source, /menu-tip/);
+  assert.match(source, /VERIFY_TIP_TEXT/);
+  assert.match(source, /document\.fonts/);
+  assert.match(source, /requestAnimationFrame/);
+  // Tick-anchored waits replay the same match state for the fixed seed;
+  // wall sleeps alone land on different ticks under fps jitter.
+  assert.match(source, /waitForSimTicks/);
+  assert.match(source, /__scraplineTick >=/);
+});
+
+test("static script never records volatile run state in log or snapshot (issue #412)", () => {
+  const source = fs.readFileSync(SCRIPT, "utf8");
+  assert.ok(source.includes("server healthy at local"), "healthy line must not carry the ephemeral port");
+  assert.doesNotMatch(source, /server healthy at \$\{base\}/);
+  assert.ok(source.includes('"local"'), "snapshot URL must read local, not the ephemeral base");
+  assert.ok(!source.includes("readAfterReturnSnapshot(page, `${base}/`"), "snapshot must not record the ephemeral base");
+  // The exact fps mean jitters run to run; the log keeps only the verdict.
+  assert.doesNotMatch(source, /fps:ok \(mean=/);
+});
+
 test("static art gate bans legacy tiles and decodes without new deps", () => {
   const source = fs.readFileSync(SCRIPT, "utf8");
   assert.match(source, /ui\/tile_/);

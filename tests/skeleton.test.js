@@ -154,7 +154,7 @@ test("GET / includes the literal canvas tag", async () => {
   assert.ok(root.text.includes('<canvas id="game">'), "page must contain <canvas id=\"game\">");
 });
 
-test("client auto-joins a 1-bot match and mirrors window.__game", () => {
+test("plain boot lands on the menu; explicit match query auto-joins", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "..", "packages", "client", "src", "main.ts"),
     "utf8",
@@ -163,8 +163,16 @@ test("client auto-joins a 1-bot match and mirrors window.__game", () => {
   assert.match(source, /window\.__game\s*=/);
   assert.match(source, /state.*playing/);
   assert.match(source, /playerCount/);
-  assert.match(source, /bots:\s*1/);
-  assert.match(source, /persist:\s*false/);
+  // The gated auto-join path still exists with persist: false.
+  assert.match(source, /startMatch\(autoJoinSetup\(\), \{ persist: false \}\)/);
+  // The boot call is gated on an explicit bots/tier/map query presence
+  // check — a plain `/` load never starts a match.
+  assert.match(source, /function hasExplicitSetupQuery/);
+  assert.match(source, /URLSearchParams/);
+  assert.match(source, /query\.get\("bots"\)\s*!==\s*null/);
+  assert.match(source, /query\.get\("tier"\)\s*!==\s*null/);
+  assert.match(source, /query\.get\("map"\)\s*!==\s*null/);
+  assert.match(source, /if\s*\(\s*hasExplicitSetupQuery\(\)\s*\)/);
 });
 
 test("presentation verifier pins the exact health probe", () => {

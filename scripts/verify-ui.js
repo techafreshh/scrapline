@@ -235,9 +235,17 @@ async function waitForVisible(page, selector) {
   );
 }
 
-/** Fixed-seed URL for every verify navigation (issue #412). */
+/**
+ * Fixed-seed explicit-match URL for every match-state navigation
+ * (issue #412 + issue #414): the client only auto-joins when the URL
+ * explicitly asks for a match (`?bots=`/`?tier=`/`?map=`), and honors
+ * `?seed=` (matchSeedFromUrl) riding on the URL, so the auto-joined
+ * match plus every Quick-Play cycle replays the same scatter layout,
+ * bot plan, kill-feed and standings instead of rolling Math.random()
+ * per run and churning every sibling PNG.
+ */
 function seededUrl(base) {
-  return `${base}/?seed=${VERIFY_SEED}`;
+  return `${base}/?bots=1&tier=normal&map=kilima&seed=${VERIFY_SEED}`;
 }
 
 /** Sim-tick wait: the match state after exactly N ticks is identical run
@@ -699,6 +707,26 @@ async function run() {
         height: viewport.height,
         deviceScaleFactor: 1,
       });
+      // Menu leg (issue #414): a plain `/` load lands on the menu with
+      // no match started — the `menu-*.png` captures come from here, not
+      // from a forced end-screen return.
+      await page.goto(`${base}/`, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await waitForClientReady(page);
+      const menuState = await page.evaluate(() => ({
+        state: window.__game ? window.__game.state : null,
+        menu: document.getElementById("menu") ? getComputedStyle(document.getElementById("menu")).display : "missing",
+        hud: document.getElementById("hud") ? getComputedStyle(document.getElementById("hud")).display : "missing",
+      }));
+      assert(menuState.state !== "playing", `${viewport.label}: plain load must not auto-join (state is ${menuState.state})`);
+      assert(menuState.menu !== "none", `${viewport.label}: menu must be visible on a plain load`);
+      assert(menuState.hud === "none", `${viewport.label}: HUD must be hidden on a plain load`);
+      const menuTitle = await readTitle(page);
+      assertTitle(menuTitle, `${viewport.label} menu`);
+      const menuFile = path.join(CAPTURES_DIR, fileFor("menu", viewport.label));
+      const menuBytes = await shoot(page, menuFile);
+      assert(menuBytes > MIN_PNG_BYTES, `${menuFile} is ${menuBytes} bytes, expected >10KB`);
+      note(`${viewport.label} menu ok (${(menuBytes / 1024).toFixed(1)}KB)`);
+
       await page.goto(seededUrl(base), { waitUntil: "domcontentloaded", timeout: 30000 });
       await waitForClientReady(page);
       // Boot auto-joins a match: wait for drawn tiles, then for a fixed
@@ -840,16 +868,12 @@ async function run() {
       assert(endBytes > MIN_PNG_BYTES, `${endFile} is ${endBytes} bytes, expected >10KB`);
       note(`${viewport.label} end-screen ok (${(endBytes / 1024).toFixed(1)}KB)`);
 
-      // Menu leg: back through the end-screen Menu affordance (the F1
-      // bleed path), then prove the title box and capture the menu.
+      // Menu return leg: back through the end-screen Menu affordance
+      // (the F1 bleed path). The menu PNGs already come from the plain
+      // load above, so this leg only restores the menu for the overlay
+      // legs below.
       await page.click("#end-menu");
       await waitForVisible(page, "#menu");
-      const menuTitle = await readTitle(page);
-      assertTitle(menuTitle, `${viewport.label} menu`);
-      const menuFile = path.join(CAPTURES_DIR, fileFor("menu", viewport.label));
-      const menuBytes = await shoot(page, menuFile);
-      assert(menuBytes > MIN_PNG_BYTES, `${menuFile} is ${menuBytes} bytes, expected >10KB`);
-      note(`${viewport.label} menu ok (${(menuBytes / 1024).toFixed(1)}KB)`);
 
       // Overlay legs: each Panel surface opens from the menu and closes
       // back to it, one capture per surface.

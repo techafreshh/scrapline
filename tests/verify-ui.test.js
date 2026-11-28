@@ -168,14 +168,21 @@ test("static script emits every required verify.log token", () => {
   }
 });
 
-test("static script pins a fixed match seed for every navigation (issue #412)", () => {
+test("static script pins a fixed match seed for every match navigation (issue #412)", () => {
   const source = fs.readFileSync(SCRIPT, "utf8");
   assert.match(source, /VERIFY_SEED\s*=\s*\d+/);
   assert.ok(source.includes("?seed="), "expected a ?seed= navigation in verify-ui.js");
   assert.match(source, /seededUrl\(base\)/);
-  // Both viewport navigations must ride the seed — a bare `/` load
-  // rolls Math.random() per run and churns every sibling PNG.
-  assert.doesNotMatch(source, /page\.goto\(`\$\{base\}\/`/);
+  // Match-state navigations ride the explicit-query seeded URL: the
+  // client only auto-joins on ?bots=/?tier=/?map= (issue #414).
+  assert.match(source, /bots=1/);
+  assert.match(source, /tier=normal/);
+  assert.match(source, /map=kilima/);
+  assert.match(source, /seed=\$\{VERIFY_SEED\}/);
+  // Exactly one plain-load menu navigation is allowed (the menu
+  // capture leg); every other navigation rides seededUrl(base).
+  const bareGotos = source.split('page.goto(`${base}/`').length - 1;
+  assert.equal(bareGotos, 1, `expected exactly one plain-load menu goto, found ${bareGotos}`);
 });
 
 test("static script stabilizes animated DOM before every capture (issue #412)", () => {

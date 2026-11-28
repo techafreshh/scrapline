@@ -64,6 +64,15 @@ function declarationValue(body, property) {
   return match === null ? null : match[1].trim();
 }
 
+/** Leading px number of a declaration value (null when not a px size). */
+function pxNumber(value) {
+  if (value === null) {
+    return null;
+  }
+  const match = /^([\d.]+)px/.exec(value);
+  return match === null ? null : Number.parseFloat(match[1]);
+}
+
 before(async () => {
   port = await freePort();
   base = `http://127.0.0.1:${port}`;
@@ -135,6 +144,20 @@ test("static endscreen.css gives Play again the accent fill", () => {
     declarationValue(body, "background") || "",
     /var\(--accent/,
     "Play again background must reference the accent token",
+  );
+  const size = pxNumber(declarationValue(body, "font-size"));
+  assert.ok(size !== null, "Play again rule must set font-size");
+  assert.ok(size >= 24, `Play again label must be >= 24px, got: ${size}px`);
+  for (const selector of ["#restart,", "#restart:hover,", "#restart:active,", "#restart:focus-visible"]) {
+    const stateBody = ruleBody(source, selector);
+    const slice = declarationValue(stateBody, "border-image-slice");
+    assert.ok(slice !== null, `${selector} must set border-image-slice`);
+    assert.doesNotMatch(slice, /fill/, `${selector} must drop the fill so the face stays flat`);
+  }
+  assert.match(
+    declarationValue(body, "color") || "",
+    /var\(--color-bg/,
+    "Play again ink must reference the dark token for the 12:1 face contrast",
   );
   const hover = ruleBody(source, "#restart:hover,");
   assert.match(

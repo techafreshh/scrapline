@@ -2601,6 +2601,33 @@ void registerServiceWorker().catch(() => {
 });
 
 /**
+ * Explicit match-query gate (issue #414): a plain `/` load (including
+ * `?seed=`-only or hash-only loads) stays on the menu with no match
+ * started. Only a URL that explicitly asks for a match — a `bots`,
+ * `tier`, or `map` key present in the query string, even empty/invalid
+ * (value validation still falls back per field via `parseSetup`) —
+ * auto-joins. DOM-free and never throwing so boot never blocks on it.
+ */
+function hasExplicitSetupQuery(): boolean {
+  try {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    const search = window.location.search;
+    if (typeof search !== "string" || search.length < 2) {
+      return false;
+    }
+    const query = new URLSearchParams(search);
+    return (
+      query.get("bots") !== null ||
+      query.get("tier") !== null ||
+      query.get("map") !== null
+    );
+  } catch {
+    return false;
+  }
+}
+/**
  * Auto-join setup: the walking-skeleton 1-bot kilima default, overridden
  * by a valid `?map=` (`?bots=&tier=&map=`) query so harnesses can load an
  * arena directly via URL. Invalid values fall back per field.
@@ -2637,14 +2664,18 @@ function autoJoinSetup(): SetupConfig {
   }
 }
 
-// Walking skeleton: drop straight into a local 1-bot match on load so a
-// clean clone is playable (and probeable via `window.__game`) with no
-// clicks. The setup screen keeps its own persisted defaults; this
-// auto-join never writes them (`persist: false`).
-startMatch(autoJoinSetup(), { persist: false });
+// Boot gate (issue #414): a plain load stays on the menu (`window.__game`
+// keeps its `menu` seed above, `#menu` visible, `#hud` hidden). Only an
+// explicit match query (`?bots=`/`?tier=`/`?map=`) auto-joins, preserving
+// the harness/probe contract. The setup screen keeps its own persisted
+// defaults; this auto-join never writes them (`persist: false`).
+if (hasExplicitSetupQuery()) {
+  startMatch(autoJoinSetup(), { persist: false });
+}
 // Hash deep-link (issue #319): a `#setup`/`#settings`/`#howto`/
-// `#challenges`/`#locker` hash on load shows that Panel overlay on top
-// of the auto-joined match while keeping `?map=` query behavior.
+// `#challenges`/`#locker` hash on load shows that Panel overlay over the
+// menu (or over the auto-joined match for an explicit-query load) while
+// keeping `?map=` query behavior.
 try {
   applyHashRoute();
 } catch {
